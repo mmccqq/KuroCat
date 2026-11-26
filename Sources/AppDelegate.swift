@@ -74,6 +74,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         audio.start()
 
+        // Claude Code: bubbles when a session finishes or waits for an approval (local only)
+        catView.showsClaudeAlerts = true
+        let claude = ClaudeAlertCenter.shared
+        claude.isCatVisible = { [weak self] in self?.isPetVisible ?? false }
+        claude.onAlert = { [weak self] alert in
+            if alert.kind == .done { self?.overlayWindow.catView.physics.cheer() }
+        }
+        claude.start()
+
         // Cat Link: show a friend's cat, and ours on their screen
         catLink.menuProvider = { [weak self] in self?.buildMenu() ?? NSMenu() }
         catLink.onIndicatorChange = { [weak self] linked in self?.updateLinkIndicator(linked) }
@@ -180,6 +189,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             let dt = CGFloat(now - self.lastFrameTime)
             self.lastFrameTime = now
 
+            let claude = ClaudeAlertCenter.shared
+            claude.step(now: now)
+            self.overlayWindow.catView.physics.wantsAttention = claude.needsAttention
             if self.isPetVisible {
                 let view = self.overlayWindow.catView
                 view.physics.step(dt: dt, windowFrameInScreen: self.overlayWindow.frame)
@@ -320,6 +332,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         earbudItem.target = self
         earbudItem.state = settings.earbudAnimation ? .on : .off
         menu.addItem(earbudItem)
+
+        let mosquitoItem = NSMenuItem(title: "睡着时会有蚊子来捣乱 🦟", action: #selector(toggleMosquito), keyEquivalent: "")
+        mosquitoItem.target = self
+        mosquitoItem.state = settings.mosquitoVisits ? .on : .off
+        menu.addItem(mosquitoItem)
+        let mosquitoDemo = NSMenuItem(title: "🎬 演示：蚊子来了", action: #selector(runMosquitoDemo), keyEquivalent: "")
+        mosquitoDemo.target = self
+        menu.addItem(mosquitoDemo)
+
+        menu.addItem(ClaudeAlertCenter.shared.menuItem())
 
         menu.addItem(.separator())
         menu.addItem(catLink.menuItem())
@@ -528,6 +550,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePetInteraction() {
         CatSettings.shared.petInteraction.toggle()
+    }
+
+    @objc private func toggleMosquito() {
+        CatSettings.shared.mosquitoVisits.toggle()
+    }
+
+    @objc private func runMosquitoDemo() {
+        overlayWindow.catView.physics.summonMosquito()
     }
 
     @objc private func toggleEarbudAnimation() {

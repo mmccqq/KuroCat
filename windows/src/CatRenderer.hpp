@@ -94,6 +94,7 @@ public:
 
         // 10. Subtle Petting Sparkles & Sleep Z
         drawSparkles(g, physics, settings.eyeTheme);
+        if (physics.mosquito.active) drawMosquito(g, physics.mosquito, physics.time);   // bothering the sleeping cat
     }
 
 private:
@@ -1102,6 +1103,52 @@ private:
     }
 
     // MARK: - Petting Sparkles & Sleep Z
+
+    /// A small side-view mosquito (same as macOS): striped abdomen, long dangling legs, a proboscis and
+    /// fast blurred wings. A faint light rim keeps it visible over a black coat.
+    static void drawMosquito(Gdiplus::Graphics& g, const CatPhysics::Mosquito& m, float time) {
+        using namespace Gdiplus;
+        GraphicsState state = g.Save();
+        g.TranslateTransform(m.position.x, m.position.y);
+        if (m.facingLeft) g.ScaleTransform(-1.0f, 1.0f);
+        g.RotateTransform(m.tilt * 57.2957795f);
+        g.ScaleTransform(1.25f, 1.25f);
+        Color ink(242, 41, 41, 41);
+
+        Pen legPen(ink, 0.5f);
+        legPen.SetStartCap(LineCapRound);
+        legPen.SetEndCap(LineCapRound);
+        for (int i = 0; i < 3; ++i) {   // legs trail down and back, behind the body
+            float fx = 0.6f + i * 0.9f;
+            PointF leg[3] = { { fx, 0.9f }, { fx - 1.6f - i * 0.6f, 3.6f }, { fx - 3.6f - i * 1.3f, 6.4f + i * 0.3f } };
+            g.DrawLines(&legPen, leg, 3);
+        }
+
+        RectF parts[3] = { RectF(-6.2f, -1.2f, 6.4f, 2.4f), RectF(-0.2f, -1.5f, 3.0f, 2.8f), RectF(2.6f, -0.6f, 1.8f, 1.7f) };
+        Pen rim(Color(102, 255, 255, 255), 1.1f);
+        SolidBrush body(ink);
+        for (auto& r : parts) g.DrawEllipse(&rim, r);
+        for (auto& r : parts) g.FillEllipse(&body, r);
+        Pen stripe(Color(204, 140, 140, 140), 0.35f);
+        for (float x = -5.0f; x <= -1.2f; x += 1.25f) g.DrawLine(&stripe, x, -1.0f, x, 1.0f);
+        Pen nose(ink, 0.45f);
+        nose.SetEndCap(LineCapRound);
+        g.DrawLine(&nose, 4.2f, 0.5f, 7.4f, 1.9f);
+
+        float flap = std::sin(time * 90.0f);   // two quick alternating poses read as a buzzing blur
+        for (int i = 0; i < 2; ++i) {
+            GraphicsState ws = g.Save();
+            g.TranslateTransform(1.0f, -1.1f);
+            g.RotateTransform((-2.55f + (i == 0 ? flap : -flap) * 0.55f + i * 0.25f) * 57.2957795f);
+            RectF wing(0.0f, -1.1f, 6.6f, 2.2f);
+            SolidBrush fill(Color((BYTE)((0.42f - i * 0.12f) * 255.0f), 235, 235, 235));
+            g.FillEllipse(&fill, wing);
+            Pen edge(Color(140, 115, 115, 115), 0.3f);
+            g.DrawEllipse(&edge, wing);
+            g.Restore(ws);
+        }
+        g.Restore(state);
+    }
 
     static void drawSparkles(Gdiplus::Graphics& g, const CatPhysics& physics, EyeColorTheme eyeTheme) {
         using namespace Gdiplus;

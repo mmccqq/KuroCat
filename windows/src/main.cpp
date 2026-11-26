@@ -18,6 +18,7 @@
 #include "CatPhysics.hpp"
 #include "CatRenderer.hpp"
 #include "CatLink.hpp"
+#include "ClaudeAlerts.hpp"
 #include <UIAutomation.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -101,6 +102,13 @@ enum MenuCmd : UINT {
     CMD_TOGGLE_EARBUDS,
     CMD_SHOW_ALL,
     CMD_HIDE_ALL,
+    CMD_TOGGLE_MOSQUITO,
+    CMD_MOSQUITO_DEMO,
+    CMD_CLAUDE_TOGGLE,
+    CMD_CLAUDE_SOUND,
+    CMD_CLAUDE_TEST_DONE,
+    CMD_CLAUDE_TEST_NEEDS,
+    CMD_CLAUDE_COPY,
     CMD_QUIT
 };
 
@@ -162,6 +170,9 @@ struct AppState {
     double demoUntil = 0.0;
     double lastHeart = 0.0;
     int lastHeadphones = -1;                        // -1 = not known yet
+
+    // Claude Code alerts: bubbles when a session finishes or waits for an approval (local only)
+    claude::Center claude;
     struct FriendCat {
         HWND hwnd = nullptr;
         bool shown = false;
@@ -1404,6 +1415,13 @@ void handleLinkCommand(AppState& app, UINT cmd) {
     }
 }
 
+/// A Claude Code bubble appeared: cheer for "done", play the sound if our cat is on screen.
+void onClaudeAlert(AppState& app, const claude::Alert* alert) {
+    if (!alert) return;
+    if (alert->kind == claude::Kind::Done) app.physics.cheer();
+    if (app.claude.sound && app.isVisible) MessageBeep(alert->kind == claude::Kind::Done ? MB_OK : MB_ICONASTERISK);
+}
+
 void showContextMenu(AppState& app, POINT screenPt) {
     HMENU menu = CreatePopupMenu();
 
@@ -1447,6 +1465,17 @@ void showContextMenu(AppState& app, POINT screenPt) {
     AppendMenuW(menu, MF_STRING | (app.settings.footEasterEgg ? MF_CHECKED : 0), CMD_TOGGLE_FOOT, L"3\u952E\u540C\u65F6\u6309\u300C\u7528\u811A\u6309\u300D\u5F69\u86CB");
     AppendMenuW(menu, MF_STRING | (app.settings.petInteraction ? MF_CHECKED : 0), CMD_TOGGLE_PET, L"\u6478\u5934/\u6478\u80CC\u95ED\u773C\u4E92\u52A8");
     AppendMenuW(menu, MF_STRING | (app.settings.earbudAnimation ? MF_CHECKED : 0), CMD_TOGGLE_EARBUDS, L"连接耳机时戴上 AirPods \U0001F3A7");
+    AppendMenuW(menu, MF_STRING | (app.settings.mosquitoVisits ? MF_CHECKED : 0), CMD_TOGGLE_MOSQUITO, L"睡着时会有蚊子来捣乱 \U0001F99F");
+    AppendMenuW(menu, MF_STRING, CMD_MOSQUITO_DEMO, L"\U0001F3AC 演示：蚊子来了");
+    HMENU claudeMenu = CreatePopupMenu();
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? MF_CHECKED : 0), CMD_CLAUDE_TOGGLE, L"完成或等你确认时提醒");
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.sound ? MF_CHECKED : 0), CMD_CLAUDE_SOUND, L"提示音");
+    AppendMenuW(claudeMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_DONE, L"试一下「完成了」");
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_NEEDS, L"试一下「等你确认」");
+    AppendMenuW(claudeMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(claudeMenu, MF_STRING, CMD_CLAUDE_COPY, L"复制 Claude Code 钩子设置");
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)claudeMenu, L"Claude Code 提醒 \U0001F916");
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     // Cat Coat Skin submenu
@@ -1628,6 +1657,39 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.earbudAnimation = !app.settings.earbudAnimation;
             app.settings.saveToRegistry();
             break;
+        case CMD_TOGGLE_MOSQUITO:
+            app.settings.mosquitoVisits = !app.settings.mosquitoVisits;
+            app.settings.saveToRegistry();
+            break;
+        case CMD_MOSQUITO_DEMO:
+            app.physics.summonMosquito();
+            break;
+        case CMD_CLAUDE_TOGGLE:
+            app.claude.enabled = !app.claude.enabled;
+            if (!app.claude.enabled) app.claude.alerts.clear();
+            regWrite(L"ClaudeAlerts", nullptr, app.claude.enabled ? 1 : 0);
+            break;
+        case CMD_CLAUDE_SOUND:
+            app.claude.sound = !app.claude.sound;
+            regWrite(L"ClaudeAlertSound", nullptr, app.claude.sound ? 1 : 0);
+            break;
+        case CMD_CLAUDE_TEST_DONE:
+            onClaudeAlert(app, app.claude.receive(claude::Kind::Done, L"KuroCat", L"menu-test-done", nullptr, nowSeconds()));
+            break;
+        case CMD_CLAUDE_TEST_NEEDS:
+            onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"KuroCat", L"menu-test-needs", nullptr, nowSeconds()));
+            break;
+        case CMD_CLAUDE_COPY: {
+            wchar_t exe[MAX_PATH * 2] = {};
+            GetModuleFileNameW(nullptr, exe, MAX_PATH * 2 - 1);
+            writeClipboardText(app.menuOwnerHwnd, claude::settingsSnippet(exe));
+            MessageBoxW(app.menuOwnerHwnd,
+                L"把它合并到 %USERPROFILE%\\.claude\\settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。\n\n"
+                L"之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。\n\n"
+                L"如果以后移动了 KuroCat.exe，需要重新复制一次。",
+                L"已复制 Claude Code 钩子设置", MB_OK | MB_ICONINFORMATION);
+            break;
+        }
         case CMD_QUIT:
             quitApp(app);
             break;
@@ -1779,6 +1841,8 @@ void tickAndRender(AppState& app) {
     int w = std::max(1, (int)(wr.right - wr.left));
     int h = std::max(1, (int)(wr.bottom - wr.top));
 
+    app.claude.step(now);
+    app.physics.wantsAttention = app.claude.needsAttention();
     app.physics.step(dt, wr, app.input, app.settings);
     if (!physicsLooksSane(app.physics)) {
         // A single non-finite value would otherwise make every later frame draw nothing (the cat
@@ -1812,7 +1876,8 @@ void tickAndRender(AppState& app) {
             }
             // Holding Alt temporarily unlocks click-through so user can ALWAYS right-click or drag the cat!
             bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-            bool clickThrough = (app.settings.fullClickThrough && !altHeld) || (zone == CatHitZone::None);
+            bool overAlert = app.claude.hit(cp, now) != 0;
+            bool clickThrough = ((app.settings.fullClickThrough && !altHeld) || (zone == CatHitZone::None)) && !overAlert;
             setClickThrough(app.hwnd, clickThrough);
         } else {
             app.hasLastHover = false;
@@ -1831,6 +1896,7 @@ void tickAndRender(AppState& app) {
     g.Clear(Gdiplus::Color(0, 0, 0, 0));
     g.ScaleTransform((float)w / CatPhysics::CanvasWidth, (float)h / CatPhysics::CanvasHeight);
     CatRenderer::draw(g, app.physics, app.settings);
+    app.claude.draw(g, now);
 
     POINT ptDst = { wr.left, wr.top };
     SIZE szWnd = { w, h };
@@ -1975,6 +2041,15 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (app) quitApp(*app);
             return 0;
 
+        case WM_COPYDATA: {   // from `KuroCat.exe --claude-hook` (a Claude Code hook)
+            const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
+            if (!app || !cds || cds->dwData != claude::COPYDATA_ID || !cds->lpData || cds->cbData < sizeof(wchar_t) || cds->cbData > 8192) return FALSE;
+            std::wstring payload((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t));
+            while (!payload.empty() && payload.back() == L'\0') payload.pop_back();
+            onClaudeAlert(*app, app->claude.receivePayload(payload, nowSeconds()));
+            return TRUE;
+        }
+
         case WM_SETCURSOR:
             if (LOWORD(lParam) == HTCLIENT) {
                 SetCursor(LoadCursorW(nullptr, IDC_HAND));
@@ -1983,6 +2058,19 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             break;
 
         case WM_LBUTTONDOWN: {
+            if (app && hwnd == app->hwnd) {
+                // A Claude Code bubble: close it and bring back the session's window.
+                RECT wr = {};
+                GetWindowRect(hwnd, &wr);
+                POINT cur = {};
+                GetCursorPos(&cur);
+                float w = (float)std::max(1L, wr.right - wr.left), h = (float)std::max(1L, wr.bottom - wr.top);
+                Pt cp = { (cur.x - wr.left) / w * CatPhysics::CanvasWidth, (cur.y - wr.top) / h * CatPhysics::CanvasHeight };
+                if (int id = app->claude.hit(cp, nowSeconds())) {
+                    app->claude.activate(id);
+                    return 0;
+                }
+            }
             bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
             if (app && (!app->settings.fullClickThrough || altHeld)) {
                 app->isDragging = true;
@@ -2209,13 +2297,15 @@ int renderPreviewSheet(const std::wstring& outPath) {
     const int fw = (int)(CatPhysics::CanvasWidth * zoom), fh = (int)(CatPhysics::CanvasHeight * zoom);
     RECT rect = { 600, 300, 600 + fw, 300 + fh };
 
-    auto snap = [&](const CatPhysics& p, const CatSettings& st, const std::wstring& label, const std::wstring& tag = L"") {
+    auto snap = [&](const CatPhysics& p, const CatSettings& st, const std::wstring& label, const std::wstring& tag = L"",
+                    const claude::Center* bubbles = nullptr) {
         auto bmp = std::make_unique<Gdiplus::Bitmap>(fw, fh, PixelFormat32bppARGB);
         Gdiplus::Graphics g(bmp.get());
         g.Clear(Gdiplus::Color(255, 219, 222, 217));
         g.ScaleTransform(zoom, zoom);
         CatRenderer::draw(g, p, st);
         if (!tag.empty()) drawFriendLabel(g, tag, false);
+        if (bubbles) bubbles->draw(g, nowSeconds());
         frames.push_back({ label, std::move(bmp) });
     };
     auto run = [&](CatPhysics& p, InputEngine& eng, const CatSettings& st, double seconds, std::function<void()> each) {
@@ -2275,6 +2365,38 @@ int renderPreviewSheet(const std::wstring& outPath) {
         p.headphonesPlaying = true;
         run(p, eng, fs, 3.0, nullptr);
         snap(p, fs, L"friend's cat", L"小明 的猫 · 在线");
+    }
+
+    {   // Claude Code: a "done" cheer, then waving while a session waits for an approval
+        claude::Center c;
+        CatPhysics p; InputEngine eng = feed();
+        eng.lastMouseMoveTime = nowSeconds() - 10;
+        auto sync = [&] { p.wantsAttention = c.needsAttention(); };
+        run(p, eng, st, 0.5, sync);
+        c.receive(claude::Kind::Done, L"x_project", L"a", nullptr, nowSeconds());
+        p.cheer();
+        run(p, eng, st, 0.1, sync);
+        snap(p, st, L"Claude done +0.1s", L"", &c);
+        run(p, eng, st, 0.4, sync);
+        snap(p, st, L"Claude done +0.5s", L"", &c);
+        c.receive(claude::Kind::NeedsYou, L"KuroCat-vibecoding-long-name", L"b", nullptr, nowSeconds());
+        run(p, eng, st, 0.5, sync);
+        snap(p, st, L"Claude needs you +0.5s", L"", &c);
+        run(p, eng, st, 0.35, sync);
+        snap(p, st, L"Claude needs you +0.85s", L"", &c);
+    }
+
+    {   // Mosquito: dozing cat, mosquito circles, two swats, it leaves
+        CatPhysics p; InputEngine eng = feed();
+        eng.lastMouseMoveTime = nowSeconds() - 10;
+        p.summonMosquito();
+        double start = nowSeconds() + 1.6;   // when it appears
+        for (double age : { 2.0, 2.92, 3.92 }) {
+            run(p, eng, st, start + age - nowSeconds(), nullptr);
+            snap(p, st, L"mosquito age " + std::to_wstring(age).substr(0, 4));
+        }
+        run(p, eng, st, start + 6.6 + 2.6 - nowSeconds(), nullptr);   // still inside the demo nap
+        snap(p, st, L"mosquito gone, asleep again");
     }
 
     const int cols = 4, labelH = 28;
@@ -2463,10 +2585,137 @@ int runLinkSelfTest(const std::wstring& joinCode) {
 
 } // namespace
 
+// MARK: - Claude Code hook self-test (CI)
+
+LRESULT CALLBACK claudeTestWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
+    if (msg == WM_COPYDATA) {
+        const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
+        if (cds && cds->dwData == claude::COPYDATA_ID && cds->lpData) {
+            auto* out = reinterpret_cast<std::wstring*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+            if (out) out->assign((const wchar_t*)cds->lpData);
+        }
+        return TRUE;
+    }
+    return DefWindowProcW(hwnd, msg, wParam, lParam);
+}
+
+/// Runs `KuroCat.exe --claude-hook` with `json` on stdin, like Claude Code does. Returns its exit code.
+DWORD runHookProcess(const std::string& json, double& seconds) {
+    SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
+    HANDLE readEnd = nullptr, writeEnd = nullptr;
+    if (!CreatePipe(&readEnd, &writeEnd, &sa, 0)) return 999;
+    SetHandleInformation(writeEnd, HANDLE_FLAG_INHERIT, 0);
+    wchar_t exe[MAX_PATH * 2] = {};
+    GetModuleFileNameW(nullptr, exe, MAX_PATH * 2 - 1);
+    std::wstring cmd = L"\"" + std::wstring(exe) + L"\" --claude-hook";
+    STARTUPINFOW si = { sizeof(si) };
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdInput = readEnd;
+    si.hStdOutput = GetStdHandle(STD_OUTPUT_HANDLE);
+    si.hStdError = GetStdHandle(STD_ERROR_HANDLE);
+    PROCESS_INFORMATION pi = {};
+    double start = nowSeconds();
+    if (!CreateProcessW(nullptr, cmd.data(), nullptr, nullptr, TRUE, 0, nullptr, nullptr, &si, &pi)) {
+        CloseHandle(readEnd); CloseHandle(writeEnd); return 998;
+    }
+    CloseHandle(readEnd);
+    DWORD wrote = 0;
+    WriteFile(writeEnd, json.data(), (DWORD)json.size(), &wrote, nullptr);
+    CloseHandle(writeEnd);
+    DWORD code = 997;
+    // Pump messages while waiting: the hook process SendMessage()s our window.
+    while (MsgWaitForMultipleObjects(1, &pi.hProcess, FALSE, 10000, QS_ALLINPUT) == WAIT_OBJECT_0 + 1) {
+        MSG m;
+        while (PeekMessageW(&m, nullptr, 0, 0, PM_REMOVE)) DispatchMessageW(&m);
+    }
+    GetExitCodeProcess(pi.hProcess, &code);
+    seconds = nowSeconds() - start;
+    CloseHandle(pi.hProcess); CloseHandle(pi.hThread);
+    return code;
+}
+
+/// `KuroCat.exe --claude-selftest`: hook parsing, bubble rules, and the real hook process talking to a
+/// stand-in KuroCat window over WM_COPYDATA. Writes kurocat-claude-selftest.txt; exit code 0 = pass.
+int runClaudeSelfTest() {
+    std::string report;
+    int failures = 0;
+    auto check = [&](bool ok, const std::string& what) {
+        report += (ok ? "PASS  " : "FAIL  ") + what + "\r\n";
+        if (!ok) ++failures;
+    };
+    using claude::Kind;
+    {
+        auto e = claude::parseHook(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\\u5f20\u4e09\\projects\\x_project\\","session_id":"s1"})");
+        check(e && e->kind == Kind::Done && e->project == L"x_project" && e->session == L"s1", "Stop -> done, project from a Windows path");
+        auto n = claude::parseHook(R"({"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash","cwd":"/home/a/KuroCat","session_id":"s2"})");
+        check(n && n->kind == Kind::NeedsYou && n->project == L"KuroCat", "Notification permission_prompt -> needs you");
+        check(!claude::parseHook(R"({"hook_event_name":"Notification","notification_type":"idle_prompt","message":"x","cwd":"C:\\a"})"), "idle_prompt ignored");
+        check(!claude::parseHook(R"({"hook_event_name":"Notification","message":"Claude is waiting for your input","cwd":"C:\\a"})"), "'waiting for your input' ignored");
+        auto r = claude::parseHook(R"({"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"D:\\","session_id":"s3"})");
+        check(r && r->kind == Kind::NeedsYou && r->project == L"Claude Code", "PermissionRequest at a drive root -> needs you, 'Claude Code'");
+        auto u = claude::parseHook("{\"hook_event_name\":\"Stop\",\"cwd\":\"C:\\\\\xe9\xa1\xb9\xe7\x9b\xae\"}");
+        check(u && u->project == L"\u9879\u76ee", "UTF-8 folder name");
+        check(!claude::parseHook("not json") && !claude::parseHook(R"({"hook_event_name":"SessionStart"})"), "garbage and other events ignored");
+    }
+    {
+        claude::Center c;
+        double t = 1000.0;
+        check(c.receive(Kind::NeedsYou, L"p", L"s", nullptr, t) != nullptr, "first needs-you bubble shown");
+        check(c.receive(Kind::NeedsYou, L"p", L"s", nullptr, t + 1) == nullptr, "duplicate needs-you within 3 s dropped");
+        c.receive(Kind::Done, L"p", L"s", nullptr, t + 5);
+        check(c.alerts.size() == 1 && c.alerts[0].kind == Kind::Done && !c.needsAttention(), "done replaces the session's needs-you bubble");
+        for (int i = 0; i < 5; ++i) c.receive(Kind::Done, L"p", L"x" + std::to_wstring(i), nullptr, t + 6 + i);
+        check(c.alerts.size() == 3, "at most 3 bubbles");
+        c.step(t + 6 + 4 + 46);
+        check(c.alerts.empty(), "done bubbles expire after 45 s");
+        auto a = c.receivePayload(L"needs\nKuroCat\nsess\n0", t);
+        check(a && a->kind == Kind::NeedsYou && a->project == L"KuroCat" && c.hit({ CatPhysics::SeatAnchor.x, 14.0f }, t + 1) == a->id, "payload parsed, bubble clickable");
+        check(c.receivePayload(L"bogus\nx\ny", t) == nullptr, "bad payload ignored");
+        c.enabled = false;
+        check(c.receive(Kind::Done, L"p", L"z", nullptr, t) == nullptr, "nothing while disabled");
+    }
+    {   // End to end: the real hook process finds a stand-in KuroCat window and delivers the event.
+        WNDCLASSEXW wc = { sizeof(wc) };
+        wc.lpfnWndProc = claudeTestWndProc;
+        wc.hInstance = GetModuleHandleW(nullptr);
+        wc.lpszClassName = TRAY_OWNER_CLASS;
+        RegisterClassExW(&wc);
+        std::wstring got;
+        double secs = 0;
+        DWORD code = runHookProcess(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\a\\x_project","session_id":"e2e"})", secs);
+        check(code == 0, "hook exits 0 with no KuroCat running");   // window not created yet
+        HWND w = CreateWindowExW(0, TRAY_OWNER_CLASS, L"KuroCatTray", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
+        SetWindowLongPtrW(w, GWLP_USERDATA, (LONG_PTR)&got);
+        code = runHookProcess(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\a\\x_project","session_id":"e2e"})", secs);
+        check(code == 0 && got.rfind(L"done\nx_project\ne2e\n", 0) == 0, "hook process -> WM_COPYDATA delivered");
+        report += "      hook process took " + std::to_string((int)(secs * 1000)) + " ms\r\n";
+        got.clear();
+        code = runHookProcess("garbage", secs);
+        check(code == 0 && got.empty(), "garbage input: exit 0, nothing sent");
+        DestroyWindow(w);
+    }
+    std::wstring snippet = claude::settingsSnippet(L"C:\\Users\\a\\KuroCat.exe");
+    check(snippet.find(L"\"command\": \"C:/Users/a/KuroCat.exe\", \"args\": [\"--claude-hook\"]") != std::wstring::npos, "settings snippet uses exec form");
+    check(catlink::JsonReader::parse(catlink::narrow(snippet)).has_value(), "settings snippet is valid JSON");
+    report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
+    HANDLE f = CreateFileW(L"kurocat-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
+    return failures == 0 ? 0 : 1;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     // Enable crisp Per-Monitor V2 DPI awareness on Windows 10/11
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 
+    if (commandLineHasFlag(L"--claude-hook")) {
+        int argc = 0;
+        LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+        std::wstring manual;
+        for (int i = 1; argv && i + 1 < argc; ++i) if (wcscmp(argv[i], L"--claude-hook") == 0) manual = argv[i + 1];
+        if (argv) LocalFree(argv);
+        return claude::runHook(TRAY_OWNER_CLASS, manual);
+    }
+    if (commandLineHasFlag(L"--claude-selftest")) return runClaudeSelfTest();
     if (commandLineHasFlag(L"--link-selftest")) {
         int argc = 0;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -2526,6 +2775,8 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.linkServer = regReadString(L"LinkServer") == L"G" ? 'G' : 'C';
     app.showFriendCat = regReadDword(L"LinkShowFriend", 1) != 0;
     app.nickname = regReadString(L"LinkNickname");
+    app.claude.enabled = regReadDword(L"ClaudeAlerts", 1) != 0;
+    app.claude.sound = regReadDword(L"ClaudeAlertSound", 1) != 0;
     app.link.profile = [&app] { return linkProfile(app); };
 
     // "Always run as administrator": hand over to an elevated copy (one UAC prompt). If the user
@@ -2596,7 +2847,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         SetPropW(app.menuOwnerHwnd, VERSION_PROP, (HANDLE)(INT_PTR)myVersion);
         // When elevated, UIPI would drop messages from the (non-elevated) taskbar and from a
         // re-launched KuroCat. Explicitly allow the few messages we rely on.
-        const UINT allowed[] = { WM_TRAYICON, WM_WAKE_EXISTING, WM_REQUEST_QUIT };
+        const UINT allowed[] = { WM_TRAYICON, WM_WAKE_EXISTING, WM_REQUEST_QUIT, WM_COPYDATA };
         for (UINT m : allowed) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, m, MSGFLT_ALLOW, nullptr);
         if (g_msgTaskbarCreated) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, g_msgTaskbarCreated, MSGFLT_ALLOW, nullptr);
     }

@@ -30,6 +30,10 @@
 - **🔗 猫咪连线（和异地的朋友互相看到对方的猫）**：一人在菜单「🔗 猫咪连线」里创建配对码，发给朋友；朋友输入（Windows 上是复制后点「粘贴朋友的配对码并连线」）。之后对方的猫会出现在你的猫旁边，带着对方的皮肤、昵称和在线状态，跟着对方一起打字、动鼠标、滚动、戴耳机；隔空摸对方的猫，对方屏幕上的猫也会闭眼，并飘出 ♥。Mac 和 Windows 可以互相连线。
   - **隐私**：只发送“左手/右手在打字”，从不发送按了哪个键（对方的猫随机按同侧的键，按键气泡上显示的也是这些随机键）；输入密码时自动暂停发送键盘动作；所有内容都用配对码加密后，经免费公共服务器 EMQX（上海或美国）中转，服务器也看不到内容。需要你主动开启，断开连线后就不再发送任何内容。
   - 菜单里的「🎬 演示：模拟一位朋友」可以在本机预览效果（不会发送任何内容）。协议细节见 [docs/cat-link-protocol.md](docs/cat-link-protocol.md)。
+- **🦟 睡觉时的蚊子**：小猫睡着约 3 分钟后，会有一只蚊子从左边嗡嗡飞来，绕着它的头转圈。小猫被吵醒，半睁着眼盯着蚊子，左右各挥一爪去拍，蚊子都躲开了，然后从右边飞走，小猫又慢慢睡着。之后只要一直睡着，每隔 5～9 分钟会再来一只；你一动键盘或鼠标，蚊子就会马上飞走。菜单「🎬 演示：蚊子来了」可以立刻看效果，「睡着时会有蚊子来捣乱 🦟」可以关闭。
+- **🤖 Claude Code 提醒**：用 [Claude Code](https://claude.com/claude-code) 写代码时，一个会话完成，小猫头上会弹出「✓ 项目名 完成了」，开心地蹦两下、眯眼笑；Claude 等你批准操作时，会弹出橙色的「项目名 等你确认」，小猫看着你、举起爪子招手，直到你处理。点气泡会关掉它，并切回这个会话所在的窗口（VS Code、终端等）。可以同时显示几个会话，各显示各的项目名。
+  - **设置**：菜单「Claude Code 提醒 🤖」→「复制 Claude Code 钩子设置」，把复制的内容合并到 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），然后重新打开 Claude Code。它用的是 Claude Code 的 hooks（`Stop`、`Notification`、`PermissionRequest`），每次运行 `KuroCat --claude-hook`；菜单里也可以试一下效果、关掉提示音或整个功能。
+  - **只在本机**：只传项目文件夹名、事件类型，以及要切回的窗口；不读取对话内容，也不会通过猫咪连线发给朋友。
 - **关闭了更新检查**：不再连接上游的更新服务器，所以不会提示“更新”成官方版本而把本分支覆盖掉。想更新请拉取本仓库后重新构建。
 
 触发时间可在 `Sources/CatPhysics.swift`（Windows：`windows/src/CatPhysics.hpp`）中调整（`petEngageDuration`、`petStrokeGap`、`huntArmDuration`、`huntGap`、`scrollHoldDuration`、`earbudPutOnDuration`、`earbudTakeOffDuration`）。

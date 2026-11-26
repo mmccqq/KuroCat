@@ -146,6 +146,11 @@ enum CatRenderer {
         // 9. Subtle Petting Sparkles / Sleep Z
         drawSparkles(in: ctx, physics: physics, eyeTheme: eyeTheme)
 
+        // 9b. A mosquito bothering the sleeping cat
+        if let m = physics.mosquito {
+            drawMosquito(in: ctx, mosquito: m, time: physics.time)
+        }
+
         // 10. Optional non-intrusive Permission Pill if global monitoring not yet granted
         if showPermissionPill {
             drawPermissionPill(in: ctx)
@@ -1392,6 +1397,68 @@ enum CatRenderer {
     }
 
     // MARK: - Subtle Petting Sparkles & Sleep Z
+
+    /// A small side-view mosquito: striped abdomen, long dangling legs, a proboscis, and fast
+    /// blurred wings. A faint light rim keeps it visible over a black coat.
+    static func drawMosquito(in ctx: CGContext, mosquito m: CatPhysics.Mosquito, time: CGFloat) {
+        ctx.saveGState()
+        ctx.translateBy(x: m.position.x, y: m.position.y)
+        if m.facingLeft { ctx.scaleBy(x: -1, y: 1) }
+        ctx.rotate(by: m.tilt)
+        ctx.scaleBy(x: 1.25, y: 1.25)
+        let ink = CGColor(gray: 0.16, alpha: 0.95)
+        let rim = CGColor(gray: 1, alpha: 0.4)
+        ctx.setLineCap(.round)
+
+        // Legs: three pairs trailing down and back (drawn first, behind the body)
+        ctx.setStrokeColor(ink)
+        ctx.setLineWidth(0.5)
+        for i in 0..<3 {
+            let fx = 0.6 + CGFloat(i) * 0.9
+            ctx.move(to: CGPoint(x: fx, y: 0.9))
+            ctx.addLine(to: CGPoint(x: fx - 1.6 - CGFloat(i) * 0.6, y: 3.6))
+            ctx.addLine(to: CGPoint(x: fx - 3.6 - CGFloat(i) * 1.3, y: 6.4 + CGFloat(i) * 0.3))
+        }
+        ctx.strokePath()
+
+        // Body: abdomen, thorax, head, proboscis
+        let abdomen = CGRect(x: -6.2, y: -1.2, width: 6.4, height: 2.4)
+        let thorax = CGRect(x: -0.2, y: -1.5, width: 3.0, height: 2.8)
+        let head = CGRect(x: 2.6, y: -0.6, width: 1.8, height: 1.7)
+        ctx.setStrokeColor(rim)
+        ctx.setLineWidth(1.1)
+        for r in [abdomen, thorax, head] { ctx.strokeEllipse(in: r) }
+        ctx.setFillColor(ink)
+        for r in [abdomen, thorax, head] { ctx.fillEllipse(in: r) }
+        ctx.setStrokeColor(CGColor(gray: 0.55, alpha: 0.8))
+        ctx.setLineWidth(0.35)
+        for x in stride(from: -5.0, through: -1.2, by: 1.25) {   // abdomen stripes
+            ctx.move(to: CGPoint(x: x, y: -1.0))
+            ctx.addLine(to: CGPoint(x: x, y: 1.0))
+        }
+        ctx.strokePath()
+        ctx.setStrokeColor(ink)
+        ctx.setLineWidth(0.45)
+        ctx.move(to: CGPoint(x: 4.2, y: 0.5))
+        ctx.addLine(to: CGPoint(x: 7.4, y: 1.9))
+        ctx.strokePath()
+
+        // Wings: two quick alternating poses read as a buzzing blur
+        let flap = sin(time * 90)
+        for (i, phase) in [flap, -flap].enumerated() {
+            ctx.saveGState()
+            ctx.translateBy(x: 1.0, y: -1.1)
+            ctx.rotate(by: -2.55 + phase * 0.55 + CGFloat(i) * 0.25)
+            let wing = CGRect(x: 0, y: -1.1, width: 6.6, height: 2.2)
+            ctx.setFillColor(CGColor(gray: 0.92, alpha: 0.42 - CGFloat(i) * 0.12))
+            ctx.fillEllipse(in: wing)
+            ctx.setStrokeColor(CGColor(gray: 0.45, alpha: 0.55))
+            ctx.setLineWidth(0.3)
+            ctx.strokeEllipse(in: wing)
+            ctx.restoreGState()
+        }
+        ctx.restoreGState()
+    }
 
     private static func drawSparkles(in ctx: CGContext, physics: CatPhysics, eyeTheme: EyeColorTheme) {
         for sp in physics.sparkles {
