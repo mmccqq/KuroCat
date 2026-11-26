@@ -6,7 +6,7 @@ What changed in each version of this fork (based on upstream [chanke17/KuroCat](
 
 ## v1.3.3-mmccqq.5 — 2026-11-26
 
-macOS and Windows. From this version on, both platforms have the same features.
+macOS and Windows. From this version on, both platforms have the same version number and features. It's also the first fork version for Windows: the changes in v1.3.3-mmccqq.1 to .4 below were Mac-only, and Windows gets all of them here (see "Windows catches up" at the end of this section).
 
 ### New
 
@@ -22,25 +22,25 @@ macOS and Windows. From this version on, both platforms have the same features.
 
 - **🌐 English and Chinese**: the whole app (menus, alerts, bubbles, the Cat Link name tag) is now in both languages. It follows the system language (Chinese on a Chinese system, English otherwise); **语言 / Language** in the menu switches any time. Nicknames and project names show as typed, and a Chinese cat and an English cat can still link.
 
-### Windows catches up
+### Windows catches up (v1.3.3-mmccqq.5)
 
-The features that were Mac-only before are now on Windows too: deliberate petting, the keyboard not counting as the cat's body, delayed hunting pupils, resting paws, the scroll-wheel paw, and AirPods for headphones (read from Windows' sound output device).
+The features that were Mac-only before (v1.3.3-mmccqq.1 to .4) are now on Windows too: deliberate petting, the keyboard not counting as the cat's body, delayed hunting pupils, resting paws, the scroll-wheel paw, and AirPods for headphones (read from Windows' sound output device).
 
 ## v1.3.3-mmccqq.4 — 2026-11-25
 
-macOS.
+macOS only (Windows got these in v1.3.3-mmccqq.5).
 
 - **More realistic AirPods**: they show the outer side you see when AirPods are in someone's ears, with the stem pointing down. When petting folds the ears back, the AirPods stay in the ears instead of floating off.
 
 ## v1.3.3-mmccqq.3 — 2026-11-25
 
-macOS.
+macOS only (Windows got these in v1.3.3-mmccqq.5).
 
 - **AirPods for headphones**: when the sound output switches to headphones (Bluetooth, USB, or the headphone jack), the cat lifts both paws and puts a pair of AirPods in its ears, and ♪ notes drift out while something is playing. When the output switches back to the computer's own speakers (or a monitor's speakers), it takes the AirPods out and tucks them away. Bluetooth speakers may count as headphones too, because the system reports them the same way. KuroCat reads only the output device's type, never any audio. It can be turned off in the menu.
 
 ## v1.3.3-mmccqq.2 — 2026-11-24
 
-macOS.
+macOS only (Windows got these in v1.3.3-mmccqq.5).
 
 - **Scroll-wheel paw**: while you scroll, the paw resting on the mini mouse moves onto its wheel and strokes it back and forth in rhythm. The wheel's ridges roll, and a wheel badge pops up like the click badges.
 - **No update check**: the app stopped checking upstream's update server, so it never offers to replace this fork with the official release. (v1.3.3-mmccqq.5 replaced this with updates from this fork only.)
@@ -48,7 +48,7 @@ macOS.
 
 ## v1.3.3-mmccqq.1 — 2026-11-23
 
-macOS. The first fork version, based on upstream v1.3.3.
+macOS only (Windows got these in v1.3.3-mmccqq.5). The first fork version, based on upstream v1.3.3.
 
 - **Petting must be deliberate**: the eyes-closed reaction starts only after about **1 second** of stroking the head or back, so a cursor passing over the cat no longer triggers it. Slow strokes count, and short pauses (up to 0.6 s, e.g. lifting a finger off the trackpad) don't reset the progress.
 - **The keyboard isn't part of the cat**: moving the cursor over the mini keyboard no longer counts as petting. You can still drag the cat by its keyboard.
