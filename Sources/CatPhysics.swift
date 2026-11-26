@@ -8,6 +8,15 @@ enum KeyboardTheme: String, CaseIterable {
     case classicMilk = "经典奶白暖黄 (原版)"
     case midnightHacker = "暗夜极客黑"
     case retroCream = "复古奶油灰"
+
+    /// Menu name in the UI language (rawValue is the saved setting and must not change).
+    var displayName: String {
+        switch self {
+        case .classicMilk: return tr(rawValue, "Classic cream & warm yellow (original)")
+        case .midnightHacker: return tr(rawValue, "Midnight hacker black")
+        case .retroCream: return tr(rawValue, "Retro cream grey")
+        }
+    }
 }
 
 enum CatCoatTheme: String, CaseIterable {
@@ -15,6 +24,15 @@ enum CatCoatTheme: String, CaseIterable {
     case siamese = "挖煤暹罗猫"
     case shorthair = "美短（银虎斑加白）"
     case orangeWhite = "橘白猫"
+
+    var displayName: String {
+        switch self {
+        case .classicBlack: return tr(rawValue, "Classic black cat (original)")
+        case .siamese: return tr(rawValue, "Seal-point Siamese")
+        case .shorthair: return tr(rawValue, "American Shorthair (silver tabby & white)")
+        case .orangeWhite: return tr(rawValue, "Orange & white")
+        }
+    }
 }
 
 enum EyeColorTheme: String, CaseIterable {
@@ -24,6 +42,17 @@ enum EyeColorTheme: String, CaseIterable {
     case iceCyan = "冰晶浅蓝"
     case softAmber = "柔和琥珀"
     case referenceHazel = "淡金青绿"
+
+    var displayName: String {
+        switch self {
+        case .neonChartreuse: return tr(rawValue, "Classic neon chartreuse (original)")
+        case .siameseBlue: return tr(rawValue, "Siamese sapphire blue (Siamese default)")
+        case .warmAmber: return tr(rawValue, "Amber gold")
+        case .iceCyan: return tr(rawValue, "Ice blue")
+        case .softAmber: return tr(rawValue, "Soft amber")
+        case .referenceHazel: return tr(rawValue, "Pale gold-green")
+        }
+    }
 
     static func saved(_ raw: String) -> Self {
         raw == "淡金青绿（参考图）" ? .referenceHazel : (Self(rawValue: raw) ?? .neonChartreuse)
@@ -609,7 +638,7 @@ final class CatPhysics {
             pupilScale.target = 1.12
             earTwitch.velocity -= 2.2
             if CatSettings.shared.showMouseBadges {
-                let label = button == 0 ? "左键" : (button == 1 ? "右键" : "中键")
+                let label = button == 0 ? tr("左键", "Left") : (button == 1 ? tr("右键", "Right") : tr("中键", "Middle"))
                 let pt = CGPoint(
                     x: CatPhysics.mouseBaseCenter.x + mouseOffset.point.x,
                     y: CatPhysics.mouseBaseCenter.y + mouseOffset.point.y - 6
@@ -627,11 +656,11 @@ final class CatPhysics {
         guard delta != 0 else { return }
         sleepiness = 0
         let now = timestamp ?? CACurrentMediaTime()
-        // A new scroll gesture pops a "滚轮" badge, like clicks pop "左键"/"右键".
+        // A new scroll gesture pops a tr("滚轮", "Wheel") badge, like clicks pop tr("左键", "Left")/tr("右键", "Right").
         if now - lastScrollTime > 0.6 && CatSettings.shared.showMouseBadges {
             let pt = CGPoint(x: CatPhysics.mouseBaseCenter.x + mouseOffset.point.x,
                              y: CatPhysics.mouseBaseCenter.y + mouseOffset.point.y - 6)
-            spawnFloatingKeycap(label: "滚轮", near: pt, now: now)
+            spawnFloatingKeycap(label: tr("滚轮", "Wheel"), near: pt, now: now)
         }
         lastScrollTime = now
         // Roll the wheel's stripes. Each step stays under half the stripe spacing (2.8),

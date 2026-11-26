@@ -1547,7 +1547,7 @@ enum CatRenderer {
         ctx.addPath(path)
         ctx.strokePath()
 
-        let text = "点击开启全局/游戏键盘监听 🔑"
+        let text = tr("点击开启全局/游戏键盘监听 🔑", "Allow keyboard access 🔑")
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 10.5, weight: .semibold),
             .foregroundColor: NSColor(calibratedRed: 0.95, green: 0.97, blue: 0.90, alpha: 1.0)

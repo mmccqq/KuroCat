@@ -1,5 +1,6 @@
 #pragma once
 #define NOMINMAX
+#include "Localization.hpp"
 #include <windows.h>
 #include <cmath>
 #include <vector>
@@ -308,7 +309,7 @@ public:
         double now = nowSeconds();
         if (now - lastScrollTime_ > 0.6 && settings.showMouseBadges) {
             Pt pt = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y - 6.0f };
-            spawnFloatingKeycap(L"\u6EDA\u8F6E", pt, now);   // 滚轮
+            spawnFloatingKeycap(tr(L"\u6EDA\u8F6E", L"Wheel"), pt, now);   // 滚轮
         }
         lastScrollTime_ = now;
         wheelPhase += std::clamp(delta * 0.25f, -1.1f, 1.1f);
@@ -458,7 +459,7 @@ public:
             pupilScale.target = 1.12f;
             earTwitch.velocity -= 2.2f;
             if (settings.showMouseBadges) {
-                std::wstring lbl = (button == 0) ? L"\u5DE6\u952E" : (button == 1 ? L"\u53F3\u952E" : L"\u4E2D\u952E");
+                std::wstring lbl = (button == 0) ? tr(L"\u5DE6\u952E", L"Left") : (button == 1 ? tr(L"\u53F3\u952E", L"Right") : tr(L"\u4E2D\u952E", L"Middle"));
                 Pt pt = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y - 6.0f };
                 spawnFloatingKeycap(lbl, pt, now);
             }

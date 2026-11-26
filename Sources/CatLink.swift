@@ -17,7 +17,7 @@ struct CatLinkCode: Equatable {
     enum Server: String, CaseIterable {
         case global = "G", china = "C"
         var host: String { self == .global ? "broker.emqx.io" : "broker-cn.emqx.io" }
-        var title: String { self == .global ? "EMQX 国际（美国）" : "EMQX 中国（上海）" }
+        var title: String { self == .global ? tr("EMQX 国际（美国）", "EMQX global (US)") : tr("EMQX 中国（上海）", "EMQX China (Shanghai)") }
         var url: URL { URL(string: "wss://\(host):8084/mqtt")! }
     }
 

@@ -107,6 +107,9 @@ enum MenuCmd : UINT {
     CMD_HIDE_ALL,
     CMD_TOGGLE_MOSQUITO,
     CMD_MOSQUITO_DEMO,
+    CMD_LANG_SYSTEM,
+    CMD_LANG_CHINESE,
+    CMD_LANG_ENGLISH,
     CMD_CLAUDE_TOGGLE,
     CMD_CLAUDE_SOUND,
     CMD_CLAUDE_TEST_DONE,
@@ -652,7 +655,7 @@ void registerTrayIcon(AppState& app) {
     app.nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     app.nid.uCallbackMessage = WM_TRAYICON;
     app.nid.hIcon = app.trayIcon;
-    wcscpy_s(app.nid.szTip, L"KuroCat \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)");
+    wcscpy_s(app.nid.szTip, tr(L"KuroCat \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)", L"KuroCat keyboard cat (click for the menu)"));
     Shell_NotifyIconW(NIM_ADD, &app.nid);
 }
 
@@ -798,8 +801,8 @@ void housekeeping(AppState& app) {
             if (fullscreenFg && !app.warnedElevatedForeground) {
                 app.warnedElevatedForeground = true;
                 showTrayBalloon(app,
-                    L"KuroCat 听不到这个游戏的键盘",
-                    L"该游戏以管理员权限运行，Windows 会拦截它的键盘输入。右键小猫/托盘图标 →「以管理员身份重新启动」即可恢复。");
+                    tr(L"KuroCat 听不到这个游戏的键盘", L"KuroCat can't hear this game's keyboard"),
+                    tr(L"该游戏以管理员权限运行，Windows 会拦截它的键盘输入。右键小猫/托盘图标 →「以管理员身份重新启动」即可恢复。", L"This game runs as administrator, so Windows hides its keyboard input. Right-click the cat or the tray icon \u2192 \u201CRestart as administrator\u201D to fix it."));
             }
         }
     }
@@ -967,8 +970,8 @@ bool promptText(HWND owner, const wchar_t* title, const wchar_t* prompt, std::ws
     t.push_back(9); str(L"Microsoft YaHei UI");
     item(SS_LEFT, 8, 8, 204, 20, 102, 0x0082, L"");
     item(WS_BORDER | WS_TABSTOP | ES_AUTOHSCROLL, 8, 32, 204, 14, 101, 0x0081, L"");
-    item(BS_DEFPUSHBUTTON | WS_TABSTOP, 100, 56, 54, 16, IDOK, 0x0080, L"\u4FDD\u5B58");       // 保存
-    item(BS_PUSHBUTTON | WS_TABSTOP, 158, 56, 54, 16, IDCANCEL, 0x0080, L"\u53D6\u6D88");      // 取消
+    item(BS_DEFPUSHBUTTON | WS_TABSTOP, 100, 56, 54, 16, IDOK, 0x0080, tr(L"\u4FDD\u5B58", L"Save"));       // 保存
+    item(BS_PUSHBUTTON | WS_TABSTOP, 158, 56, 54, 16, IDCANCEL, 0x0080, tr(L"\u53D6\u6D88", L"Cancel"));      // 取消
     PromptData data{ title, prompt, text };
     if (DialogBoxIndirectParamW(GetModuleHandleW(nullptr), reinterpret_cast<LPCDLGTEMPLATEW>(t.data()), owner,
                                 promptProc, reinterpret_cast<LPARAM>(&data)) != IDOK) return false;
@@ -976,9 +979,13 @@ bool promptText(HWND owner, const wchar_t* title, const wchar_t* prompt, std::ws
     return true;
 }
 
-const wchar_t* LINK_WHAT_IS_SHARED =
-    L"对方会看到：你在打字（只知道是左手还是右手在敲，不知道按了哪个键）、鼠标的移动、点击和滚动（包括光标在屏幕上的大致位置）、是否戴着耳机、你的猫咪皮肤和昵称。你们也能隔空摸对方的猫。\n"
-    L"输入密码时会自动暂停发送键盘动作。所有内容都用配对码加密，中转服务器也看不到内容。";
+/// What a Cat Link friend can see, in the UI language.
+const wchar_t* linkWhatIsShared() {
+    return tr(L"对方会看到：你在打字（只知道是左手还是右手在敲，不知道按了哪个键）、鼠标的移动、点击和滚动（包括光标在屏幕上的大致位置）、是否戴着耳机、你的猫咪皮肤和昵称。你们也能隔空摸对方的猫。\n"
+              L"输入密码时会自动暂停发送键盘动作。所有内容都用配对码加密，中转服务器也看不到内容。",
+              L"Your friend sees: that you're typing (only whether your left or right paw is typing, never which key), mouse movement, clicks and scrolling (including roughly where the cursor is on your screen), whether you're wearing headphones, and your cat's coat and nickname. You can also pet each other's cats from afar.\n"
+              L"Keyboard activity pauses while you type a password. Everything is encrypted with the pairing code, so the relay server can't read it.");
+}
 
 std::wstring regReadString(const wchar_t* name) {
     HKEY k = nullptr;
@@ -1057,14 +1064,14 @@ void applyFriendProfile(AppState& app) {
 
 void updateFriendLabel(AppState& app) {
     auto& f = app.friendCat;
-    if (nowSeconds() < app.demoUntil) { f.label = L"演示 · 模拟的朋友"; f.labelDim = false; return; }
+    if (nowSeconds() < app.demoUntil) { f.label = tr(L"演示 · 模拟的朋友", L"Demo \u00B7 pretend friend"); f.labelDim = false; return; }
     std::string name = app.link.friendName();
-    std::wstring who = name.empty() ? L"朋友的猫" : catlink::widen(name) + L" 的猫";
+    std::wstring who = name.empty() ? tr(L"朋友的猫", L"Friend's cat") : catlink::widen(name) + tr(L" 的猫", L"'s cat");
     switch (app.link.status()) {
-        case catlink::Status::Linked: f.label = who + L" · 在线"; f.labelDim = false; break;
-        case catlink::Status::FriendOffline: f.label = who + L" · 离线"; f.labelDim = true; break;
+        case catlink::Status::Linked: f.label = who + tr(L" · 在线", L" \u00B7 online"); f.labelDim = false; break;
+        case catlink::Status::FriendOffline: f.label = who + tr(L" · 离线", L" \u00B7 offline"); f.labelDim = true; break;
         case catlink::Status::Connecting:
-        case catlink::Status::Reconnecting: f.label = who + L" · 正在重新连接…"; f.labelDim = true; break;
+        case catlink::Status::Reconnecting: f.label = who + tr(L" · 正在重新连接…", L" \u00B7 reconnecting\u2026"); f.labelDim = true; break;
         default: f.label = who; f.labelDim = true; break;
     }
 }
@@ -1112,10 +1119,10 @@ void onLinkStatusChanged(AppState& app, catlink::Status before, catlink::Status 
     if (now == Status::Off) showFriendWindow(app, false);
     if (now == Status::Linked && before != Status::Linked) {
         std::string name = app.link.friendName();
-        std::wstring body = (name.empty() ? L"朋友" : catlink::widen(name)) + L" 的猫出现在你的桌面上了，它会跟着对方一起打字、动鼠标。";
-        showTrayBalloon(app, L"🔗 猫咪连线成功", body.c_str());
+        std::wstring body = (name.empty() ? std::wstring(tr(L"朋友", L"Your friend")) : catlink::widen(name)) + tr(L" 的猫出现在你的桌面上了，它会跟着对方一起打字、动鼠标。", L"'s cat is on your desktop now. It types and moves the mouse along with them.");
+        showTrayBalloon(app, tr(L"🔗 猫咪连线成功", L"\U0001F517 Cat Link connected"), body.c_str());
     }
-    setTrayTip(app, now == Status::Linked ? L"KuroCat 黑猫桌宠 · 猫咪连线中" : L"KuroCat 黑猫桌宠");
+    setTrayTip(app, now == Status::Linked ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on") : tr(L"KuroCat 黑猫桌宠", L"KuroCat"));
     updateFriendLabel(app);
 }
 
@@ -1269,39 +1276,39 @@ void appendLinkMenu(AppState& app, HMENU menu) {
     HMENU sub = CreatePopupMenu();
     Status st = app.link.status();
     std::string fname = app.link.friendName();
-    std::wstring friendW = fname.empty() ? L"朋友" : catlink::widen(fname);
+    std::wstring friendW = fname.empty() ? tr(L"朋友", L"your friend") : catlink::widen(fname);
     std::wstring status;
     switch (st) {
-        case Status::Off: status = L"未连线"; break;
-        case Status::Connecting: status = L"正在连接服务器…"; break;
-        case Status::WaitingForFriend: status = L"已连接，等待朋友输入配对码"; break;
-        case Status::Linked: status = L"已和 " + friendW + L" 连线 \u25CF"; break;
-        case Status::FriendOffline: status = friendW + L" 已离线，等待对方回来"; break;
-        case Status::Reconnecting: status = L"网络中断，正在重新连接…"; break;
+        case Status::Off: status = tr(L"未连线", L"not linked"); break;
+        case Status::Connecting: status = tr(L"正在连接服务器…", L"connecting to the server\u2026"); break;
+        case Status::WaitingForFriend: status = tr(L"已连接，等待朋友输入配对码", L"connected, waiting for your friend to enter the code"); break;
+        case Status::Linked: status = tr(L"已和 ", L"linked with ") + friendW + tr(L" 连线 \u25CF", L" \u25CF"); break;
+        case Status::FriendOffline: status = friendW + tr(L" 已离线，等待对方回来", L" is offline, waiting for them to come back"); break;
+        case Status::Reconnecting: status = tr(L"网络中断，正在重新连接…", L"network lost, reconnecting\u2026"); break;
     }
-    AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, (L"状态：" + status).c_str());
+    AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, (tr(L"状态：", L"Status: ") + status).c_str());
     std::wstring err = app.link.lastError();
-    if (st == Status::Reconnecting && !err.empty()) AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, (L"原因：" + err).c_str());
+    if (st == Status::Reconnecting && !err.empty()) AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, (tr(L"原因：", L"Reason: ") + err).c_str());
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
     if (st == Status::Off) {
-        AppendMenuW(sub, MF_STRING, CMD_LINK_CREATE, L"创建配对码（自动复制，发给朋友）");
-        AppendMenuW(sub, MF_STRING, CMD_LINK_JOIN, L"粘贴朋友的配对码并连线（请先复制配对码）");
-        if (!app.savedLinkCode.empty()) AppendMenuW(sub, MF_STRING, CMD_LINK_RECONNECT, (L"重新连线（" + app.savedLinkCode + L"）").c_str());
+        AppendMenuW(sub, MF_STRING, CMD_LINK_CREATE, tr(L"创建配对码（自动复制，发给朋友）", L"Create a pairing code (copied for you to send to a friend)"));
+        AppendMenuW(sub, MF_STRING, CMD_LINK_JOIN, tr(L"粘贴朋友的配对码并连线（请先复制配对码）", L"Paste a friend's pairing code and link (copy it first)"));
+        if (!app.savedLinkCode.empty()) AppendMenuW(sub, MF_STRING, CMD_LINK_RECONNECT, (tr(L"重新连线（", L"Reconnect (") + app.savedLinkCode + tr(L"）", L")")).c_str());
     } else if (auto code = app.link.code()) {
-        AppendMenuW(sub, MF_STRING, CMD_LINK_COPY, (L"复制配对码 " + code->display()).c_str());
-        AppendMenuW(sub, MF_STRING, CMD_LINK_DISCONNECT, L"断开连线");
+        AppendMenuW(sub, MF_STRING, CMD_LINK_COPY, (tr(L"复制配对码 ", L"Copy pairing code ") + code->display()).c_str());
+        AppendMenuW(sub, MF_STRING, CMD_LINK_DISCONNECT, tr(L"断开连线", L"Disconnect"));
     }
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
     HMENU server = CreatePopupMenu();
-    AppendMenuW(server, MF_STRING | (app.linkServer == 'C' ? MF_CHECKED : 0), CMD_LINK_SERVER_CN, L"EMQX 中国（上海）");
-    AppendMenuW(server, MF_STRING | (app.linkServer == 'G' ? MF_CHECKED : 0), CMD_LINK_SERVER_GLOBAL, L"EMQX 国际（美国）");
-    AppendMenuW(sub, MF_POPUP, (UINT_PTR)server, L"新配对码使用的服务器");
-    std::wstring nickItem = L"我的昵称：" + (app.nickname.empty() ? std::wstring(L"未设置") : app.nickname) + L"…";
+    AppendMenuW(server, MF_STRING | (app.linkServer == 'C' ? MF_CHECKED : 0), CMD_LINK_SERVER_CN, tr(L"EMQX 中国（上海）", L"EMQX China (Shanghai)"));
+    AppendMenuW(server, MF_STRING | (app.linkServer == 'G' ? MF_CHECKED : 0), CMD_LINK_SERVER_GLOBAL, tr(L"EMQX 国际（美国）", L"EMQX global (US)"));
+    AppendMenuW(sub, MF_POPUP, (UINT_PTR)server, tr(L"新配对码使用的服务器", L"Server for new pairing codes"));
+    std::wstring nickItem = tr(L"我的昵称：", L"My nickname: ") + (app.nickname.empty() ? std::wstring(tr(L"未设置", L"not set")) : app.nickname) + L"…";
     AppendMenuW(sub, MF_STRING, CMD_LINK_NICKNAME, nickItem.c_str());
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(sub, MF_STRING, CMD_LINK_DEMO, L"\U0001F3AC 演示：模拟一位朋友");
-    AppendMenuW(sub, MF_STRING, CMD_LINK_EXPLAIN, L"对方能看到什么？");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)sub, st == Status::Linked ? L"\U0001F517 猫咪连线（已连线）" : L"\U0001F517 猫咪连线");
+    AppendMenuW(sub, MF_STRING, CMD_LINK_DEMO, tr(L"\U0001F3AC 演示：模拟一位朋友", L"\U0001F3AC Demo: pretend friend"));
+    AppendMenuW(sub, MF_STRING, CMD_LINK_EXPLAIN, tr(L"对方能看到什么？", L"What does my friend see?"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)sub, st == Status::Linked ? tr(L"\U0001F517 猫咪连线（已连线）", L"\U0001F517 Cat Link (linked)") : tr(L"\U0001F517 猫咪连线", L"\U0001F517 Cat Link"));
 }
 
 void handleLinkCommand(AppState& app, UINT cmd) {
@@ -1311,21 +1318,21 @@ void handleLinkCommand(AppState& app, UINT cmd) {
             catlink::Code code = catlink::Code::generate(app.linkServer);
             startLink(app, code);
             writeClipboardText(owner, code.display());
-            std::wstring msg = L"配对码已复制到剪贴板：\n\n    " + code.display()
-                + L"\n\n把它发给你的朋友（比如用微信）。朋友在 KuroCat 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。"
-                + L"\n配对码就是你们的密钥，请只发给这位朋友。\n\n" + LINK_WHAT_IS_SHARED;
-            MessageBoxW(nullptr, msg.c_str(), L"KuroCat 猫咪连线", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+            std::wstring msg = tr(L"配对码已复制到剪贴板：\n\n    ", L"The pairing code is copied to the clipboard:\n\n    ") + code.display()
+                + tr(L"\n\n把它发给你的朋友（比如用微信）。朋友在 KuroCat 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。", L"\n\nSend it to your friend (for example on WeChat). When they paste it in KuroCat's Cat Link menu, your cats appear on each other's screens.")
+                + tr(L"\n配对码就是你们的密钥，请只发给这位朋友。\n\n", L"\nThe code is your shared key, so send it only to this friend.\n\n") + linkWhatIsShared();
+            MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
             break;
         }
         case CMD_LINK_JOIN: {
             auto code = catlink::Code::parse(readClipboardText(owner));
             if (!code) {
-                MessageBoxW(nullptr, L"剪贴板里没有找到配对码。\n\n请先复制朋友发来的配对码（形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX），再点这里。",
-                            L"KuroCat 猫咪连线", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                MessageBoxW(nullptr, tr(L"剪贴板里没有找到配对码。\n\n请先复制朋友发来的配对码（形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX），再点这里。", L"No pairing code found on the clipboard.\n\nCopy the code your friend sent you (it looks like KC-C-XXXX-XXXX-XXXX-XXXX-XXXX), then click here."),
+                            tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                 break;
             }
-            std::wstring msg = L"要和这个配对码连线吗？\n\n    " + code->display() + L"\n\n" + LINK_WHAT_IS_SHARED;
-            if (MessageBoxW(nullptr, msg.c_str(), L"KuroCat 猫咪连线", MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
+            std::wstring msg = tr(L"要和这个配对码连线吗？\n\n    ", L"Link with this pairing code?\n\n    ") + code->display() + L"\n\n" + linkWhatIsShared();
+            if (MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
                 startLink(app, *code);
             }
             break;
@@ -1354,7 +1361,7 @@ void handleLinkCommand(AppState& app, UINT cmd) {
             break;
         case CMD_LINK_NICKNAME: {
             std::wstring name = app.nickname;
-            if (promptText(owner, L"你的昵称", L"会显示在朋友屏幕上你的猫的上方。", name)) {
+            if (promptText(owner, tr(L"你的昵称", L"Your nickname"), tr(L"会显示在朋友屏幕上你的猫的上方。", L"Shown above your cat on your friend's screen."), name)) {
                 while (!name.empty() && iswspace(name.back())) name.pop_back();
                 while (!name.empty() && iswspace(name.front())) name.erase(name.begin());
                 if (name.size() > 16) name.resize(16);
@@ -1368,8 +1375,8 @@ void handleLinkCommand(AppState& app, UINT cmd) {
             startLinkDemo(app);
             break;
         case CMD_LINK_EXPLAIN: {
-            std::wstring msg = std::wstring(LINK_WHAT_IS_SHARED) + L"\n\n断开连线后就不再发送任何内容。";
-            MessageBoxW(nullptr, msg.c_str(), L"猫咪连线会分享什么？", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+            std::wstring msg = std::wstring(linkWhatIsShared()) + tr(L"\n\n断开连线后就不再发送任何内容。", L"\n\nNothing is sent after you disconnect.");
+            MessageBoxW(nullptr, msg.c_str(), tr(L"猫咪连线会分享什么？", L"What does Cat Link share?"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
             break;
         }
         default:
@@ -1389,111 +1396,118 @@ void showContextMenu(AppState& app, POINT screenPt) {
 
     // Status & live stats header
     std::wstring statusStr = app.input.isRawInputRegistered
-        ? L"\u25CF \u786C\u4EF6\u7EA7\u5168\u72B6\u6001\u76D1\u542C\u4E2D (Raw Input \u6E38\u620F/\u6253\u5B57)"
-        : L"\u26A0 Raw Input \u672A\u542F\u52A8";
+        ? tr(L"\u25CF \u786C\u4EF6\u7EA7\u5168\u72B6\u6001\u76D1\u542C\u4E2D (Raw Input \u6E38\u620F/\u6253\u5B57)", L"\u25CF Hardware-level listening (Raw Input, typing and games)")
+        : tr(L"\u26A0 Raw Input \u672A\u542F\u52A8", L"\u26A0 Raw Input not running");
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, statusStr.c_str());
     if (!app.isElevated && app.lastBlockedForegroundTime > 0.0 && nowSeconds() - app.lastBlockedForegroundTime < 600.0) {
-        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, L"⚠ 刚才的游戏以管理员权限运行，键盘被 Windows 拦截了");
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, tr(L"⚠ 刚才的游戏以管理员权限运行，键盘被 Windows 拦截了", L"\u26A0 The last game ran as administrator, so Windows hid its keyboard"));
     }
 
-    std::wstring stats = L"\u4ECA\u65E5\u51FB\u952E " + std::to_wstring(app.input.totalKeystrokesToday)
+    std::wstring stats = tr(L"\u4ECA\u65E5\u51FB\u952E ", L"Keys today ") + std::to_wstring(app.input.totalKeystrokesToday)
         + L"  \u00B7  KPM " + std::to_wstring(app.input.currentKPM())
-        + L"  \u00B7  \u6478\u732B " + std::to_wstring(app.physics.totalPetSessions) + L" \u6B21";
+        + tr(L"  \u00B7  \u6478\u732B ", L"  \u00B7  Pets ") + std::to_wstring(app.physics.totalPetSessions) + tr(L" \u6B21", L"");
     AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, stats.c_str());
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     // Which cats to show: ours and the friend's (Cat Link) independently, or all at once.
     HMENU showMenu = CreatePopupMenu();
-    AppendMenuW(showMenu, MF_STRING | (app.isVisible ? MF_CHECKED : 0), CMD_TOGGLE_VISIBLE, L"我的猫");
-    AppendMenuW(showMenu, MF_STRING | (app.showFriendCat ? MF_CHECKED : 0), CMD_LINK_SHOW_FRIEND, L"朋友的猫");
+    AppendMenuW(showMenu, MF_STRING | (app.isVisible ? MF_CHECKED : 0), CMD_TOGGLE_VISIBLE, tr(L"我的猫", L"My cat"));
+    AppendMenuW(showMenu, MF_STRING | (app.showFriendCat ? MF_CHECKED : 0), CMD_LINK_SHOW_FRIEND, tr(L"朋友的猫", L"Friend's cat"));
     AppendMenuW(showMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(showMenu, MF_STRING, CMD_SHOW_ALL, L"全部显示");
-    AppendMenuW(showMenu, MF_STRING, CMD_HIDE_ALL, L"全部隐藏");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)showMenu, L"显示的猫咪");
-    AppendMenuW(menu, MF_STRING | (app.settings.fullClickThrough ? MF_CHECKED : 0), CMD_TOGGLE_CLICKTHROUGH, L"\u5B8C\u5168\u9F20\u6807\u7A7F\u900F (Ctrl+Alt+Shift+P / \u6309\u4F4FAlt\u53EF\u53F3\u952E)");
-    AppendMenuW(menu, MF_STRING | (app.settings.alwaysOnTop ? MF_CHECKED : 0), CMD_TOGGLE_TOPMOST, L"\u7A97\u53E3\u7F6E\u9876\u663E\u793A");
-    AppendMenuW(menu, MF_STRING | (isAutoStartEnabled() ? MF_CHECKED : 0), CMD_TOGGLE_AUTOSTART, L"\u5F00\u673A\u81EA\u52A8\u542F\u52A8");
+    AppendMenuW(showMenu, MF_STRING, CMD_SHOW_ALL, tr(L"全部显示", L"Show all"));
+    AppendMenuW(showMenu, MF_STRING, CMD_HIDE_ALL, tr(L"全部隐藏", L"Hide all"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)showMenu, tr(L"显示的猫咪", L"Cats to show"));
+    AppendMenuW(menu, MF_STRING | (app.settings.fullClickThrough ? MF_CHECKED : 0), CMD_TOGGLE_CLICKTHROUGH, tr(L"\u5B8C\u5168\u9F20\u6807\u7A7F\u900F (Ctrl+Alt+Shift+P / \u6309\u4F4FAlt\u53EF\u53F3\u952E)", L"Full click-through (Ctrl+Alt+Shift+P / hold Alt to right-click)"));
+    AppendMenuW(menu, MF_STRING | (app.settings.alwaysOnTop ? MF_CHECKED : 0), CMD_TOGGLE_TOPMOST, tr(L"\u7A97\u53E3\u7F6E\u9876\u663E\u793A", L"Always on top"));
+    AppendMenuW(menu, MF_STRING | (isAutoStartEnabled() ? MF_CHECKED : 0), CMD_TOGGLE_AUTOSTART, tr(L"\u5F00\u673A\u81EA\u52A8\u542F\u52A8", L"Start with Windows"));
     if (app.isElevated) {
-        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, L"\u2713 \u5DF2\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C\uFF08\u7BA1\u7406\u5458\u6743\u9650\u6E38\u620F\u7684\u952E\u76D8\u4E5F\u80FD\u76D1\u542C\uFF09");
+        AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, tr(L"\u2713 \u5DF2\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C\uFF08\u7BA1\u7406\u5458\u6743\u9650\u6E38\u620F\u7684\u952E\u76D8\u4E5F\u80FD\u76D1\u542C\uFF09", L"\u2713 Running as administrator (sees keys in admin games too)"));
     } else {
-        AppendMenuW(menu, MF_STRING, CMD_RELAUNCH_ADMIN, L"\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u91CD\u65B0\u542F\u52A8\uFF08\u6E38\u620F\u91CC\u952E\u76D8\u6CA1\u53CD\u5E94\u65F6\u70B9\u8FD9\u91CC\uFF09");
+        AppendMenuW(menu, MF_STRING, CMD_RELAUNCH_ADMIN, tr(L"\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u91CD\u65B0\u542F\u52A8\uFF08\u6E38\u620F\u91CC\u952E\u76D8\u6CA1\u53CD\u5E94\u65F6\u70B9\u8FD9\u91CC\uFF09", L"Restart as administrator (if keys don't show in a game)"));
     }
-    AppendMenuW(menu, MF_STRING | (app.settings.runAsAdmin ? MF_CHECKED : 0), CMD_TOGGLE_RUN_AS_ADMIN, L"\u6BCF\u6B21\u542F\u52A8\u90FD\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C");
+    AppendMenuW(menu, MF_STRING | (app.settings.runAsAdmin ? MF_CHECKED : 0), CMD_TOGGLE_RUN_AS_ADMIN, tr(L"\u6BCF\u6B21\u542F\u52A8\u90FD\u4EE5\u7BA1\u7406\u5458\u8EAB\u4EFD\u8FD0\u884C", L"Always run as administrator"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
-    AppendMenuW(menu, MF_STRING | (app.settings.showKeyBadges ? MF_CHECKED : 0), CMD_TOGGLE_BADGES, L"\u663E\u793A\u6309\u952E\u6C14\u6CE1 ([S] [W] [\u21E7])");
-    AppendMenuW(menu, MF_STRING | (app.settings.showMouseBadges ? MF_CHECKED : 0), CMD_TOGGLE_MOUSE_BADGES, L"\u663E\u793A\u9F20\u6807\u70B9\u51FB\u6C14\u6CE1 ([\u5DE6\u952E] [\u53F3\u952E])");
-    AppendMenuW(menu, MF_STRING | (app.settings.showKeyLegends ? MF_CHECKED : 0), CMD_TOGGLE_KEY_LEGENDS, L"\u663E\u793A\u952E\u76D8\u5B57\u7B26");
-    AppendMenuW(menu, MF_STRING | (app.settings.footEasterEgg ? MF_CHECKED : 0), CMD_TOGGLE_FOOT, L"3\u952E\u540C\u65F6\u6309\u300C\u7528\u811A\u6309\u300D\u5F69\u86CB");
-    AppendMenuW(menu, MF_STRING | (app.settings.petInteraction ? MF_CHECKED : 0), CMD_TOGGLE_PET, L"\u6478\u5934/\u6478\u80CC\u95ED\u773C\u4E92\u52A8");
-    AppendMenuW(menu, MF_STRING | (app.settings.earbudAnimation ? MF_CHECKED : 0), CMD_TOGGLE_EARBUDS, L"连接耳机时戴上 AirPods \U0001F3A7");
-    AppendMenuW(menu, MF_STRING | (app.settings.mosquitoVisits ? MF_CHECKED : 0), CMD_TOGGLE_MOSQUITO, L"睡着时会有蚊子来捣乱 \U0001F99F");
-    AppendMenuW(menu, MF_STRING, CMD_MOSQUITO_DEMO, L"\U0001F3AC 演示：蚊子来了");
+    AppendMenuW(menu, MF_STRING | (app.settings.showKeyBadges ? MF_CHECKED : 0), CMD_TOGGLE_BADGES, tr(L"\u663E\u793A\u6309\u952E\u6C14\u6CE1 ([S] [W] [\u21E7])", L"Show key bubbles ([S] [W] [\u21E7])"));
+    AppendMenuW(menu, MF_STRING | (app.settings.showMouseBadges ? MF_CHECKED : 0), CMD_TOGGLE_MOUSE_BADGES, tr(L"\u663E\u793A\u9F20\u6807\u70B9\u51FB\u6C14\u6CE1 ([\u5DE6\u952E] [\u53F3\u952E])", L"Show mouse click bubbles ([Left] [Right])"));
+    AppendMenuW(menu, MF_STRING | (app.settings.showKeyLegends ? MF_CHECKED : 0), CMD_TOGGLE_KEY_LEGENDS, tr(L"\u663E\u793A\u952E\u76D8\u5B57\u7B26", L"Show key labels"));
+    AppendMenuW(menu, MF_STRING | (app.settings.footEasterEgg ? MF_CHECKED : 0), CMD_TOGGLE_FOOT, tr(L"3\u952E\u540C\u65F6\u6309\u300C\u7528\u811A\u6309\u300D\u5F69\u86CB", L"3 keys at once: press one with a foot"));
+    AppendMenuW(menu, MF_STRING | (app.settings.petInteraction ? MF_CHECKED : 0), CMD_TOGGLE_PET, tr(L"\u6478\u5934/\u6478\u80CC\u95ED\u773C\u4E92\u52A8", L"Close eyes when petted"));
+    AppendMenuW(menu, MF_STRING | (app.settings.earbudAnimation ? MF_CHECKED : 0), CMD_TOGGLE_EARBUDS, tr(L"连接耳机时戴上 AirPods \U0001F3A7", L"Wear AirPods with headphones \U0001F3A7"));
+    AppendMenuW(menu, MF_STRING | (app.settings.mosquitoVisits ? MF_CHECKED : 0), CMD_TOGGLE_MOSQUITO, tr(L"睡着时会有蚊子来捣乱 \U0001F99F", L"Mosquito visits while asleep \U0001F99F"));
+    AppendMenuW(menu, MF_STRING, CMD_MOSQUITO_DEMO, tr(L"\U0001F3AC 演示：蚊子来了", L"\U0001F3AC Demo: here comes a mosquito"));
     HMENU claudeMenu = CreatePopupMenu();
-    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? MF_CHECKED : 0), CMD_CLAUDE_TOGGLE, L"完成或等你确认时提醒");
-    AppendMenuW(claudeMenu, MF_STRING | (app.claude.sound ? MF_CHECKED : 0), CMD_CLAUDE_SOUND, L"提示音");
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? MF_CHECKED : 0), CMD_CLAUDE_TOGGLE, tr(L"完成或等你确认时提醒", L"Alert when a session is done or needs you"));
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.sound ? MF_CHECKED : 0), CMD_CLAUDE_SOUND, tr(L"提示音", L"Sound"));
     AppendMenuW(claudeMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_DONE, L"试一下「完成了」");
-    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_NEEDS, L"试一下「等你确认」");
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_DONE, tr(L"试一下「完成了」", L"Try \u201Cdone\u201D"));
+    AppendMenuW(claudeMenu, MF_STRING | (app.claude.enabled ? 0 : MF_GRAYED), CMD_CLAUDE_TEST_NEEDS, tr(L"试一下「等你确认」", L"Try \u201Cneeds you\u201D"));
     AppendMenuW(claudeMenu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(claudeMenu, MF_STRING, CMD_CLAUDE_COPY, L"复制 Claude Code 钩子设置");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)claudeMenu, L"Claude Code 提醒 \U0001F916");
+    AppendMenuW(claudeMenu, MF_STRING, CMD_CLAUDE_COPY, tr(L"复制 Claude Code 钩子设置", L"Copy Claude Code hook settings"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)claudeMenu, tr(L"Claude Code 提醒 \U0001F916", L"Claude Code alerts \U0001F916"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     // Cat Coat Skin submenu
     HMENU coatMenu = CreatePopupMenu();
-    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::ClassicBlack ? MF_CHECKED : 0), CMD_COAT_BLACK, L"\u7ECF\u5178\u5C0F\u9ED1\u732B (\u539F\u7248)");
-    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::Siamese ? MF_CHECKED : 0), CMD_COAT_SIAMESE, L"\u6316\u7164\u66B9\u7F57\u732B");
-    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::Shorthair ? MF_CHECKED : 0), CMD_COAT_SHORTHAIR, L"美短（银虎斑加白）");
-    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::OrangeWhite ? MF_CHECKED : 0), CMD_COAT_ORANGE_WHITE, L"橘白猫");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)coatMenu, L"\u732B\u54AA\u76AE\u80A4");
+    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::ClassicBlack ? MF_CHECKED : 0), CMD_COAT_BLACK, tr(L"\u7ECF\u5178\u5C0F\u9ED1\u732B (\u539F\u7248)", L"Classic black cat (original)"));
+    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::Siamese ? MF_CHECKED : 0), CMD_COAT_SIAMESE, tr(L"\u6316\u7164\u66B9\u7F57\u732B", L"Seal-point Siamese"));
+    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::Shorthair ? MF_CHECKED : 0), CMD_COAT_SHORTHAIR, tr(L"美短（银虎斑加白）", L"American Shorthair (silver tabby & white)"));
+    AppendMenuW(coatMenu, MF_STRING | (app.settings.coatTheme == CatCoatTheme::OrangeWhite ? MF_CHECKED : 0), CMD_COAT_ORANGE_WHITE, tr(L"橘白猫", L"Orange & white"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)coatMenu, tr(L"\u732B\u54AA\u76AE\u80A4", L"Cat coat"));
 
     // Keyboard Theme submenu
     HMENU kbMenu = CreatePopupMenu();
-    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::ClassicMilk ? MF_CHECKED : 0), CMD_KB_MILK, L"\u7ECF\u5178\u5976\u767D\u6696\u9EC4 (\u539F\u7248)");
-    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::MidnightHacker ? MF_CHECKED : 0), CMD_KB_HACKER, L"\u6697\u591C\u6781\u5BA2\u9ED1");
-    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::RetroCream ? MF_CHECKED : 0), CMD_KB_RETRO, L"\u590D\u53E4\u5976\u6CB9\u7070");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)kbMenu, L"\u952E\u76D8\u914D\u8272");
+    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::ClassicMilk ? MF_CHECKED : 0), CMD_KB_MILK, tr(L"\u7ECF\u5178\u5976\u767D\u6696\u9EC4 (\u539F\u7248)", L"Classic cream & warm yellow (original)"));
+    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::MidnightHacker ? MF_CHECKED : 0), CMD_KB_HACKER, tr(L"\u6697\u591C\u6781\u5BA2\u9ED1", L"Midnight hacker black"));
+    AppendMenuW(kbMenu, MF_STRING | (app.settings.keyboardTheme == KeyboardTheme::RetroCream ? MF_CHECKED : 0), CMD_KB_RETRO, tr(L"\u590D\u53E4\u5976\u6CB9\u7070", L"Retro cream grey"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)kbMenu, tr(L"\u952E\u76D8\u914D\u8272", L"Keyboard colors"));
 
     // Eye Color submenu
     HMENU eyeMenu = CreatePopupMenu();
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::NeonChartreuse ? MF_CHECKED : 0), CMD_EYE_LIME, L"\u7ECF\u5178\u8367\u5149\u9EC4\u7EFF (\u539F\u7248)");
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::SiameseBlue ? MF_CHECKED : 0), CMD_EYE_BLUE, L"\u66B9\u7F57\u5B9D\u77F3\u84DD");
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::WarmAmber ? MF_CHECKED : 0), CMD_EYE_AMBER, L"\u7425\u73C0\u91D1\u77B3");
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::IceCyan ? MF_CHECKED : 0), CMD_EYE_CYAN, L"\u51B0\u6676\u6D45\u84DD");
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::SoftAmber ? MF_CHECKED : 0), CMD_EYE_SOFT_AMBER, L"柔和琥珀");
-    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::ReferenceHazel ? MF_CHECKED : 0), CMD_EYE_REFERENCE_HAZEL, L"淡金青绿");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)eyeMenu, L"\u77B3\u8272\u5207\u6362");
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::NeonChartreuse ? MF_CHECKED : 0), CMD_EYE_LIME, tr(L"\u7ECF\u5178\u8367\u5149\u9EC4\u7EFF (\u539F\u7248)", L"Classic neon chartreuse (original)"));
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::SiameseBlue ? MF_CHECKED : 0), CMD_EYE_BLUE, tr(L"\u66B9\u7F57\u5B9D\u77F3\u84DD", L"Siamese sapphire blue"));
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::WarmAmber ? MF_CHECKED : 0), CMD_EYE_AMBER, tr(L"\u7425\u73C0\u91D1\u77B3", L"Amber gold"));
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::IceCyan ? MF_CHECKED : 0), CMD_EYE_CYAN, tr(L"\u51B0\u6676\u6D45\u84DD", L"Ice blue"));
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::SoftAmber ? MF_CHECKED : 0), CMD_EYE_SOFT_AMBER, tr(L"柔和琥珀", L"Soft amber"));
+    AppendMenuW(eyeMenu, MF_STRING | (app.settings.eyeTheme == EyeColorTheme::ReferenceHazel ? MF_CHECKED : 0), CMD_EYE_REFERENCE_HAZEL, tr(L"淡金青绿", L"Pale gold-green"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)eyeMenu, tr(L"\u77B3\u8272\u5207\u6362", L"Eye color"));
 
     // Scale submenu
     HMENU scaleMenu = CreatePopupMenu();
     auto chk = [&](float v) -> UINT { return std::fabs(app.settings.scale - v) < 0.05f ? MF_CHECKED : 0; };
-    AppendMenuW(scaleMenu, MF_STRING | chk(0.65f), CMD_SCALE_65,  L"\u8FF7\u4F60 (0.65x)");
-    AppendMenuW(scaleMenu, MF_STRING | chk(0.85f), CMD_SCALE_85,  L"\u504F\u5C0F (0.85x)");
-    AppendMenuW(scaleMenu, MF_STRING | chk(1.00f), CMD_SCALE_100, L"\u6807\u51C6 (1.0x)");
-    AppendMenuW(scaleMenu, MF_STRING | chk(1.25f), CMD_SCALE_125, L"\u504F\u5927 (1.25x)");
-    AppendMenuW(scaleMenu, MF_STRING | chk(1.50f), CMD_SCALE_150, L"\u8D85\u5927 (1.5x)");
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)scaleMenu, L"\u5C3A\u5BF8\u5927\u5C0F");
+    AppendMenuW(scaleMenu, MF_STRING | chk(0.65f), CMD_SCALE_65,  tr(L"\u8FF7\u4F60 (0.65x)", L"Mini (0.65x)"));
+    AppendMenuW(scaleMenu, MF_STRING | chk(0.85f), CMD_SCALE_85,  tr(L"\u504F\u5C0F (0.85x)", L"Small (0.85x)"));
+    AppendMenuW(scaleMenu, MF_STRING | chk(1.00f), CMD_SCALE_100, tr(L"\u6807\u51C6 (1.0x)", L"Standard (1.0x)"));
+    AppendMenuW(scaleMenu, MF_STRING | chk(1.25f), CMD_SCALE_125, tr(L"\u504F\u5927 (1.25x)", L"Large (1.25x)"));
+    AppendMenuW(scaleMenu, MF_STRING | chk(1.50f), CMD_SCALE_150, tr(L"\u8D85\u5927 (1.5x)", L"Extra large (1.5x)"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)scaleMenu, tr(L"\u5C3A\u5BF8\u5927\u5C0F", L"Size"));
 
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
     appendLinkMenu(app, menu);
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, CMD_DEMO_BURST, L"\u6F14\u793A\u6253\u5B57\u52A8\u753B");
-    AppendMenuW(menu, MF_STRING, CMD_RESET_POS, L"\u91CD\u7F6E\u4F4D\u7F6E\u5230\u53F3\u4E0B\u89D2");
+    AppendMenuW(menu, MF_STRING, CMD_DEMO_BURST, tr(L"\u6F14\u793A\u6253\u5B57\u52A8\u753B", L"Demo: typing"));
+    AppendMenuW(menu, MF_STRING, CMD_RESET_POS, tr(L"\u91CD\u7F6E\u4F4D\u7F6E\u5230\u53F3\u4E0B\u89D2", L"Move back to the bottom-right corner"));
+    // Language: the title is in both languages so it can be found whichever one is showing.
+    HMENU langMenu = CreatePopupMenu();
+    l10n::Language lang = l10n::current();
+    AppendMenuW(langMenu, MF_STRING | (lang == l10n::Language::System ? MF_CHECKED : 0), CMD_LANG_SYSTEM, L"跟随系统 / System");
+    AppendMenuW(langMenu, MF_STRING | (lang == l10n::Language::Chinese ? MF_CHECKED : 0), CMD_LANG_CHINESE, L"中文");
+    AppendMenuW(langMenu, MF_STRING | (lang == l10n::Language::English ? MF_CHECKED : 0), CMD_LANG_ENGLISH, L"English");
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)langMenu, L"语言 / Language");
     if (!UPDATE_CHECKS_ENABLED) {
-        std::wstring verTxt = std::wstring(L"版本 v") + APP_VERSION + L"（分支版，已关闭更新检查）";
+        std::wstring verTxt = std::wstring(tr(L"版本 v", L"Version v")) + APP_VERSION + tr(L"（分支版，已关闭更新检查）", L" (fork, update check off)");
         AppendMenuW(menu, MF_STRING | MF_GRAYED, 0, verTxt.c_str());
     } else if (!app.availableUpdateVersion.empty()) {
         std::wstring upTxt = app.isUpdating
-            ? (L"\u23F3 \u6B63\u5728\u4E0B\u8F7D\u66F4\u65B0 " + app.availableUpdateVersion + L"...")
-            : (L"\U0001F195 \u53D1\u73B0\u65B0\u7248\u672C " + app.availableUpdateVersion + L" (\u70B9\u51FB\u81EA\u52A8\u66F4\u65B0)");
+            ? (tr(L"\u23F3 \u6B63\u5728\u4E0B\u8F7D\u66F4\u65B0 ", L"\u23F3 Downloading update ") + app.availableUpdateVersion + L"...")
+            : (tr(L"\U0001F195 \u53D1\u73B0\u65B0\u7248\u672C ", L"\U0001F195 New version ") + app.availableUpdateVersion + tr(L" (\u70B9\u51FB\u81EA\u52A8\u66F4\u65B0)", L" (click to update)"));
         AppendMenuW(menu, MF_STRING | (app.isUpdating ? MF_GRAYED : 0), CMD_OPEN_UPDATE, upTxt.c_str());
     } else {
-        std::wstring chkTxt = std::wstring(L"\u68C0\u67E5\u66F4\u65B0 (\u5F53\u524D v") + APP_VERSION + L")";
+        std::wstring chkTxt = std::wstring(tr(L"\u68C0\u67E5\u66F4\u65B0 (\u5F53\u524D v", L"Check for updates (now v")) + APP_VERSION + L")";
         AppendMenuW(menu, MF_STRING, CMD_CHECK_UPDATE, chkTxt.c_str());
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, CMD_QUIT, L"\u9000\u51FA KuroCat");
+    AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA KuroCat", L"Quit KuroCat"));
 
     HWND menuOwner = app.menuOwnerHwnd ? app.menuOwnerHwnd : app.hwnd;
     SetForegroundWindow(menuOwner);
@@ -1521,8 +1535,8 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.saveToRegistry();
             if (app.settings.fullClickThrough) {
                 showTrayBalloon(app,
-                    L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F",
-                    L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB KuroCat.exe");
+                    tr(L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is on"),
+                    tr(L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB KuroCat.exe", L"To turn it off: press Ctrl+Alt+Shift+P, hold Alt and right-click the cat, click the cat in the tray, or open KuroCat.exe again"));
             }
             break;
         case CMD_TOGGLE_TOPMOST:
@@ -1626,6 +1640,14 @@ void showContextMenu(AppState& app, POINT screenPt) {
         case CMD_MOSQUITO_DEMO:
             app.physics.summonMosquito();
             break;
+        case CMD_LANG_SYSTEM: case CMD_LANG_CHINESE: case CMD_LANG_ENGLISH:
+            l10n::set(cmd == CMD_LANG_CHINESE ? l10n::Language::Chinese : cmd == CMD_LANG_ENGLISH ? l10n::Language::English : l10n::Language::System);
+            // Menus are rebuilt each time they open; refresh the tray tip and the friend's name tag.
+            setTrayTip(app, app.link.status() == catlink::Status::Linked
+                ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on")
+                : tr(L"KuroCat 黑猫键盘桌宠 (右键/左键打开菜单)", L"KuroCat keyboard cat (click for the menu)"));
+            updateFriendLabel(app);
+            break;
         case CMD_CLAUDE_TOGGLE:
             app.claude.enabled = !app.claude.enabled;
             if (!app.claude.enabled) app.claude.alerts.clear();
@@ -1646,10 +1668,13 @@ void showContextMenu(AppState& app, POINT screenPt) {
             GetModuleFileNameW(nullptr, exe, MAX_PATH * 2 - 1);
             writeClipboardText(app.menuOwnerHwnd, claude::settingsSnippet(exe));
             MessageBoxW(app.menuOwnerHwnd,
-                L"把它合并到 %USERPROFILE%\\.claude\\settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。\n\n"
-                L"之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。\n\n"
-                L"如果以后移动了 KuroCat.exe，需要重新复制一次。",
-                L"已复制 Claude Code 钩子设置", MB_OK | MB_ICONINFORMATION);
+                tr(L"把它合并到 %USERPROFILE%\\.claude\\settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。\n\n"
+                   L"之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。\n\n"
+                   L"如果以后移动了 KuroCat.exe，需要重新复制一次。",
+                   L"Merge it into the \"hooks\" section of %USERPROFILE%\\.claude\\settings.json, then reopen Claude Code.\n\n"
+                   L"From then on, the cat tells you whenever a session finishes or Claude needs your OK. It stays on this computer and never goes over Cat Link.\n\n"
+                   L"If you move KuroCat.exe later, copy the settings again."),
+                tr(L"已复制 Claude Code 钩子设置", L"Claude Code hook settings copied"), MB_OK | MB_ICONINFORMATION);
             break;
         }
         case CMD_QUIT:
@@ -2089,12 +2114,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 app->settings.saveToRegistry();
                 if (app->settings.fullClickThrough) {
                     showTrayBalloon(*app,
-                        L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F",
-                        L"\u518D\u6B21\u6309 Ctrl+Alt+Shift+P \u6216\u6309\u4F4F Alt \u53F3\u952E\u5C0F\u732B\u5373\u53EF\u53D6\u6D88");
+                        tr(L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is on"),
+                        tr(L"\u518D\u6B21\u6309 Ctrl+Alt+Shift+P \u6216\u6309\u4F4F Alt \u53F3\u952E\u5C0F\u732B\u5373\u53EF\u53D6\u6D88", L"Press Ctrl+Alt+Shift+P again, or hold Alt and right-click the cat, to turn it off"));
                 } else {
                     showTrayBalloon(*app,
-                        L"KuroCat \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F",
-                        L"\u73B0\u5728\u53EF\u4EE5\u6B63\u5E38\u62D6\u52A8\u3001\u6478\u5934\u548C\u53F3\u952E\u6253\u5F00\u83DC\u5355\u4E86");
+                        tr(L"KuroCat \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is off"),
+                        tr(L"\u73B0\u5728\u53EF\u4EE5\u6B63\u5E38\u62D6\u52A8\u3001\u6478\u5934\u548C\u53F3\u952E\u6253\u5F00\u83DC\u5355\u4E86", L"You can drag, pet and right-click the cat again"));
                 }
             }
             return 0;
@@ -2132,12 +2157,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if (app && res->ok && res->hasUpdate && askNow) {
                     // Show WHICH exe is running: the usual cause of "I already updated but it still
                     // says there's a new version" is an old copy (Desktop / autostart) still running.
-                    std::wstring msg = L"\u53D1\u73B0 KuroCat \u65B0\u7248\u672C " + res->latestTag
-                        + L"\n\u5F53\u524D\u7248\u672C\uFF1Av" + APP_VERSION
-                        + L"\n\u5F53\u524D\u8FD0\u884C\u7684\u7A0B\u5E8F\uFF1A" + currentExePath()
-                        + L"\n\n\u5982\u679C\u4F60\u5DF2\u7ECF\u4E0B\u8F7D\u8FC7\u65B0\u7248\uFF0C\u76F4\u63A5\u53CC\u51FB\u65B0\u7248 exe \u5373\u53EF\u81EA\u52A8\u66FF\u6362\u6389\u8FD9\u4E2A\u65E7\u7248\u3002"
-                        + L"\n\n\u662F\u5426\u7ACB\u5373\u5728\u8F6F\u4EF6\u5185\u81EA\u52A8\u4E0B\u8F7D\u5E76\u66F4\u65B0\u91CD\u542F\uFF1F";
-                    if (MessageBoxW(nullptr, msg.c_str(), L"KuroCat \u66F4\u65B0\u63D0\u9192",
+                    std::wstring msg = tr(L"\u53D1\u73B0 KuroCat \u65B0\u7248\u672C ", L"A new KuroCat version is available: ") + res->latestTag
+                        + tr(L"\n\u5F53\u524D\u7248\u672C\uFF1Av", L"\nCurrent version: v") + APP_VERSION
+                        + tr(L"\n\u5F53\u524D\u8FD0\u884C\u7684\u7A0B\u5E8F\uFF1A", L"\nRunning from: ") + currentExePath()
+                        + tr(L"\n\n\u5982\u679C\u4F60\u5DF2\u7ECF\u4E0B\u8F7D\u8FC7\u65B0\u7248\uFF0C\u76F4\u63A5\u53CC\u51FB\u65B0\u7248 exe \u5373\u53EF\u81EA\u52A8\u66FF\u6362\u6389\u8FD9\u4E2A\u65E7\u7248\u3002", L"\n\nIf you've already downloaded the new version, just open the new exe and it replaces this old one.")
+                        + tr(L"\n\n\u662F\u5426\u7ACB\u5373\u5728\u8F6F\u4EF6\u5185\u81EA\u52A8\u4E0B\u8F7D\u5E76\u66F4\u65B0\u91CD\u542F\uFF1F", L"\n\nDownload and install it now, then restart?");
+                    if (MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat \u66F4\u65B0\u63D0\u9192", L"KuroCat update"),
                                     MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST) == IDYES) {
                         startInAppUpdate(*app);
                     }
@@ -2145,14 +2170,14 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     // Already asked about this version: the menu shows it.
                 } else if (res->manual) {
                     if (res->noRelease) {
-                        std::wstring msg = std::wstring(L"当前版本 v") + APP_VERSION + L"，还没有发布更新的版本。";
-                        MessageBoxW(nullptr, msg.c_str(), L"KuroCat 检查更新", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        std::wstring msg = std::wstring(tr(L"当前版本 v", L"Version v")) + APP_VERSION + tr(L"，还没有发布更新的版本。", L". No newer version has been published yet.");
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 检查更新", L"KuroCat updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else if (res->ok) {
-                        std::wstring msg = std::wstring(L"\u5F53\u524D\u7248\u672C v") + APP_VERSION + L" \u5DF2\u662F\u6700\u65B0\u7248\u672C\u3002";
-                        MessageBoxW(nullptr, msg.c_str(), L"KuroCat \u68C0\u67E5\u66F4\u65B0", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        std::wstring msg = std::wstring(tr(L"\u5F53\u524D\u7248\u672C v", L"Version v")) + APP_VERSION + tr(L" \u5DF2\u662F\u6700\u65B0\u7248\u672C\u3002", L" is the latest version.");
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat \u68C0\u67E5\u66F4\u65B0", L"KuroCat updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else {
-                        MessageBoxW(nullptr, L"无法连接到 GitHub，请稍后重试或检查网络连接。",
-                                    L"KuroCat \u68C0\u67E5\u66F4\u65B0", MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                        MessageBoxW(nullptr, tr(L"无法连接到 GitHub，请稍后重试或检查网络连接。", L"Couldn't reach GitHub. Please try again later or check your network connection."),
+                                    tr(L"KuroCat \u68C0\u67E5\u66F4\u65B0", L"KuroCat updates"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                     }
                 }
                 delete res;
@@ -2169,8 +2194,8 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     PostQuitMessage(0);
                 } else {
                     if (MessageBoxW(nullptr,
-                                    L"\u81EA\u52A8\u4E0B\u8F7D\u6216\u66FF\u6362\u5B89\u88C5\u5305\u5931\u8D25\uFF0C\u662F\u5426\u6253\u5F00\u4E0B\u8F7D\u9875\u624B\u52A8\u4E0B\u8F7D\uFF1F",
-                                    L"KuroCat \u81EA\u52A8\u66F4\u65B0", MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
+                                    tr(L"\u81EA\u52A8\u4E0B\u8F7D\u6216\u66FF\u6362\u5B89\u88C5\u5305\u5931\u8D25\uFF0C\u662F\u5426\u6253\u5F00\u4E0B\u8F7D\u9875\u624B\u52A8\u4E0B\u8F7D\uFF1F", L"Downloading or installing the update failed. Open the download page to download it manually?"),
+                                    tr(L"KuroCat \u81EA\u52A8\u66F4\u65B0", L"KuroCat update"), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
                         const wchar_t* url = (app && !app->availableUpdateUrl.empty())
                             ? app->availableUpdateUrl.c_str()
                             : UPDATE_PAGE_URL;
@@ -2361,6 +2386,20 @@ int renderPreviewSheet(const std::wstring& outPath) {
         snap(p, st, L"Claude needs you +0.85s", L"", &c);
     }
 
+    {   // English UI: Claude Code bubbles and the scroll badge (not saved: only this process switches)
+        l10n::cachedChinese() = 0;
+        claude::Center c;
+        CatPhysics p; InputEngine eng = feed();
+        auto sync = [&] { c.step(nowSeconds()); };
+        run(p, eng, st, 0.3, sync);
+        c.receive(claude::Kind::Done, L"x_project", L"a", nullptr, nowSeconds());
+        run(p, eng, st, 0.4, sync);
+        c.receive(claude::Kind::NeedsYou, L"KuroCat-vibecoding", L"b", nullptr, nowSeconds());
+        p.triggerScroll(4.0f, st);
+        run(p, eng, st, 0.5, [&] { sync(); eng.lastMouseMoveTime = nowSeconds(); });
+        snap(p, st, L"English: bubbles + Wheel badge", L"", &c);
+        l10n::cachedChinese() = -1;
+    }
     {   // Mosquito: sleeping cat, mosquito circles, two swats, it leaves, the cat dozes off again.
         // The mosquito counts its own steps, so wait on its age (a slow CI machine falls behind the clock).
         CatPhysics p; InputEngine eng = feed();   // the demo's nap keeps the cat asleep throughout
@@ -2734,6 +2773,13 @@ int runUpdateSelfTest() {
         check((long long)exe.size() == live.assetSize && exe.size() > 2 && exe[0] == 'M' && exe[1] == 'Z',
               "download follows GitHub's redirect, exact size, starts with MZ (" + std::to_string(exe.size()) + " bytes)");
     }
+    l10n::cachedChinese() = 1;
+    bool zh = std::wstring(tr(L"中文", L"English")) == L"中文";
+    l10n::cachedChinese() = 0;
+    bool en = std::wstring(tr(L"中文", L"English")) == L"English";
+    l10n::cachedChinese() = -1;
+    check(zh && en, std::string("language switch works; this machine's display language -> ") + (l10n::isChinese() ? "Chinese" : "English"));
+
     DWORD missing = 0;
     httpsGet(L"https://api.github.com/repos/mmccqq/KuroCat-vibecoding/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
     check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));

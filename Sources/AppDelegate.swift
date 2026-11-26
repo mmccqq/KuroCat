@@ -212,7 +212,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.image = makeMenuBarCatIcon()
-            button.toolTip = "KuroCat 黑猫键盘桌宠"
+            button.toolTip = tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -225,7 +225,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.length = linked ? NSStatusItem.variableLength : NSStatusItem.squareLength
         button.title = linked ? "🔗" : ""
         button.imagePosition = linked ? .imageLeft : .imageOnly
-        button.toolTip = linked ? "KuroCat 黑猫键盘桌宠 · 猫咪连线中" : "KuroCat 黑猫键盘桌宠"
+        button.toolTip = linked ? tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中", "KuroCat keyboard cat · Cat Link on") : tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -244,18 +244,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Status header
         let statusPrefix = engine.status == .needsPermission ? "⚠️" : "🟢"
-        let statusItem = NSMenuItem(title: "\(statusPrefix) \(engine.status.rawValue)", action: engine.status == .needsPermission ? #selector(openInputMonitoringSettings) : nil, keyEquivalent: "")
+        let statusItem = NSMenuItem(title: "\(statusPrefix) \(engine.status.displayName)", action: engine.status == .needsPermission ? #selector(openInputMonitoringSettings) : nil, keyEquivalent: "")
         statusItem.target = self
         menu.addItem(statusItem)
 
         if engine.status == .needsPermission {
-            let grantItem = NSMenuItem(title: "🔑 前往系统设置开启「输入监控」...", action: #selector(openInputMonitoringSettings), keyEquivalent: "")
+            let grantItem = NSMenuItem(title: tr("🔑 前往系统设置开启「输入监控」...", "🔑 Open System Settings to allow Input Monitoring..."), action: #selector(openInputMonitoringSettings), keyEquivalent: "")
             grantItem.target = self
             menu.addItem(grantItem)
         }
 
         // Live stats
-        let statsTitle = "⌨️ 今日击键 \(engine.totalKeystrokesToday)  ·  KPM \(engine.currentKPM)  ·  摸猫 \(physics.totalPetSessions) 次"
+        let statsTitle = tr("⌨️ 今日击键 \(engine.totalKeystrokesToday)  ·  KPM \(engine.currentKPM)  ·  摸猫 \(physics.totalPetSessions) 次", "⌨️ Keys today \(engine.totalKeystrokesToday)  ·  KPM \(engine.currentKPM)  ·  Pets \(physics.totalPetSessions)")
         let statsItem = NSMenuItem(title: statsTitle, action: nil, keyEquivalent: "")
         statsItem.isEnabled = false
         menu.addItem(statsItem)
@@ -264,37 +264,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         // Visibility & Interactive modes
         // Which cats to show: ours and the friend's (Cat Link) independently, or all at once.
-        let showParent = NSMenuItem(title: "显示的猫咪", action: nil, keyEquivalent: "")
+        let showParent = NSMenuItem(title: tr("显示的猫咪", "Cats to show"), action: nil, keyEquivalent: "")
         let showMenu = NSMenu()
-        let mineItem = NSMenuItem(title: "我的猫", action: #selector(toggleVisibility), keyEquivalent: "")
+        let mineItem = NSMenuItem(title: tr("我的猫", "My cat"), action: #selector(toggleVisibility), keyEquivalent: "")
         mineItem.target = self
         mineItem.state = isPetVisible ? .on : .off
         showMenu.addItem(mineItem)
-        let friendItem = NSMenuItem(title: "朋友的猫", action: #selector(toggleFriendVisibility), keyEquivalent: "")
+        let friendItem = NSMenuItem(title: tr("朋友的猫", "Friend's cat"), action: #selector(toggleFriendVisibility), keyEquivalent: "")
         friendItem.target = self
         friendItem.state = catLink.showFriendCat ? .on : .off
         showMenu.addItem(friendItem)
         showMenu.addItem(.separator())
-        let showAll = NSMenuItem(title: "全部显示", action: #selector(showAllCats), keyEquivalent: "")
+        let showAll = NSMenuItem(title: tr("全部显示", "Show all"), action: #selector(showAllCats), keyEquivalent: "")
         showAll.target = self
         showMenu.addItem(showAll)
-        let hideAll = NSMenuItem(title: "全部隐藏", action: #selector(hideAllCats), keyEquivalent: "")
+        let hideAll = NSMenuItem(title: tr("全部隐藏", "Hide all"), action: #selector(hideAllCats), keyEquivalent: "")
         hideAll.target = self
         showMenu.addItem(hideAll)
         showParent.submenu = showMenu
         menu.addItem(showParent)
 
-        let clickThroughItem = NSMenuItem(title: "完全鼠标穿透 (按住 ⌥Option 可临时右键/拖动)", action: #selector(toggleClickThrough), keyEquivalent: "")
+        let clickThroughItem = NSMenuItem(title: tr("完全鼠标穿透 (按住 ⌥Option 可临时右键/拖动)", "Full click-through (hold ⌥ Option to right-click or drag)"), action: #selector(toggleClickThrough), keyEquivalent: "")
         clickThroughItem.target = self
         clickThroughItem.state = settings.fullClickThrough ? .on : .off
         menu.addItem(clickThroughItem)
 
-        let fullscreenItem = NSMenuItem(title: "全屏游戏/应用置顶显示", action: #selector(toggleFullScreenOverlay), keyEquivalent: "")
+        let fullscreenItem = NSMenuItem(title: tr("全屏游戏/应用置顶显示", "Show over full-screen games and apps"), action: #selector(toggleFullScreenOverlay), keyEquivalent: "")
         fullscreenItem.target = self
         fullscreenItem.state = settings.fullScreenOverlay ? .on : .off
         menu.addItem(fullscreenItem)
 
-        let autoStartItem = NSMenuItem(title: "开机自动启动", action: #selector(toggleAutoStart), keyEquivalent: "")
+        let autoStartItem = NSMenuItem(title: tr("开机自动启动", "Start at login"), action: #selector(toggleAutoStart), keyEquivalent: "")
         autoStartItem.target = self
         autoStartItem.state = isAutoStartEnabled() ? .on : .off
         menu.addItem(autoStartItem)
@@ -302,41 +302,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(.separator())
 
         // Features
-        let badgesItem = NSMenuItem(title: "显示按键气泡 ([S] [W] [⇧])", action: #selector(toggleKeyBadges), keyEquivalent: "")
+        let badgesItem = NSMenuItem(title: tr("显示按键气泡 ([S] [W] [⇧])", "Show key bubbles ([S] [W] [⇧])"), action: #selector(toggleKeyBadges), keyEquivalent: "")
         badgesItem.target = self
         badgesItem.state = settings.showKeyBadges ? .on : .off
         menu.addItem(badgesItem)
 
-        let mouseBadgesItem = NSMenuItem(title: "显示鼠标点击气泡 ([左键] [右键])", action: #selector(toggleMouseBadges), keyEquivalent: "")
+        let mouseBadgesItem = NSMenuItem(title: tr("显示鼠标点击气泡 ([左键] [右键])", "Show mouse click bubbles ([Left] [Right])"), action: #selector(toggleMouseBadges), keyEquivalent: "")
         mouseBadgesItem.target = self
         mouseBadgesItem.state = settings.showMouseBadges ? .on : .off
         menu.addItem(mouseBadgesItem)
 
-        let legendsItem = NSMenuItem(title: "显示键盘字符", action: #selector(toggleKeyLegends), keyEquivalent: "")
+        let legendsItem = NSMenuItem(title: tr("显示键盘字符", "Show key labels"), action: #selector(toggleKeyLegends), keyEquivalent: "")
         legendsItem.target = self
         legendsItem.state = settings.showKeyLegends ? .on : .off
         menu.addItem(legendsItem)
 
-        let footItem = NSMenuItem(title: "3键同时按「用脚按」彩蛋 🐾", action: #selector(toggleFootEgg), keyEquivalent: "")
+        let footItem = NSMenuItem(title: tr("3键同时按「用脚按」彩蛋 🐾", "3 keys at once: press one with a foot 🐾"), action: #selector(toggleFootEgg), keyEquivalent: "")
         footItem.target = self
         footItem.state = settings.footEasterEgg ? .on : .off
         menu.addItem(footItem)
 
-        let petItem = NSMenuItem(title: "摸头/摸背闭眼互动", action: #selector(togglePetInteraction), keyEquivalent: "")
+        let petItem = NSMenuItem(title: tr("摸头/摸背闭眼互动", "Close eyes when petted"), action: #selector(togglePetInteraction), keyEquivalent: "")
         petItem.target = self
         petItem.state = settings.petInteraction ? .on : .off
         menu.addItem(petItem)
 
-        let earbudItem = NSMenuItem(title: "连接耳机时戴上 AirPods 🎧", action: #selector(toggleEarbudAnimation), keyEquivalent: "")
+        let earbudItem = NSMenuItem(title: tr("连接耳机时戴上 AirPods 🎧", "Wear AirPods with headphones 🎧"), action: #selector(toggleEarbudAnimation), keyEquivalent: "")
         earbudItem.target = self
         earbudItem.state = settings.earbudAnimation ? .on : .off
         menu.addItem(earbudItem)
 
-        let mosquitoItem = NSMenuItem(title: "睡着时会有蚊子来捣乱 🦟", action: #selector(toggleMosquito), keyEquivalent: "")
+        let mosquitoItem = NSMenuItem(title: tr("睡着时会有蚊子来捣乱 🦟", "Mosquito visits while asleep 🦟"), action: #selector(toggleMosquito), keyEquivalent: "")
         mosquitoItem.target = self
         mosquitoItem.state = settings.mosquitoVisits ? .on : .off
         menu.addItem(mosquitoItem)
-        let mosquitoDemo = NSMenuItem(title: "🎬 演示：蚊子来了", action: #selector(runMosquitoDemo), keyEquivalent: "")
+        let mosquitoDemo = NSMenuItem(title: tr("🎬 演示：蚊子来了", "🎬 Demo: here comes a mosquito"), action: #selector(runMosquitoDemo), keyEquivalent: "")
         mosquitoDemo.target = self
         menu.addItem(mosquitoDemo)
 
@@ -349,11 +349,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         // Scale submenu
         let scaleMenu = NSMenu()
         let scales: [(String, CGFloat)] = [
-            ("迷你 (0.65x)", 0.65),
-            ("偏小 (0.85x)", 0.85),
-            ("标准 (1.0x)", 1.0),
-            ("偏大 (1.25x)", 1.25),
-            ("超大 (1.5x)", 1.5)
+            (tr("迷你 (0.65x)", "Mini (0.65x)"), 0.65),
+            (tr("偏小 (0.85x)", "Small (0.85x)"), 0.85),
+            (tr("标准 (1.0x)", "Standard (1.0x)"), 1.0),
+            (tr("偏大 (1.25x)", "Large (1.25x)"), 1.25),
+            (tr("超大 (1.5x)", "Extra large (1.5x)"), 1.5)
         ]
         for (title, val) in scales {
             let item = NSMenuItem(title: title, action: #selector(selectScale(_:)), keyEquivalent: "")
@@ -362,82 +362,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             item.state = abs(settings.scale - val) < 0.05 ? .on : .off
             scaleMenu.addItem(item)
         }
-        let scaleParent = NSMenuItem(title: "尺寸大小", action: nil, keyEquivalent: "")
+        let scaleParent = NSMenuItem(title: tr("尺寸大小", "Size"), action: nil, keyEquivalent: "")
         scaleParent.submenu = scaleMenu
         menu.addItem(scaleParent)
 
         // Cat coat submenu: original skins plus approved shorthair and orange-white.
         let coatMenu = NSMenu()
         for coat in CatCoatTheme.allCases {
-            let item = NSMenuItem(title: coat.rawValue, action: #selector(selectCoatTheme(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: coat.displayName, action: #selector(selectCoatTheme(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = coat.rawValue
             item.state = settings.coatTheme == coat ? .on : .off
             coatMenu.addItem(item)
         }
-        let coatParent = NSMenuItem(title: "猫咪皮肤 🐱", action: nil, keyEquivalent: "")
+        let coatParent = NSMenuItem(title: tr("猫咪皮肤 🐱", "Cat coat 🐱"), action: nil, keyEquivalent: "")
         coatParent.submenu = coatMenu
         menu.addItem(coatParent)
 
         // Keyboard Theme submenu
         let kbMenu = NSMenu()
         for theme in KeyboardTheme.allCases {
-            let item = NSMenuItem(title: theme.rawValue, action: #selector(selectKeyboardTheme(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: theme.displayName, action: #selector(selectKeyboardTheme(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = theme.rawValue
             item.state = settings.keyboardTheme == theme ? .on : .off
             kbMenu.addItem(item)
         }
-        let kbParent = NSMenuItem(title: "键盘配色", action: nil, keyEquivalent: "")
+        let kbParent = NSMenuItem(title: tr("键盘配色", "Keyboard colors"), action: nil, keyEquivalent: "")
         kbParent.submenu = kbMenu
         menu.addItem(kbParent)
 
         // Eye Color submenu
         let eyeMenu = NSMenu()
         for eye in EyeColorTheme.allCases {
-            let item = NSMenuItem(title: eye.rawValue, action: #selector(selectEyeTheme(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: eye.displayName, action: #selector(selectEyeTheme(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = eye.rawValue
             item.state = settings.eyeTheme == eye ? .on : .off
             eyeMenu.addItem(item)
         }
-        let eyeParent = NSMenuItem(title: "瞳色切换", action: nil, keyEquivalent: "")
+        let eyeParent = NSMenuItem(title: tr("瞳色切换", "Eye color"), action: nil, keyEquivalent: "")
         eyeParent.submenu = eyeMenu
         menu.addItem(eyeParent)
 
         menu.addItem(.separator())
 
-        let demoItem = NSMenuItem(title: "🎬 演示打字 + 摸猫动画", action: #selector(runDemoBurst), keyEquivalent: "")
+        let demoItem = NSMenuItem(title: tr("🎬 演示打字 + 摸猫动画", "🎬 Demo: typing + petting"), action: #selector(runDemoBurst), keyEquivalent: "")
         demoItem.target = self
         menu.addItem(demoItem)
 
-        let resetPosItem = NSMenuItem(title: "重置位置到右下角", action: #selector(resetPosition), keyEquivalent: "")
+        let resetPosItem = NSMenuItem(title: tr("重置位置到右下角", "Move back to the bottom-right corner"), action: #selector(resetPosition), keyEquivalent: "")
         resetPosItem.target = self
         menu.addItem(resetPosItem)
 
-        let relaunchItem = NSMenuItem(title: "重启 KuroCat (授权后刷新)", action: #selector(relaunchApp), keyEquivalent: "")
+        let relaunchItem = NSMenuItem(title: tr("重启 KuroCat (授权后刷新)", "Restart KuroCat (after granting permission)"), action: #selector(relaunchApp), keyEquivalent: "")
         relaunchItem.target = self
         menu.addItem(relaunchItem)
 
+        // Language: the title is in both languages so it can be found whichever one is showing.
+        let languageMenu = NSMenu()
+        for (language, title) in [(AppLanguage.system, "跟随系统 / System"), (.chinese, "中文"), (.english, "English")] {
+            let item = NSMenuItem(title: title, action: #selector(selectLanguage(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = language.rawValue
+            item.state = L10n.setting == language ? .on : .off
+            languageMenu.addItem(item)
+        }
+        let languageParent = NSMenuItem(title: "语言 / Language", action: nil, keyEquivalent: "")
+        languageParent.submenu = languageMenu
+        menu.addItem(languageParent)
+
         if !Self.updateChecksEnabled {
-            let versionItem = NSMenuItem(title: "版本 v\(currentAppVersion) (分支版，已关闭更新检查)", action: nil, keyEquivalent: "")
+            let versionItem = NSMenuItem(title: tr("版本 v\(currentAppVersion) (分支版，已关闭更新检查)", "Version v\(currentAppVersion) (fork, update check off)"), action: nil, keyEquivalent: "")
             versionItem.isEnabled = false
             menu.addItem(versionItem)
         } else if let ver = availableUpdateVersion {
-            let title = isUpdating ? "⏳ 正在下载更新 \(ver)..." : "🆕 发现新版本 \(ver) — 点击自动更新"
+            let title = isUpdating ? tr("⏳ 正在下载更新 \(ver)...", "⏳ Downloading update \(ver)...") : tr("🆕 发现新版本 \(ver) — 点击自动更新", "🆕 New version \(ver) — click to update")
             let updateItem = NSMenuItem(title: title, action: #selector(openUpdateDownload), keyEquivalent: "")
             updateItem.target = self
             updateItem.isEnabled = !isUpdating
             menu.addItem(updateItem)
         } else {
-            let checkItem = NSMenuItem(title: "检查更新 (当前 v\(currentAppVersion))", action: #selector(manualCheckForUpdates), keyEquivalent: "")
+            let checkItem = NSMenuItem(title: tr("检查更新 (当前 v\(currentAppVersion))", "Check for updates (now v\(currentAppVersion))"), action: #selector(manualCheckForUpdates), keyEquivalent: "")
             checkItem.target = self
             menu.addItem(checkItem)
         }
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: "退出 KuroCat", action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: tr("退出 KuroCat", "Quit KuroCat"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -549,6 +562,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     @objc private func togglePetInteraction() {
         CatSettings.shared.petInteraction.toggle()
+    }
+
+    @objc private func selectLanguage(_ sender: NSMenuItem) {
+        guard let raw = sender.representedObject as? String, let language = AppLanguage(rawValue: raw) else { return }
+        L10n.setting = language
+        // Menus are rebuilt each time they open; refresh what is already on screen.
+        updateLinkIndicator(catLink.isLinkIndicatorOn)
+        catLink.languageChanged()
+        overlayWindow.catView.needsDisplay = true
     }
 
     @objc private func toggleMosquito() {
@@ -708,9 +730,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             case .found(let info):
                 self.handleUpdateResult(info, manual: manual)
             case .noRelease:
-                if manual { self.showInfoAlert(title: "已是最新版本", message: "当前版本 v\(self.currentAppVersion)，还没有发布更新的版本。") }
+                if manual { self.showInfoAlert(title: tr("已是最新版本", "Up to date"), message: tr("当前版本 v\(self.currentAppVersion)，还没有发布更新的版本。", "You have v\(self.currentAppVersion). No newer version has been published yet.")) }
             case .failed:
-                if manual { self.showInfoAlert(title: "检查更新失败", message: "无法连接到 GitHub，请稍后重试或检查网络连接。") }
+                if manual { self.showInfoAlert(title: tr("检查更新失败", "Couldn't check for updates"), message: tr("无法连接到 GitHub，请稍后重试或检查网络连接。", "Couldn't reach GitHub. Please try again later or check your network connection.")) }
             }
         }
     }
@@ -722,10 +744,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             NSApp.activate(ignoringOtherApps: true)
             let alert = NSAlert()
             alert.alertStyle = .informational
-            alert.messageText = "你已经下载了新版本 v\(local.version)"
-            alert.informativeText = "但现在运行的还是旧版 v\(currentAppVersion)：\n\(Bundle.main.bundlePath)\n\n新版本位置：\n\(local.url.path)\n\n点击「切换到新版本」会关闭旧版并打开新版。建议把新版拖进「应用程序」文件夹并删除旧版。"
-            alert.addButton(withTitle: "切换到新版本")
-            alert.addButton(withTitle: "稍后再说")
+            alert.messageText = tr("你已经下载了新版本 v\(local.version)", "You've already downloaded v\(local.version)")
+            alert.informativeText = tr("但现在运行的还是旧版 v\(currentAppVersion)：\n\(Bundle.main.bundlePath)\n\n新版本位置：\n\(local.url.path)\n\n点击「切换到新版本」会关闭旧版并打开新版。建议把新版拖进「应用程序」文件夹并删除旧版。", "But the old v\(currentAppVersion) is still running:\n\(Bundle.main.bundlePath)\n\nThe new version is at:\n\(local.url.path)\n\n“Switch to the new version” quits the old one and opens the new one. It's best to drag the new one into Applications and delete the old one.")
+            alert.addButton(withTitle: tr("切换到新版本", "Switch to the new version"))
+            alert.addButton(withTitle: tr("稍后再说", "Later"))
             if alert.runModal() == .alertFirstButtonReturn {
                 switchToDownloadedCopy(local.url)
             }
@@ -745,7 +767,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         } else {
             availableUpdateVersion = nil
             if manual {
-                showInfoAlert(title: "已是最新版本", message: "当前版本 v\(currentAppVersion) 已是最新版本。")
+                showInfoAlert(title: tr("已是最新版本", "Up to date"), message: tr("当前版本 v\(currentAppVersion) 已是最新版本。", "v\(currentAppVersion) is the latest version."))
             }
         }
     }
@@ -788,11 +810,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = "发现 KuroCat 新版本 \(latestTag)"
-        alert.informativeText = "当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。"
-        alert.addButton(withTitle: "立即更新")
-        alert.addButton(withTitle: "打开下载页")
-        alert.addButton(withTitle: "稍后再说")
+        alert.messageText = tr("发现 KuroCat 新版本 \(latestTag)", "KuroCat \(latestTag) is available")
+        alert.informativeText = tr("当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。", "Current version: v\(currentAppVersion)\nLatest version: \(latestTag)\nRunning from: \(Bundle.main.bundlePath)\n\n“Update now” downloads it in the background and restarts KuroCat.")
+        alert.addButton(withTitle: tr("立即更新", "Update now"))
+        alert.addButton(withTitle: tr("打开下载页", "Open download page"))
+        alert.addButton(withTitle: tr("稍后再说", "Later"))
         let resp = alert.runModal()
         if resp == .alertFirstButtonReturn {
             performInAppUpdate()
@@ -806,10 +828,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "没有安装这个更新"
-        alert.informativeText = "下载的新版本和当前 KuroCat 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。"
-        alert.addButton(withTitle: "打开下载页")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = tr("没有安装这个更新", "This update wasn't installed")
+        alert.informativeText = tr("下载的新版本和当前 KuroCat 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。", "The downloaded version isn't signed with the same certificate as this KuroCat, so for safety it wasn't installed. You can download it from the download page instead.")
+        alert.addButton(withTitle: tr("打开下载页", "Open download page"))
+        alert.addButton(withTitle: tr("取消", "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             NSWorkspace.shared.open(availableUpdateURL ?? URL(string: Self.updatePageURLString)!)
         }
@@ -948,10 +970,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "自动更新失败"
-        alert.informativeText = "下载或替换安装包时出错，是否打开下载页手动下载？"
-        alert.addButton(withTitle: "打开下载页")
-        alert.addButton(withTitle: "取消")
+        alert.messageText = tr("自动更新失败", "Update failed")
+        alert.informativeText = tr("下载或替换安装包时出错，是否打开下载页手动下载？", "Something went wrong while downloading or installing the update. Open the download page to download it manually?")
+        alert.addButton(withTitle: tr("打开下载页", "Open download page"))
+        alert.addButton(withTitle: tr("取消", "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
             let fallback = URL(string: Self.updatePageURLString)!
             NSWorkspace.shared.open(availableUpdateURL ?? fallback)
@@ -964,7 +986,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         alert.alertStyle = .informational
         alert.messageText = title
         alert.informativeText = message
-        alert.addButton(withTitle: "好")
+        alert.addButton(withTitle: tr("好", "OK"))
         alert.runModal()
     }
 
