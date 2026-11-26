@@ -100,6 +100,8 @@ struct ClaudeAlert {
     let session: String
     let app: String?
     let start: CFTimeInterval
+    /// Shown top edge (canvas y). It slides toward its slot when bubbles are added or closed.
+    var y: CGFloat = ClaudeAlertCenter.newestBubbleY
 
     var lifetime: CFTimeInterval { kind == .done ? 45 : 600 }
 
@@ -138,10 +140,10 @@ final class ClaudeAlertCenter {
         }
     }
 
-    func receive(_ info: [String: String]) {
+    func receive(_ info: [String: String], now: CFTimeInterval = CACurrentMediaTime()) {
         guard enabled, let kind = ClaudeAlertKind(rawValue: info["kind"] ?? "") else { return }
         let alert = ClaudeAlert(kind: kind, project: info["project"] ?? "Claude Code", session: info["session"] ?? "",
-                                app: info["app"], start: CACurrentMediaTime())
+                                app: info["app"], start: now)
         // Notification and PermissionRequest often both fire for one approval.
         if kind == .needsYou, let last = alerts.last(where: { $0.session == alert.session && $0.kind == .needsYou }),
            alert.start - last.start < 3 { return }
@@ -155,8 +157,24 @@ final class ClaudeAlertCenter {
         onAlert?(alert)
     }
 
+    private var lastStep: CFTimeInterval = 0
+
     func step(now: CFTimeInterval) {
         alerts.removeAll { now - $0.start > $0.lifetime }
+        let dt = CGFloat(min(0.1, max(0, now - lastStep)))
+        lastStep = now
+        let follow = min(1, dt * 11)
+        for i in alerts.indices {
+            alerts[i].y += (slotY(i) - alerts[i].y) * follow
+        }
+    }
+
+    /// The newest bubble sits just above the ears; older ones stack upward.
+    static let newestBubbleY: CGFloat = 46
+    static let bubbleSpacing: CGFloat = 23
+
+    private func slotY(_ index: Int) -> CGFloat {
+        ClaudeAlertCenter.newestBubbleY - CGFloat(alerts.count - 1 - index) * ClaudeAlertCenter.bubbleSpacing
     }
 
     /// Clicking a bubble closes it and brings back the app the session runs in.
@@ -173,21 +191,17 @@ final class ClaudeAlertCenter {
 
     // MARK: Drawing (canvas coordinates, flipped, 360 x 320)
 
-    /// Bubbles stack above the cat's head; the newest is nearest the cat.
+    /// Bubbles stack above the cat's head; the newest is nearest the cat (at the bottom).
     func layout(now: CFTimeInterval) -> [(alert: ClaudeAlert, rect: CGRect, alpha: CGFloat)] {
         let font = Self.font
-        var result: [(ClaudeAlert, CGRect, CGFloat)] = []
-        var y: CGFloat = 4
-        for alert in alerts {
+        return alerts.map { alert in
             let w = (alert.text as NSString).size(withAttributes: [.font: font]).width + 22 + (alert.kind == .needsYou ? 14 : 0)
-            let rect = CGRect(x: CatPhysics.seatAnchor.x - w / 2, y: y, width: w, height: 21)
+            let rect = CGRect(x: CatPhysics.seatAnchor.x - w / 2, y: alert.y, width: w, height: 21)
             let age = now - alert.start
             let fadeIn = min(1, CGFloat(age / 0.25))
             let fadeOut = min(1, CGFloat((alert.lifetime - age) / 4))
-            result.append((alert, rect, max(0, min(fadeIn, fadeOut))))
-            y += 25
+            return (alert, rect, max(0, min(fadeIn, fadeOut)))
         }
-        return result
     }
 
     static let font = NSFont.systemFont(ofSize: 11.5, weight: .semibold)

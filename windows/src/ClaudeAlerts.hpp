@@ -133,6 +133,7 @@ struct Alert {
     HWND app = nullptr;
     double start = 0;
     float width = 0;   // measured once
+    float y = 46.0f;   // shown top edge (canvas y); slides toward its slot when bubbles come and go
 
     double lifetime() const { return kind == Kind::Done ? 45.0 : 600.0; }
     std::wstring text() const {
@@ -170,6 +171,7 @@ public:
         a.session = session;
         a.app = app;
         a.start = now;
+        a.y = NewestBubbleY;
         a.width = measure(a.text()) + 22.0f + 13.0f;
         alerts.push_back(a);
         if (alerts.size() > 3) alerts.erase(alerts.begin(), alerts.end() - 3);
@@ -191,8 +193,19 @@ public:
         return receive(parts[0] == L"done" ? Kind::Done : Kind::NeedsYou, parts[1].substr(0, 200), parts[2].substr(0, 200), app, now);
     }
 
+    /// The newest bubble sits just above the ears; older ones stack upward (same as macOS).
+    static constexpr float NewestBubbleY = 46.0f;
+    static constexpr float BubbleSpacing = 23.0f;
+
     void step(double now) {
         alerts.erase(std::remove_if(alerts.begin(), alerts.end(), [&](const Alert& a) { return now - a.start > a.lifetime(); }), alerts.end());
+        float dt = (float)std::clamp(now - lastStep_, 0.0, 0.1);
+        lastStep_ = now;
+        float follow = std::min(1.0f, dt * 11.0f);
+        for (size_t i = 0; i < alerts.size(); ++i) {
+            float slot = NewestBubbleY - (float)(alerts.size() - 1 - i) * BubbleSpacing;
+            alerts[i].y += (slot - alerts[i].y) * follow;
+        }
     }
 
     /// Clicking a bubble closes it and brings back the window the session runs in.
@@ -211,16 +224,14 @@ public:
 
     struct Placed { const Alert* alert; Gdiplus::RectF rect; float alpha; };
 
-    /// Bubbles stack above the cat's head (canvas coordinates); the newest is nearest the cat.
+    /// Bubbles stack above the cat's head (canvas coordinates); the newest is nearest the cat (bottom).
     std::vector<Placed> layout(double now) const {
         std::vector<Placed> out;
-        float y = 4.0f;
         for (auto& a : alerts) {
-            Gdiplus::RectF r(CatPhysics::SeatAnchor.x - a.width / 2.0f, y, a.width, 21.0f);
+            Gdiplus::RectF r(CatPhysics::SeatAnchor.x - a.width / 2.0f, a.y, a.width, 21.0f);
             double age = now - a.start;
             float fadeIn = (float)std::min(1.0, age / 0.25), fadeOut = (float)std::min(1.0, (a.lifetime() - age) / 4.0);
             out.push_back({ &a, r, std::clamp(std::min(fadeIn, fadeOut), 0.0f, 1.0f) });
-            y += 25.0f;
         }
         return out;
     }
@@ -295,6 +306,7 @@ public:
 
 private:
     int nextId_ = 1;
+    double lastStep_ = 0.0;
 
     static float popScale(double age) {
         float t = (float)std::min(1.0, age / 0.35);

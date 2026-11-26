@@ -2371,7 +2371,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
         claude::Center c;
         CatPhysics p; InputEngine eng = feed();
         eng.lastMouseMoveTime = nowSeconds() - 10;
-        auto sync = [&] { p.wantsAttention = c.needsAttention(); };
+        auto sync = [&] { p.wantsAttention = c.needsAttention(); c.step(nowSeconds()); };
         run(p, eng, st, 0.5, sync);
         c.receive(claude::Kind::Done, L"x_project", L"a", nullptr, nowSeconds());
         p.cheer();
@@ -2669,7 +2669,7 @@ int runClaudeSelfTest() {
         c.step(t + 6 + 4 + 46);
         check(c.alerts.empty(), "done bubbles expire after 45 s");
         auto a = c.receivePayload(L"needs\nKuroCat\nsess\n0", t);
-        check(a && a->kind == Kind::NeedsYou && a->project == L"KuroCat" && c.hit({ CatPhysics::SeatAnchor.x, 14.0f }, t + 1) == a->id, "payload parsed, bubble clickable");
+        check(a && a->kind == Kind::NeedsYou && a->project == L"KuroCat" && c.hit({ CatPhysics::SeatAnchor.x, claude::Center::NewestBubbleY + 10.0f }, t + 1) == a->id, "payload parsed, bubble clickable");
         check(c.receivePayload(L"bogus\nx\ny", t) == nullptr, "bad payload ignored");
         c.enabled = false;
         check(c.receive(Kind::Done, L"p", L"z", nullptr, t) == nullptr, "nothing while disabled");

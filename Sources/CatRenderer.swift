@@ -1398,65 +1398,93 @@ enum CatRenderer {
 
     // MARK: - Subtle Petting Sparkles & Sleep Z
 
-    /// A small side-view mosquito: striped abdomen, long dangling legs, a proboscis, and fast
-    /// blurred wings. A faint light rim keeps it visible over a black coat.
+    /// A cartoon mosquito (side view, facing right): round grey body with stripes, a big head with one
+    /// white eye, a long nose, two chunky wings that flap, and three bent legs. Bold dark outlines keep it
+    /// readable on any background, including a black coat.
     static func drawMosquito(in ctx: CGContext, mosquito m: CatPhysics.Mosquito, time: CGFloat) {
         ctx.saveGState()
         ctx.translateBy(x: m.position.x, y: m.position.y)
         if m.facingLeft { ctx.scaleBy(x: -1, y: 1) }
         ctx.rotate(by: m.tilt)
-        ctx.scaleBy(x: 1.25, y: 1.25)
-        let ink = CGColor(gray: 0.16, alpha: 0.95)
-        let rim = CGColor(gray: 1, alpha: 0.4)
+        ctx.scaleBy(x: 1.15, y: 1.15)
+        let outline = CGColor(red: 0.12, green: 0.12, blue: 0.16, alpha: 1)
+        let bodyFill = CGColor(red: 0.42, green: 0.42, blue: 0.48, alpha: 1)
         ctx.setLineCap(.round)
+        ctx.setLineJoin(.round)
 
-        // Legs: three pairs trailing down and back (drawn first, behind the body)
-        ctx.setStrokeColor(ink)
-        ctx.setLineWidth(0.5)
-        for i in 0..<3 {
-            let fx = 0.6 + CGFloat(i) * 0.9
-            ctx.move(to: CGPoint(x: fx, y: 0.9))
-            ctx.addLine(to: CGPoint(x: fx - 1.6 - CGFloat(i) * 0.6, y: 3.6))
-            ctx.addLine(to: CGPoint(x: fx - 3.6 - CGFloat(i) * 1.3, y: 6.4 + CGFloat(i) * 0.3))
-        }
-        ctx.strokePath()
-
-        // Body: abdomen, thorax, head, proboscis
-        let abdomen = CGRect(x: -6.2, y: -1.2, width: 6.4, height: 2.4)
-        let thorax = CGRect(x: -0.2, y: -1.5, width: 3.0, height: 2.8)
-        let head = CGRect(x: 2.6, y: -0.6, width: 1.8, height: 1.7)
-        ctx.setStrokeColor(rim)
+        // Legs: three bent lines hanging under the body
+        ctx.setStrokeColor(outline)
         ctx.setLineWidth(1.1)
-        for r in [abdomen, thorax, head] { ctx.strokeEllipse(in: r) }
-        ctx.setFillColor(ink)
-        for r in [abdomen, thorax, head] { ctx.fillEllipse(in: r) }
-        ctx.setStrokeColor(CGColor(gray: 0.55, alpha: 0.8))
-        ctx.setLineWidth(0.35)
-        for x in stride(from: -5.0, through: -1.2, by: 1.25) {   // abdomen stripes
-            ctx.move(to: CGPoint(x: x, y: -1.0))
-            ctx.addLine(to: CGPoint(x: x, y: 1.0))
+        for i in 0..<3 {
+            let x = -2.5 + CGFloat(i) * 2.6
+            ctx.move(to: CGPoint(x: x, y: 2.5))
+            ctx.addLine(to: CGPoint(x: x - 2.2, y: 6.0))
+            ctx.addLine(to: CGPoint(x: x - 1.2, y: 9.5))
         }
         ctx.strokePath()
-        ctx.setStrokeColor(ink)
-        ctx.setLineWidth(0.45)
-        ctx.move(to: CGPoint(x: 4.2, y: 0.5))
-        ctx.addLine(to: CGPoint(x: 7.4, y: 1.9))
-        ctx.strokePath()
 
-        // Wings: two quick alternating poses read as a buzzing blur
-        let flap = sin(time * 90)
-        for (i, phase) in [flap, -flap].enumerated() {
+        // Back wing (behind the body), flapping opposite to the front one
+        let flap = sin(time * 38)
+        func wing(_ angle: CGFloat, alpha: CGFloat) {
             ctx.saveGState()
-            ctx.translateBy(x: 1.0, y: -1.1)
-            ctx.rotate(by: -2.55 + phase * 0.55 + CGFloat(i) * 0.25)
-            let wing = CGRect(x: 0, y: -1.1, width: 6.6, height: 2.2)
-            ctx.setFillColor(CGColor(gray: 0.92, alpha: 0.42 - CGFloat(i) * 0.12))
-            ctx.fillEllipse(in: wing)
-            ctx.setStrokeColor(CGColor(gray: 0.45, alpha: 0.55))
-            ctx.setLineWidth(0.3)
-            ctx.strokeEllipse(in: wing)
+            ctx.translateBy(x: -1.0, y: -2.6)
+            ctx.rotate(by: angle)
+            let r = CGRect(x: -1.0, y: -3.2, width: 10.5, height: 6.4)
+            ctx.setFillColor(CGColor(red: 0.86, green: 0.94, blue: 1.0, alpha: alpha))
+            ctx.fillEllipse(in: r)
+            ctx.setStrokeColor(outline.copy(alpha: 0.75)!)
+            ctx.setLineWidth(0.9)
+            ctx.strokeEllipse(in: r)
             ctx.restoreGState()
         }
+        wing(-2.2 - flap * 0.35, alpha: 0.55)
+
+        // Long nose
+        ctx.setStrokeColor(outline)
+        ctx.setLineWidth(1.4)
+        ctx.move(to: CGPoint(x: 6.5, y: 0.8))
+        ctx.addLine(to: CGPoint(x: 13.5, y: 3.4))
+        ctx.strokePath()
+
+        // Abdomen (tilted down at the back) with two stripes
+        ctx.saveGState()
+        ctx.translateBy(x: -5.2, y: 1.4)
+        ctx.rotate(by: 0.32)
+        let abdomen = CGRect(x: -5.5, y: -3.0, width: 11, height: 6)
+        ctx.setFillColor(bodyFill)
+        ctx.fillEllipse(in: abdomen)
+        ctx.addEllipse(in: abdomen)
+        ctx.clip()
+        ctx.setStrokeColor(outline.copy(alpha: 0.55)!)
+        ctx.setLineWidth(1.3)
+        for x in [-2.0, 1.2] as [CGFloat] {
+            ctx.move(to: CGPoint(x: x, y: -3.2))
+            ctx.addQuadCurve(to: CGPoint(x: x, y: 3.2), control: CGPoint(x: x + 1.4, y: 0))
+        }
+        ctx.strokePath()
+        ctx.resetClip()
+        ctx.setStrokeColor(outline)
+        ctx.setLineWidth(1.1)
+        ctx.strokeEllipse(in: abdomen)
+        ctx.restoreGState()
+
+        // Head with a big white eye
+        let head = CGRect(x: -0.6, y: -4.2, width: 8.0, height: 7.6)
+        ctx.setFillColor(bodyFill)
+        ctx.fillEllipse(in: head)
+        ctx.setStrokeColor(outline)
+        ctx.setLineWidth(1.1)
+        ctx.strokeEllipse(in: head)
+        let eye = CGRect(x: 2.6, y: -3.0, width: 4.0, height: 4.0)
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+        ctx.fillEllipse(in: eye)
+        ctx.setLineWidth(0.7)
+        ctx.strokeEllipse(in: eye)
+        ctx.setFillColor(outline)
+        ctx.fillEllipse(in: CGRect(x: 4.4, y: -1.9, width: 1.9, height: 1.9))
+
+        // Front wing
+        wing(-2.6 + flap * 0.35, alpha: 0.72)
         ctx.restoreGState()
     }
 
