@@ -2388,8 +2388,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
 
     {   // Mosquito: sleeping cat, mosquito circles, two swats, it leaves, the cat dozes off again.
         // The mosquito counts its own steps, so wait on its age (a slow CI machine falls behind the clock).
-        CatPhysics p; InputEngine eng = feed();
-        eng.lastMouseMoveTime = eng.lastKeyActivityTime = nowSeconds() - 500;   // long idle: asleep
+        CatPhysics p; InputEngine eng = feed();   // the demo's nap keeps the cat asleep throughout
         auto runUntil = [&](std::function<bool()> done, double maxSeconds) {
             double end = nowSeconds() + maxSeconds;
             while (!done() && nowSeconds() < end) { p.step(1.0f / 60.0f, rect, eng, st); Sleep(16); }

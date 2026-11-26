@@ -237,10 +237,14 @@ public:
     static constexpr float MosquitoSwatDuration = 0.42f;
 
     /// Menu demo: the cat dozes off, a mosquito visits, the cat dozes off again, then wakes up.
+    /// The nap ends once the cat has slept again for 2.5 s after the visit (60 s at most), so a slow
+    /// frame rate can't end it mid-visit.
     void summonMosquito() {
         double now = nowSeconds();
-        mosquitoDemoSleepUntil_ = now + 11.5;
+        mosquitoDemoSleepUntil_ = now + 60.0;
         mosquitoDemoSpawnAt_ = now + 1.6;
+        mosquitoDemoVisited_ = false;
+        mosquitoDemoDozeTime_ = 0.0f;
     }
 
     static Pt mosquitoPath(float t, Pt hc) {
@@ -894,6 +898,8 @@ private:
     float mosquitoEarCooldown_ = 0.0f;
     double mosquitoDemoSleepUntil_ = 0.0;
     double mosquitoDemoSpawnAt_ = -1.0;
+    bool mosquitoDemoVisited_ = false;
+    float mosquitoDemoDozeTime_ = 0.0f;
 
     void startMosquito() {
         Pt hc = headCenter();
@@ -973,12 +979,22 @@ private:
             }
             bool gone = m.position.x > 380.0f || m.position.y < -30.0f || (!m.fleeing && m.age >= MosquitoFlight);
             if (m.fleeing) mosquitoDisturb = std::max(0.0f, mosquitoDisturb - dt * 2.0f);
-            if (gone) { m.active = false; swatsDone_ = 0; swatStart_ = -1.0f; }
+            if (gone) {
+                m.active = false;
+                swatsDone_ = 0;
+                swatStart_ = -1.0f;
+                if (mosquitoDemoSleepUntil_ > now) mosquitoDemoVisited_ = true;
+            }
         } else {
             mosquitoDisturb = std::max(0.0f, mosquitoDisturb - dt * 0.4f);
         }
         // Eyes open to a grumpy half-squint while bothered; afterwards the cat dozes off again.
         if (mosquitoDisturb > 0.0f && !awake) sleepiness = std::min(sleepiness, 1.0f - 0.68f * mosquitoDisturb);
+        // Demo: wake up once the cat has slept again for a moment after the visit.
+        if (mosquitoDemoVisited_ && !mosquito.active && mosquitoDemoSleepUntil_ > now && sleepiness > 0.9f && mosquitoDisturb < 0.05f) {
+            mosquitoDemoDozeTime_ += dt;
+            if (mosquitoDemoDozeTime_ >= 2.5f) { mosquitoDemoSleepUntil_ = now; mosquitoDemoVisited_ = false; }
+        }
     }
 
     /// The paw on the mosquito's side strikes at where it was, then returns.

@@ -368,10 +368,16 @@ final class CatPhysics {
     private var mosquitoDemoSpawnAt: CFTimeInterval?
 
     /// Menu demo: the cat dozes off, a mosquito visits, the cat dozes off again, then wakes up.
+    /// The nap ends once the cat has slept again for 2.5 s after the visit (60 s at most), so a slow
+    /// frame rate can't end it mid-visit.
     func summonMosquito(now: CFTimeInterval = CACurrentMediaTime()) {
-        mosquitoDemoSleepUntil = now + 11.5
+        mosquitoDemoSleepUntil = now + 60
         mosquitoDemoSpawnAt = now + 1.6
+        mosquitoDemoVisited = false
+        mosquitoDemoDozeTime = 0
     }
+    private var mosquitoDemoVisited = false
+    private var mosquitoDemoDozeTime: CGFloat = 0
 
     static func mosquitoPath(age t: CGFloat, anchor hc: CGPoint) -> CGPoint {
         let start = CGPoint(x: -14, y: hc.y - 58)
@@ -460,7 +466,11 @@ final class CatPhysics {
             }
             let gone = m.position.x > 380 || m.position.y < -30 || (!m.fleeing && m.age >= CatPhysics.mosquitoFlight)
             mosquito = gone ? nil : m
-            if gone { swatsDone = 0; swatStart = nil }
+            if gone {
+                swatsDone = 0
+                swatStart = nil
+                if mosquitoDemoSleepUntil > now { mosquitoDemoVisited = true }
+            }
             // Bothered from the moment it gets close until a little after it leaves.
             if !m.fleeing && m.age > 1.1 { mosquitoDisturb = min(1, mosquitoDisturb + dt * 2.2) }
         } else {
@@ -469,6 +479,11 @@ final class CatPhysics {
         if mosquito?.fleeing == true { mosquitoDisturb = max(0, mosquitoDisturb - dt * 2) }
         // Eyes open to a grumpy half-squint while bothered; afterwards the cat dozes off again.
         if mosquitoDisturb > 0 && !awake { sleepiness = min(sleepiness, 1 - 0.68 * mosquitoDisturb) }
+        // Demo: wake up once the cat has slept again for a moment after the visit.
+        if mosquitoDemoVisited && mosquito == nil && mosquitoDemoSleepUntil > now && sleepiness > 0.9 && mosquitoDisturb < 0.05 {
+            mosquitoDemoDozeTime += dt
+            if mosquitoDemoDozeTime >= 2.5 { mosquitoDemoSleepUntil = now; mosquitoDemoVisited = false }
+        }
     }
 
     /// The paw on the mosquito's side strikes at where it was, then returns.
