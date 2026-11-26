@@ -107,7 +107,7 @@ struct ClaudeAlert {
 
     var text: String {
         let name = project.count > 18 ? String(project.prefix(17)) + "…" : project
-        return kind == .done ? "✓ \(name) 完成了" : "\(name) 等你确认"
+        return kind == .done ? tr("✓ \(name) 完成了", "✓ \(name) done") : tr("\(name) 等你确认", "\(name) needs you")
     }
 }
 
@@ -266,14 +266,14 @@ final class ClaudeAlertCenter {
     // MARK: Menu
 
     func menuItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: "Claude Code 提醒 🤖", action: nil, keyEquivalent: "")
+        let parent = NSMenuItem(title: tr("Claude Code 提醒 🤖", "Claude Code alerts 🤖"), action: nil, keyEquivalent: "")
         let menu = NSMenu()
         let items: [(String, Selector, Bool?)] = [
-            ("完成或等你确认时提醒", #selector(ClaudeAlertMenuActions.toggleEnabled), enabled),
-            ("提示音", #selector(ClaudeAlertMenuActions.toggleSound), soundEnabled),
-            ("试一下「完成了」", #selector(ClaudeAlertMenuActions.testDone), nil),
-            ("试一下「等你确认」", #selector(ClaudeAlertMenuActions.testNeeds), nil),
-            ("复制 Claude Code 钩子设置", #selector(ClaudeAlertMenuActions.copySettings), nil),
+            (tr("完成或等你确认时提醒", "Alert when a session is done or needs you"), #selector(ClaudeAlertMenuActions.toggleEnabled), enabled),
+            (tr("提示音", "Sound"), #selector(ClaudeAlertMenuActions.toggleSound), soundEnabled),
+            (tr("试一下「完成了」", "Try “done”"), #selector(ClaudeAlertMenuActions.testDone), nil),
+            (tr("试一下「等你确认」", "Try “needs you”"), #selector(ClaudeAlertMenuActions.testNeeds), nil),
+            (tr("复制 Claude Code 钩子设置", "Copy Claude Code hook settings"), #selector(ClaudeAlertMenuActions.copySettings), nil),
         ]
         for (i, (title, action, state)) in items.enumerated() {
             if i == 2 || i == 4 { menu.addItem(.separator()) }
@@ -300,8 +300,8 @@ final class ClaudeAlertCenter {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ClaudeHook.settingsSnippet, forType: .string)
         let alert = NSAlert()
-        alert.messageText = "已复制 Claude Code 钩子设置"
-        alert.informativeText = "把它合并到 ~/.claude/settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。"
+        alert.messageText = tr("已复制 Claude Code 钩子设置", "Claude Code hook settings copied")
+        alert.informativeText = tr("把它合并到 ~/.claude/settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。", "Merge it into the \"hooks\" section of ~/.claude/settings.json, then reopen Claude Code. From then on, the cat tells you whenever a session finishes or Claude needs your OK. It stays on this computer and never goes over Cat Link.")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }

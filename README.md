@@ -29,6 +29,7 @@
 - **🦟 睡觉时的蚊子**：睡着几分钟后有蚊子来捣乱，小猫被吵醒去拍它，然后又睡着。
 - **🐾 更自然的小动作**：真的在摸才闭眼，持续快速晃鼠标才出现捕猎大眼，待机时露出小爪子，滚动时爪子拨滚轮。
 - **🔄 只从本分支自动更新**：只检查本仓库的 Releases，有新版本时先问你。
+- **🌐 中英文界面**：整个程序可以用中文或英文。
 
 ### 怎么用
 
@@ -36,6 +37,7 @@
 - **Claude Code 提醒**：菜单「Claude Code 提醒 🤖」→「复制 Claude Code 钩子设置」，合并到 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），然后重新打开 Claude Code。
 - **蚊子**：「🎬 演示：蚊子来了」可以立刻看；取消勾选「睡着时会有蚊子来捣乱 🦟」就关掉了。
 - **更新**：启动时和之后每 6 小时检查一次，也可以在菜单里点「检查更新」。
+- **语言**：默认跟随系统语言（中文系统显示中文，其他显示英文），随时可以在菜单「语言 / Language」里切换。
 
 预编译版本在 [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) 页面（Mac 版用作者自己的证书签名，Windows 版由 GitHub Actions 构建），也可以用 `./build.sh` 从源码构建（见下方“下载与运行”）。发布流程见 [docs/releasing.md](docs/releasing.md)。
 

@@ -29,13 +29,15 @@ What's new:
 - **🦟 A mosquito while it sleeps**: a few minutes into a nap, a mosquito wakes the cat, which swats at it and dozes off again.
 - **🐾 More natural moves**: petting must be deliberate, hunting eyes need sustained fast mouse movement, paws rest on the keyboard when idle, and a paw strokes the scroll wheel while you scroll.
 - **🔄 Updates from this fork only**: checks only this repository's Releases, and asks before updating.
+- **🌐 English and Chinese**: the whole app in either language.
 
 ### How to use
 
-- **Cat Link**: in the menu, **🔗 猫咪连线 → 创建配对码，邀请朋友…** ("create a pairing code") and send the code to your friend, who picks **输入朋友的配对码…** ("enter a friend's code") in the same menu (on Windows: copy it, then click **粘贴朋友的配对码并连线**). **🎬 演示：模拟一位朋友** ("Demo: simulate a friend") previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
-- **Claude Code alerts**: **Claude Code 提醒 🤖 → 复制 Claude Code 钩子设置** ("copy the Claude Code hook settings"), merge it into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code.
-- **Mosquito**: **🎬 演示：蚊子来了** ("Demo: here comes a mosquito") shows it right away; untick **睡着时会有蚊子来捣乱 🦟** to turn it off.
-- **Updates**: checked at launch and every 6 hours, or any time with **检查更新** ("check for updates") in the menu.
+- **Cat Link**: in the menu, choose **🔗 Cat Link → Create a pairing code to invite a friend…** and send the code to your friend, who picks **Enter a friend's pairing code…** in the same menu (on Windows: copy it, then click **Paste a friend's pairing code and link**). **🎬 Demo: pretend friend** previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
+- **Claude Code alerts**: **Claude Code alerts 🤖 → Copy Claude Code hook settings**, merge it into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code.
+- **Mosquito**: **🎬 Demo: here comes a mosquito** shows it right away; untick **Mosquito visits while asleep 🦟** to turn it off.
+- **Updates**: checked at launch and every 6 hours, or any time with **Check for updates** in the menu.
+- **Language**: the menus follow your system language (Chinese on a Chinese system, English otherwise). Change it any time with **语言 / Language** in the menu.
 
 Pre-built versions are on the [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) page (the Mac app is signed with the maintainer's own certificate; the Windows exe is built by GitHub Actions), or build from source with `./build.sh` (see [Download & Run](#-download--run)). How releases are made: [docs/releasing.md](docs/releasing.md).
 

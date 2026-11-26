@@ -13,6 +13,7 @@ final class CatLinkController: NSObject {
     var menuProvider: (() -> NSMenu)?
     /// True while linked with an online friend (for the menu bar indicator).
     var onIndicatorChange: ((Bool) -> Void)?
+    var isLinkIndicatorOn: Bool { link.status == .linked }
 
     private let defaults = UserDefaults.standard
     private var savedCode: CatLinkCode? { defaults.string(forKey: "KuroCat.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
@@ -30,10 +31,15 @@ final class CatLinkController: NSObject {
     }
     private var isDemo: Bool { CACurrentMediaTime() < demoUntil }
 
-    static let whatIsShared = """
-    对方会看到：你在打字（只知道是左手还是右手在敲，不知道按了哪个键）、鼠标的移动、点击和滚动（包括光标在屏幕上的大致位置）、是否戴着耳机、你的猫咪皮肤和昵称。你们也能隔空摸对方的猫。
-    输入密码时会自动暂停发送键盘动作。所有内容都用配对码加密，中转服务器也看不到内容。
-    """
+    static var whatIsShared: String {
+        tr("""
+        对方会看到：你在打字（只知道是左手还是右手在敲，不知道按了哪个键）、鼠标的移动、点击和滚动（包括光标在屏幕上的大致位置）、是否戴着耳机、你的猫咪皮肤和昵称。你们也能隔空摸对方的猫。
+        输入密码时会自动暂停发送键盘动作。所有内容都用配对码加密，中转服务器也看不到内容。
+        """, """
+        Your friend sees: that you're typing (only whether your left or right paw is typing, never which key), mouse movement, clicks and scrolling (including roughly where the cursor is on your screen), whether you're wearing headphones, and your cat's coat and nickname. You can also pet each other's cats from afar.
+        Keyboard activity pauses while you type a password. Everything is encrypted with the pairing code, so the relay server can't read it.
+        """)
+    }
 
     // MARK: Setup & per-frame
 
@@ -123,18 +129,21 @@ final class CatLinkController: NSObject {
         }
     }
 
+    /// The UI language changed: refresh the friend's name tag.
+    func languageChanged() { updateLabel() }
+
     private func updateLabel() {
         guard let view = remoteWindow?.catView else { return }
         if isDemo {
-            view.nameLabel = "演示 · 模拟的朋友"
+            view.nameLabel = tr("演示 · 模拟的朋友", "Demo · pretend friend")
             view.nameLabelDimmed = false
             return
         }
-        let name = link.friendName.map { "\($0) 的猫" } ?? "朋友的猫"
+        let name = link.friendName.map { tr("\($0) 的猫", "\($0)'s cat") } ?? tr("朋友的猫", "Friend's cat")
         switch link.status {
-        case .linked: view.nameLabel = name + " · 在线"; view.nameLabelDimmed = false
-        case .friendOffline: view.nameLabel = name + " · 离线"; view.nameLabelDimmed = true
-        case .connecting, .reconnecting: view.nameLabel = name + " · 正在重新连接…"; view.nameLabelDimmed = true
+        case .linked: view.nameLabel = name + tr(" · 在线", " · online"); view.nameLabelDimmed = false
+        case .friendOffline: view.nameLabel = name + tr(" · 离线", " · offline"); view.nameLabelDimmed = true
+        case .connecting, .reconnecting: view.nameLabel = name + tr(" · 正在重新连接…", " · reconnecting…"); view.nameLabelDimmed = true
         case .waitingForFriend, .off: view.nameLabel = name; view.nameLabelDimmed = true
         }
         view.needsDisplay = true
@@ -150,33 +159,33 @@ final class CatLinkController: NSObject {
     // MARK: Menu
 
     func menuItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: link.status == .linked ? "🔗 猫咪连线（已连线）" : "🔗 猫咪连线", action: nil, keyEquivalent: "")
+        let parent = NSMenuItem(title: link.status == .linked ? tr("🔗 猫咪连线（已连线）", "🔗 Cat Link (linked)") : tr("🔗 猫咪连线", "🔗 Cat Link"), action: nil, keyEquivalent: "")
         let sub = NSMenu()
-        let friend = link.friendName ?? "朋友"
+        let friend = link.friendName ?? tr("朋友", "your friend")
         let status: String
         switch link.status {
-        case .off: status = "未连线"
-        case .connecting: status = "正在连接服务器…"
-        case .waitingForFriend: status = "已连接，等待朋友输入配对码"
-        case .linked: status = "已和 \(friend) 连线 🟢"
-        case .friendOffline: status = "\(friend) 已离线，等待对方回来"
-        case .reconnecting: status = "网络中断，正在重新连接…"
+        case .off: status = tr("未连线", "not linked")
+        case .connecting: status = tr("正在连接服务器…", "connecting to the server…")
+        case .waitingForFriend: status = tr("已连接，等待朋友输入配对码", "connected, waiting for your friend to enter the code")
+        case .linked: status = tr("已和 \(friend) 连线 🟢", "linked with \(friend) 🟢")
+        case .friendOffline: status = tr("\(friend) 已离线，等待对方回来", "\(friend) is offline, waiting for them to come back")
+        case .reconnecting: status = tr("网络中断，正在重新连接…", "network lost, reconnecting…")
         }
-        sub.addItem(disabled("状态：\(status)"))
-        if link.status == .reconnecting, let error = link.lastError { sub.addItem(disabled("原因：\(error)")) }
+        sub.addItem(disabled(tr("状态：\(status)", "Status: \(status)")))
+        if link.status == .reconnecting, let error = link.lastError { sub.addItem(disabled(tr("原因：\(error)", "Reason: \(error)"))) }
         sub.addItem(.separator())
 
         if link.status == .off {
-            sub.addItem(item("创建配对码，邀请朋友…", #selector(createCode)))
-            sub.addItem(item("输入朋友的配对码…", #selector(joinCode)))
-            if let code = savedCode { sub.addItem(item("重新连线（\(code.display)）", #selector(reconnect))) }
+            sub.addItem(item(tr("创建配对码，邀请朋友…", "Create a pairing code to invite a friend…"), #selector(createCode)))
+            sub.addItem(item(tr("输入朋友的配对码…", "Enter a friend's pairing code…"), #selector(joinCode)))
+            if let code = savedCode { sub.addItem(item(tr("重新连线（\(code.display)）", "Reconnect (\(code.display))"), #selector(reconnect))) }
         } else if let code = link.code {
-            sub.addItem(item("复制配对码 \(code.display)", #selector(copyCode)))
-            sub.addItem(item("断开连线", #selector(disconnect)))
+            sub.addItem(item(tr("复制配对码 \(code.display)", "Copy pairing code \(code.display)"), #selector(copyCode)))
+            sub.addItem(item(tr("断开连线", "Disconnect"), #selector(disconnect)))
         }
         sub.addItem(.separator())
 
-        let serverParent = NSMenuItem(title: "新配对码使用的服务器", action: nil, keyEquivalent: "")
+        let serverParent = NSMenuItem(title: tr("新配对码使用的服务器", "Server for new pairing codes"), action: nil, keyEquivalent: "")
         let serverMenu = NSMenu()
         for server in CatLinkCode.Server.allCases {
             let it = item(server.title, #selector(selectServer(_:)))
@@ -186,10 +195,10 @@ final class CatLinkController: NSObject {
         }
         serverParent.submenu = serverMenu
         sub.addItem(serverParent)
-        sub.addItem(item("我的昵称：\(nickname.isEmpty ? "未设置" : nickname)…", #selector(setNickname)))
+        sub.addItem(item(nickname.isEmpty ? tr("我的昵称：未设置…", "My nickname: not set…") : tr("我的昵称：\(nickname)…", "My nickname: \(nickname)…"), #selector(setNickname)))
         sub.addItem(.separator())
-        sub.addItem(item("🎬 演示：模拟一位朋友", #selector(runDemo)))
-        sub.addItem(item("对方能看到什么？", #selector(explain)))
+        sub.addItem(item(tr("🎬 演示：模拟一位朋友", "🎬 Demo: pretend friend"), #selector(runDemo)))
+        sub.addItem(item(tr("对方能看到什么？", "What does my friend see?"), #selector(explain)))
         parent.submenu = sub
         return parent
     }
@@ -216,34 +225,34 @@ final class CatLinkController: NSObject {
         let code = CatLinkCode.generate(server: newCodeServer)
         start(code)
         let alert = NSAlert()
-        alert.messageText = "把这个配对码发给你的朋友"
-        alert.informativeText = "朋友在 KuroCat 菜单「🔗 猫咪连线 → 输入朋友的配对码」里粘贴它，你们的猫就会出现在对方的屏幕上。\n配对码就是你们的密钥，请只发给这位朋友。\n\n" + Self.whatIsShared
+        alert.messageText = tr("把这个配对码发给你的朋友", "Send this pairing code to your friend")
+        alert.informativeText = tr("朋友在 KuroCat 菜单「🔗 猫咪连线 → 输入朋友的配对码」里粘贴它，你们的猫就会出现在对方的屏幕上。\n配对码就是你们的密钥，请只发给这位朋友。\n\n", "Your friend pastes it in KuroCat's menu (🔗 Cat Link → Enter a friend's pairing code), and your cats appear on each other's screens.\nThe code is your shared key, so send it only to this friend.\n\n") + Self.whatIsShared
         alert.accessoryView = selectableField(code.display)
-        alert.addButton(withTitle: "复制配对码")
-        alert.addButton(withTitle: "完成")
+        alert.addButton(withTitle: tr("复制配对码", "Copy code"))
+        alert.addButton(withTitle: tr("完成", "Done"))
         NSApp.activate(ignoringOtherApps: true)
         if alert.runModal() == .alertFirstButtonReturn { copy(code.display) }
     }
 
     @objc private func joinCode() {
         let alert = NSAlert()
-        alert.messageText = "输入朋友的配对码"
-        alert.informativeText = "形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX。\n\n" + Self.whatIsShared
+        alert.messageText = tr("输入朋友的配对码", "Enter your friend's pairing code")
+        alert.informativeText = tr("形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX。\n\n", "It looks like KC-C-XXXX-XXXX-XXXX-XXXX-XXXX.\n\n") + Self.whatIsShared
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
         field.placeholderString = "KC-C-XXXX-XXXX-XXXX-XXXX-XXXX"
         if let clip = NSPasteboard.general.string(forType: .string), let code = CatLinkCode(parsing: clip) {
             field.stringValue = code.display
         }
         alert.accessoryView = field
-        alert.addButton(withTitle: "连线")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: tr("连线", "Link"))
+        alert.addButton(withTitle: tr("取消", "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
         guard let code = CatLinkCode(parsing: field.stringValue) else {
             let error = NSAlert()
-            error.messageText = "配对码不对"
-            error.informativeText = "请检查是否完整复制了配对码（KC- 开头，共 5 组 4 个字符）。"
+            error.messageText = tr("配对码不对", "That pairing code isn't right")
+            error.informativeText = tr("请检查是否完整复制了配对码（KC- 开头，共 5 组 4 个字符）。", "Check that you copied the whole code (it starts with KC- and has 5 groups of 4 characters).")
             error.runModal()
             return
         }
@@ -270,13 +279,13 @@ final class CatLinkController: NSObject {
 
     @objc private func setNickname() {
         let alert = NSAlert()
-        alert.messageText = "你的昵称"
-        alert.informativeText = "会显示在朋友屏幕上你的猫的上方。"
+        alert.messageText = tr("你的昵称", "Your nickname")
+        alert.informativeText = tr("会显示在朋友屏幕上你的猫的上方。", "Shown above your cat on your friend's screen.")
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
         field.stringValue = nickname
         alert.accessoryView = field
-        alert.addButton(withTitle: "保存")
-        alert.addButton(withTitle: "取消")
+        alert.addButton(withTitle: tr("保存", "Save"))
+        alert.addButton(withTitle: tr("取消", "Cancel"))
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
@@ -287,8 +296,8 @@ final class CatLinkController: NSObject {
 
     @objc private func explain() {
         let alert = NSAlert()
-        alert.messageText = "猫咪连线会分享什么？"
-        alert.informativeText = Self.whatIsShared + "\n\n断开连线后就不再发送任何内容。"
+        alert.messageText = tr("猫咪连线会分享什么？", "What does Cat Link share?")
+        alert.informativeText = Self.whatIsShared + tr("\n\n断开连线后就不再发送任何内容。", "\n\nNothing is sent after you disconnect.")
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }

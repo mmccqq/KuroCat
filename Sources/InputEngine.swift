@@ -9,6 +9,15 @@ enum InputEngineStatus: String {
     case hidOnly = "硬件 HID 监听中 (游戏/打字全支持)"
     case eventTapOnly = "全局事件监听中 (EventTap)"
     case needsPermission = "需开启「输入监控」以全局监听键盘"
+
+    var displayName: String {
+        switch self {
+        case .fullHardware: return tr(rawValue, "Hardware-level listening (HID + EventTap)")
+        case .hidOnly: return tr(rawValue, "Hardware HID listening (typing and games)")
+        case .eventTapOnly: return tr(rawValue, "Global event listening (EventTap)")
+        case .needsPermission: return tr(rawValue, "Allow Input Monitoring to see the keyboard everywhere")
+        }
+    }
 }
 
 /// Dual-layer full-state keyboard & mouse capture engine for macOS.

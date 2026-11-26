@@ -138,7 +138,7 @@ struct Alert {
     double lifetime() const { return kind == Kind::Done ? 45.0 : 600.0; }
     std::wstring text() const {
         std::wstring name = project.size() > 18 ? project.substr(0, 17) + L"…" : project;
-        return kind == Kind::Done ? name + L" 完成了" : name + L" 等你确认";
+        return kind == Kind::Done ? name + tr(L" 完成了", L" done") : name + tr(L" 等你确认", L" needs you");
     }
 };
 

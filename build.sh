@@ -86,6 +86,7 @@ PYEOF
 fi
 
 SWIFT_SOURCES=(
+    "$ROOT/Sources/Localization.swift"
     "$ROOT/Sources/KeyMap.swift"
     "$ROOT/Sources/InputEngine.swift"
     "$ROOT/Sources/CatPhysics.swift"
