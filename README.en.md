@@ -19,17 +19,20 @@
 
 ## 🍴 About This Fork
 
-This is a fork of [chanke17/KuroCat](https://github.com/chanke17/KuroCat), based on upstream **v1.3.3**. It changes how the **macOS** cat reacts to your cursor and mouse; the Windows and Linux versions are unchanged from upstream.
+This is a fork of [chanke17/KuroCat](https://github.com/chanke17/KuroCat), based on upstream **v1.3.3**. The changes below are in **both the macOS and Windows** versions, which are kept feature-for-feature the same; the Linux version is unchanged from upstream.
 
 - **Deliberate petting**: the cat reacts after about **1 second** of stroking its head or back, not the instant the cursor passes over it. Slow strokes count, and short pauses (up to 0.6 s, such as lifting a finger off the trackpad) keep your progress.
 - **The keyboard isn't the cat**: moving the cursor over the mini keyboard no longer counts as petting. You can still drag the cat by its keyboard.
 - **Calmer hunting eyes**: the round boba pupils appear only after about **0.8 seconds** of continuous fast mouse movement, so ordinary cursor moves across the screen don't trigger them. Waving the mouse back and forth still does.
 - **Visible resting paws**: when idle, the cat's front paws rest on the keyboard's edge, with toe lines and each skin's paw color.
 - **Paw on the scroll wheel**: when you scroll, the paw on the mini mouse reaches onto the wheel and rubs it back and forth in rhythm, the wheel's stripes roll, and a "滚轮" (scroll wheel) badge pops up like the click badges.
-- **AirPods for headphones**: when the sound output switches to headphones (Bluetooth, USB, or the headphone jack), the cat lifts both paws and puts a pair of AirPods in its ears, and ♪ notes drift out while something is playing. When the output switches back to the Mac's own speakers (or a monitor's speakers), it takes the AirPods out and tucks them away. Bluetooth speakers count as headphones too, because macOS reports them the same way. KuroCat reads only the output device's type, never any audio. Turn it off with **连接耳机时戴上 AirPods 🎧** in the menu.
+- **AirPods for headphones**: when the sound output switches to headphones (Bluetooth, USB, or the headphone jack), the cat lifts both paws and puts a pair of AirPods in its ears, and ♪ notes drift out while something is playing. When the output switches back to the computer's own speakers (or a monitor's speakers), it takes the AirPods out and tucks them away. Bluetooth speakers may count as headphones too, because the system reports them the same way. KuroCat reads only the output device's type, never any audio. Turn it off with **连接耳机时戴上 AirPods 🎧** in the menu.
+- **🔗 Cat Link (see a faraway friend's cat)**: one person creates a pairing code in the **🔗 猫咪连线** menu and sends it to a friend, who enters it (on Windows: copy it, then click **粘贴朋友的配对码并连线**, "paste a friend's code and connect"). Each friend's cat then appears next to the other's, with their skin, nickname and online status, typing, moving the mouse, scrolling and wearing headphones along with them. Pet your friend's cat and theirs closes its eyes on their screen, with floating ♥. Macs and Windows PCs can link with each other.
+  - **Privacy**: only "left paw / right paw is typing" is sent, never which key (the friend's cat presses random keys on that side, and its key bubbles show those random keys). Keyboard activity pauses while a password field is focused. Everything is encrypted with the pairing code and relayed through EMQX's free public server (Shanghai or US), so the server can't read it. It's opt-in, and nothing is sent after you disconnect.
+  - **🎬 演示：模拟一位朋友** ("Demo: simulate a friend") in the menu previews it locally without sending anything. The wire format is in [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
 - **No update check**: the app no longer checks upstream's update server, so it never offers to replace this fork with the official release. To update, pull this repository and rebuild.
 
-The timings can be tuned in `Sources/CatPhysics.swift` (`petEngageDuration`, `petStrokeGap`, `huntArmDuration`, `huntGap`, `scrollHoldDuration`, `earbudPutOnDuration`, `earbudTakeOffDuration`).
+The timings can be tuned in `Sources/CatPhysics.swift` (Windows: `windows/src/CatPhysics.hpp`) (`petEngageDuration`, `petStrokeGap`, `huntArmDuration`, `huntGap`, `scrollHoldDuration`, `earbudPutOnDuration`, `earbudTakeOffDuration`).
 
 This fork doesn't publish pre-built downloads. To use it, build from source with `./build.sh` (see [Download & Run](#-download--run)).
 

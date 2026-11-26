@@ -40,6 +40,7 @@ struct CatSettings {
     bool fullClickThrough = false;
     bool alwaysOnTop = true;
     bool runAsAdmin = false; // relaunch elevated so keys typed into admin-level games are visible (UIPI)
+    bool earbudAnimation = true; // put on AirPods when the sound output switches to headphones
     float scale = 1.0f;
     CatCoatTheme coatTheme = CatCoatTheme::ClassicBlack;
     KeyboardTheme keyboardTheme = KeyboardTheme::ClassicMilk;
@@ -63,6 +64,7 @@ struct CatSettings {
         fullClickThrough = readDword(L"FullClickThrough", 0) != 0;
         alwaysOnTop      = readDword(L"AlwaysOnTop", 1) != 0;
         runAsAdmin       = readDword(L"RunAsAdmin", 0) != 0;
+        earbudAnimation  = readDword(L"EarbudAnimation", 1) != 0;
         scale            = std::clamp((float)readDword(L"ScalePct", 100) / 100.0f, 0.5f, 2.0f);
         coatTheme        = (CatCoatTheme)std::clamp((int)readDword(L"CoatTheme", 0), 0, 3);
         keyboardTheme    = (KeyboardTheme)std::clamp((int)readDword(L"KeyboardTheme", 0), 0, 2);
@@ -89,6 +91,7 @@ struct CatSettings {
         writeDword(L"FullClickThrough", fullClickThrough ? 1 : 0);
         writeDword(L"AlwaysOnTop", alwaysOnTop ? 1 : 0);
         writeDword(L"RunAsAdmin", runAsAdmin ? 1 : 0);
+        writeDword(L"EarbudAnimation", earbudAnimation ? 1 : 0);
         writeDword(L"ScalePct", (DWORD)(scale * 100.0f + 0.5f));
         writeDword(L"CoatTheme", (DWORD)coatTheme);
         writeDword(L"KeyboardTheme", (DWORD)keyboardTheme);
@@ -145,6 +148,7 @@ struct PurrSparkle {
     float age = 0.0f;
     float lifetime = 0.9f;
     bool isSleepZ = false;
+    std::wstring note;   // drawn as text when set: ♪ ♫ while wearing AirPods, ♥ when a friend pets this cat
 };
 
 class CatPhysics {
@@ -204,6 +208,143 @@ public:
     bool isHappyClosedEyes() const { return petHeadIntensity > 0.45f; }
     bool isBlissfulSquint() const { return petBodyIntensity > 0.35f && !isHappyClosedEyes(); }
 
+    // Petting must be deliberate: ~1 s of stroking (and some distance) before the cat reacts.
+    static constexpr double PetEngageDuration = 1.0;
+    static constexpr float PetEngageDistance = 60.0f;
+    static constexpr double PetStrokeGap = 0.6;      // a longer pause starts a new stroke
+    // Hunting eyes only after sustained fast movement (brief slowdowns don't reset the timer).
+    static constexpr double HuntArmDuration = 0.8;
+    static constexpr double HuntGap = 0.25;
+    static constexpr double ScrollHoldDuration = 0.35;
+
+    // Scroll wheel paw
+    Spring1D scrollReach{0.0f};
+    float wheelPhase = 0.0f;
+
+    // AirPods: the sound output switched to headphones -> both paws put AirPods in the ears.
+    enum class EarbudPhase { Off, PuttingOn, On, TakingOff };
+    struct EarbudPose { float inEar; float scale; float alpha; };   // inEar: 0 = held in the paw, 1 = in the ear
+    struct EarPoint { float x, y, z; };
+    struct EarCorners { EarPoint inner, outer, tip; float angle; };
+    static constexpr double EarbudPutOnDuration = 1.3;
+    static constexpr double EarbudTakeOffDuration = 1.15;
+    static constexpr float EarbudStemAngle = 0.75f;
+    EarbudPhase earbudPhase = EarbudPhase::Off;
+    float earbudProgress = 0.0f;
+    bool headphonesPlaying = false;
+
+    void triggerScroll(float delta, const CatSettings& settings) {
+        if (delta == 0.0f) return;
+        sleepiness = 0.0f;
+        double now = nowSeconds();
+        if (now - lastScrollTime_ > 0.6 && settings.showMouseBadges) {
+            Pt pt = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y - 6.0f };
+            spawnFloatingKeycap(L"\u6EDA\u8F6E", pt, now);   // 滚轮
+        }
+        lastScrollTime_ = now;
+        wheelPhase += std::clamp(delta * 0.25f, -1.1f, 1.1f);
+        float step = std::min(0.55f, 0.12f + std::fabs(delta) * 0.05f);
+        scrollStrokePhase_ += delta > 0.0f ? step : -step;
+    }
+
+    /// The sound output switched to headphones (true) or back to speakers. `animated` = false at launch.
+    void setHeadphonesConnected(bool connected, bool animated, const CatSettings& settings) {
+        headphonesConnected_ = connected;
+        if (!animated) {
+            earbudPhase = connected && settings.earbudAnimation ? EarbudPhase::On : EarbudPhase::Off;
+            earbudProgress = 0.0f;
+        }
+    }
+
+    bool isEarbudGesture() const { return earbudPhase == EarbudPhase::PuttingOn || earbudPhase == EarbudPhase::TakingOff; }
+
+    /// Where the AirPods are drawn, or false when the cat has none.
+    bool earbudPose(EarbudPose& out) const {
+        float u = earbudProgress;
+        switch (earbudPhase) {
+            case EarbudPhase::Off: return false;
+            case EarbudPhase::On: out = { 1.0f, 1.0f, 1.0f }; return true;
+            case EarbudPhase::PuttingOn: {
+                float pop = u < 0.16f ? easeOutBack(u / 0.16f) : 1.0f;
+                out = { smoothstep(0.40f, 0.52f, u), pop, std::min(1.0f, u / 0.06f) };
+                return true;
+            }
+            case EarbudPhase::TakingOff: {
+                float away = 1.0f - smoothstep(0.62f, 0.88f, u);
+                out = { 1.0f - smoothstep(0.34f, 0.46f, u), 0.35f + away * 0.65f, away };
+                return true;
+            }
+        }
+        return false;
+    }
+
+    Pt headCenter() const {
+        float breath = std::sin(time * 2.1f) * 1.6f;
+        return { SeatAnchor.x + bodyShiftX.value + bodyTilt.value * 36.0f + headYaw.value * 7.5f,
+                 126.0f + headOffsetY.value + headPitch.value * 4.8f + breath * 1.1f };
+    }
+
+    /// Head-local 3D ear corners before projection, plus the ear's lean (shared with the renderer).
+    static EarCorners earCorners(bool isLeft, float fold, float twitch) {
+        float sign = isLeft ? -1.0f : 1.0f;
+        float angle = sign * (0.06f + fold * 0.34f) + twitch;
+        return { { sign * 9.0f, -16.0f, 0.0f }, { sign * 35.0f, -5.0f, -2.0f },
+                 { sign * 24.5f + std::sin(angle) * 32.0f, -20.0f - std::cos(angle) * 32.0f, -3.0f }, angle };
+    }
+
+    EarCorners earCornersNow(bool isLeft) const {
+        float twitch = earTwitch.value * 0.045f;
+        return earCorners(isLeft, earFold.value, isLeft ? twitch : -twitch);
+    }
+
+    /// 2.5D projection on the head sphere (same as the renderer), also returning depth.
+    static Pt project3D(float x, float y, float z, float yawRad, float pitchRad, float* depth = nullptr) {
+        float cy = std::cos(yawRad), sy = std::sin(yawRad);
+        float x1 = x * cy + z * sy;
+        float z1 = -x * sy + z * cy;
+        float cp = std::cos(pitchRad), sp = std::sin(pitchRad);
+        if (depth) *depth = -y * sp + z1 * cp;
+        return { x1, y * cp + z1 * sp };
+    }
+
+    /// Canvas point of an AirPod: a fixed blend of the ear's corners, so it stays in the ear as it folds.
+    Pt earbudAnchor(bool isLeft, float* depth = nullptr) const {
+        EarCorners e = earCornersNow(isLeft);
+        const float wi = 0.30f, wo = 0.216f, wt = 0.484f;
+        Pt p = project3D(wi * e.inner.x + wo * e.outer.x + wt * e.tip.x,
+                         wi * e.inner.y + wo * e.outer.y + wt * e.tip.y,
+                         wi * e.inner.z + wo * e.outer.z + wt * e.tip.z,
+                         headYaw.value * 0.50f, headPitch.value * 0.36f, depth);
+        float c = std::cos(headTilt.value), s = std::sin(headTilt.value);
+        Pt hc = headCenter();
+        return { hc.x + p.x * c - p.y * s, hc.y + p.x * s + p.y * c };
+    }
+
+    float earbudLean(bool isLeft) const { return earCornersNow(isLeft).angle - (isLeft ? -0.06f : 0.06f); }
+
+    /// An AirPod held in a paw sits at the paw's inner top (the arm stays clear of the eyes).
+    static Pt earbudHoldOffset(bool isLeft) { return { isLeft ? 8.0f : -8.0f, -5.0f }; }
+
+    /// A small floating symbol above the head (♥ when a friend pets this cat from afar).
+    void spawnFloatingNote(const std::wstring& note) {
+        Pt hc = headCenter();
+        PurrSparkle sp;
+        sp.position = { hc.x + randRange(-30.0f, 22.0f), hc.y - 58.0f };
+        sp.velocity = { randRange(-8.0f, 8.0f), -22.0f };
+        sp.lifetime = 1.6f;
+        sp.note = note;
+        sparkles.push_back(sp);
+    }
+
+    static float smoothstep(float a, float b, float x) {
+        float t = std::clamp((x - a) / (b - a), 0.0f, 1.0f);
+        return t * t * (3.0f - 2.0f * t);
+    }
+    static float easeOutBack(float x) {
+        float t = std::clamp(x, 0.0f, 1.0f) - 1.0f;
+        return 1.0f + 2.4f * t * t * t + 1.4f * t * t;
+    }
+
     void triggerKeyDown(PhysicalKey key, const CatSettings& settings) {
         double now = nowSeconds();
         PhysicalKey vk = visualKeyOf(key);
@@ -261,6 +402,21 @@ public:
     void registerPetStroke(Pt canvasPoint, float delta, bool isHead, const CatSettings& settings) {
         if (!settings.petInteraction) return;
         double now = nowSeconds();
+
+        // Petting must be deliberate: a cursor just passing over the cat shouldn't count.
+        // A pause longer than the stroke gap starts a new stroke.
+        if (now - lastStrokeTime_ > PetStrokeGap) {
+            petStrokeStartTime_ = now;
+            if (!isCurrentlyPetting_) petStrokeAccum_ = 0.0f;
+        }
+        lastStrokeTime_ = now;
+        petStrokeAccum_ += delta;
+        if (!isCurrentlyPetting_) {
+            if (now - petStrokeStartTime_ < PetEngageDuration || petStrokeAccum_ < PetEngageDistance) return;
+            isCurrentlyPetting_ = true;
+            totalPetSessions++;
+        }
+
         lastPetTime_ = now;
         sleepiness = 0.0f;
 
@@ -270,12 +426,6 @@ public:
             petBodyIntensity = std::max(petBodyIntensity, petHeadIntensity * 0.6f);
         } else {
             petBodyIntensity = std::min(1.0f, petBodyIntensity + energy + 0.07f);
-        }
-
-        petStrokeAccum_ += delta;
-        if (!isCurrentlyPetting_ && petStrokeAccum_ > 45.0f) {
-            isCurrentlyPetting_ = true;
-            totalPetSessions++;
         }
 
         float dx = (canvasPoint.x - SeatAnchor.x) / 60.0f;
@@ -297,8 +447,9 @@ public:
             petHeadIntensity = std::max(0.0f, petHeadIntensity - dt * 1.4f);
             petBodyIntensity = std::max(0.0f, petBodyIntensity - dt * 1.2f);
             if (petHeadIntensity < 0.05f && petBodyIntensity < 0.05f) {
+                // Progress toward the next session is reset in registerPetStroke (after a pause),
+                // not here: this runs every frame before petting engages.
                 isCurrentlyPetting_ = false;
-                petStrokeAccum_ = 0.0f;
             }
         } else if (petHeadIntensity > 0.55f || petBodyIntensity > 0.55f) {
             petSparkleCooldown_ -= dt;
@@ -329,9 +480,18 @@ public:
             sleepiness = std::max(0.0f, sleepiness - dt * 5.0f);
         }
 
+        updateEarbudPhase(now, dt, settings);
+
         // 2b. Fast Mouse Movement -> Hunting Mode (big round boba pupils + low crouch!)
         float mouseSpeed = std::hypot(engine.mouseVelocity.x, engine.mouseVelocity.y);
-        if (mouseSpeed > 460.0f && petHeadIntensity < 0.25f && petBodyIntensity < 0.25f) {
+        bool isFastMove = mouseSpeed > 460.0f && petHeadIntensity < 0.25f && petBodyIntensity < 0.25f;
+        // Ordinary cursor moves across the screen easily exceed 460 px/s, so only sustained
+        // fast waving counts: brief slowdowns (direction reversals) don't reset the timer.
+        if (isFastMove) {
+            if (now - lastFastMoveTime_ > HuntGap) fastMoveStartTime_ = now;
+            lastFastMoveTime_ = now;
+        }
+        if (isFastMove && now - fastMoveStartTime_ >= HuntArmDuration) {
             float boost = std::min(1.0f, (mouseSpeed - 460.0f) / 1100.0f);
             huntIntensity.target = std::min(1.0f, huntIntensity.target + (0.45f + boost * 1.15f) * dt);
             sleepiness = 0.0f;
@@ -399,6 +559,8 @@ public:
         mouseOffset.step(dt, 120.0f, 16.0f);
         mousePressLeft.step(dt, 400.0f, 24.0f);
         mousePressRight.step(dt, 400.0f, 24.0f);
+        scrollReach.target = (now - lastScrollTime_ < ScrollHoldDuration) ? 1.0f : 0.0f;
+        scrollReach.step(dt, 220.0f, 22.0f);
 
         Pt liveMouse = { MouseBaseCenter.x + mouseOffset.point().x, MouseBaseCenter.y + mouseOffset.point().y };
 
@@ -407,7 +569,12 @@ public:
             leftPawTyping = true;
             leftPawOnMouse = false;
         } else if (mouseRecent && sleepiness < 0.3f) {
-            leftPaw.setTarget({ liveMouse.x + 2.0f, liveMouse.y - 3.0f });
+            // While scrolling, slide from the palm rest (+2, -3) forward onto the wheel and rub
+            // back and forth along it. The wheel axis is the mouse's 0.22 rad tilt: (-0.22, 0.98).
+            float reach = std::clamp(scrollReach.value, 0.0f, 1.0f);
+            float stroke = std::sin(scrollStrokePhase_) * 3.2f * reach;
+            leftPaw.setTarget({ liveMouse.x + 2.0f - reach * 3.0f - stroke * 0.22f,
+                                liveMouse.y - 3.0f + reach * 5.0f + stroke * 0.98f });
             leftPawTyping = false;
             leftPawOnMouse = true;
         } else {
@@ -422,6 +589,25 @@ public:
         } else {
             rightPaw.setTarget(RightPawRest);
             rightPawTyping = false;
+        }
+
+        // AirPods gesture: both paws rise beside the head, press the buds in (or pull them out), return.
+        if (isEarbudGesture()) {
+            float u = earbudProgress;
+            bool putting = earbudPhase == EarbudPhase::PuttingOn;
+            bool up = u < 0.56f;
+            bool atEar = putting ? u >= 0.36f : u < 0.34f;
+            for (int side = 0; side < 2; ++side) {
+                bool isLeft = side == 0;
+                float sign = isLeft ? -1.0f : 1.0f;
+                Pt ear = earbudAnchor(isLeft);
+                Pt off = earbudHoldOffset(isLeft);
+                Pt hold = { ear.x - off.x, ear.y - off.y };
+                Pt target = !up ? (isLeft ? LeftPawRest : RightPawRest)
+                          : atEar ? hold : Pt{ hold.x + sign * 13.0f, hold.y + 9.0f };
+                (isLeft ? leftPaw : rightPaw).setTarget(target);
+            }
+            leftPawTyping = rightPawTyping = leftPawOnMouse = false;
         }
 
         if (footKey != PhysicalKey::None) {
@@ -583,6 +769,15 @@ private:
     float blinkTimer_ = 0.0f;
 
     float petStrokeAccum_ = 0.0f;
+    double lastStrokeTime_ = 0.0;
+    double petStrokeStartTime_ = 0.0;
+    double fastMoveStartTime_ = 0.0;
+    double lastFastMoveTime_ = 0.0;
+    double lastScrollTime_ = 0.0;
+    float scrollStrokePhase_ = 0.0f;
+    bool headphonesConnected_ = false;
+    double earbudPhaseStart_ = 0.0;
+    float musicNoteCooldown_ = 0.6f;
     double lastPetTime_ = 0.0;
     bool isCurrentlyPetting_ = false;
     float petSparkleCooldown_ = 0.0f;
@@ -597,6 +792,49 @@ private:
 
     int badgeCascade_ = 0;
     double lastBadgeTime_ = 0.0;
+
+    void updateEarbudPhase(double now, float dt, const CatSettings& settings) {
+        bool wants = headphonesConnected_ && settings.earbudAnimation;
+        if ((earbudPhase == EarbudPhase::Off && wants) || (earbudPhase == EarbudPhase::On && !wants)) {
+            earbudPhase = wants ? EarbudPhase::PuttingOn : EarbudPhase::TakingOff;
+            earbudPhaseStart_ = now;
+            sleepiness = 0.0f;
+        } else if (isEarbudGesture()) {
+            double duration = earbudPhase == EarbudPhase::PuttingOn ? EarbudPutOnDuration : EarbudTakeOffDuration;
+            float previous = earbudProgress;
+            earbudProgress = (float)std::min(1.0, (now - earbudPhaseStart_) / duration);
+            if (earbudPhase == EarbudPhase::PuttingOn && previous < 0.5f && earbudProgress >= 0.5f) earTwitch.velocity += 34.0f;
+            if (earbudPhase == EarbudPhase::TakingOff && previous < 0.4f && earbudProgress >= 0.4f) earTwitch.velocity -= 26.0f;
+            if (earbudProgress >= 1.0f) {
+                earbudPhase = earbudPhase == EarbudPhase::PuttingOn ? EarbudPhase::On : EarbudPhase::Off;
+                earbudProgress = 0.0f;
+                if (earbudPhase == EarbudPhase::Off) {   // little poof where they were tucked away
+                    for (Pt paw : { leftPaw.point(), rightPaw.point() }) {
+                        PurrSparkle sp;
+                        sp.position = { paw.x, paw.y - 8.0f };
+                        sp.velocity = { 0.0f, -20.0f };
+                        sparkles.push_back(sp);
+                    }
+                }
+            }
+        }
+        // Music notes drift out of the ears while something is playing through the headphones.
+        if (earbudPhase == EarbudPhase::On && headphonesPlaying && sleepiness < 0.5f) {
+            musicNoteCooldown_ -= dt;
+            if (musicNoteCooldown_ <= 0.0f) {
+                musicNoteCooldown_ = randRange(1.5f, 2.6f);
+                bool isLeft = randRange(0.0f, 1.0f) < 0.5f;
+                float sign = isLeft ? -1.0f : 1.0f;
+                Pt ear = earbudAnchor(isLeft);
+                PurrSparkle sp;
+                sp.position = { ear.x + sign * 8.0f - 4.0f, ear.y - 16.0f };
+                sp.velocity = { sign * 13.0f, -20.0f };
+                sp.lifetime = 1.7f;
+                sp.note = randRange(0.0f, 1.0f) < 0.5f ? L"\u266A" : L"\u266B";   // ♪ ♫
+                sparkles.push_back(sp);
+            }
+        }
+    }
 
     static float randRange(float a, float b) {
         static thread_local std::mt19937 rng{ std::random_device{}() };

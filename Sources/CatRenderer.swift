@@ -87,16 +87,18 @@ enum CatRenderer {
         ctx.setShouldAntialias(true)
 
         let settings = CatSettings.shared
-        let coat = settings.coatTheme
+        let coat = physics.appearance?.coat ?? settings.coatTheme
+        let keyboardTheme = physics.appearance?.keyboard ?? settings.keyboardTheme
+        let eyeTheme = physics.appearance?.eye ?? settings.eyeTheme
         let breath = sin(physics.time * 2.1) * 1.6
         let seatX = CatPhysics.seatAnchor.x + physics.bodyShiftX.value
         let seatY = CatPhysics.seatAnchor.y
 
         // 1. Mini White Mouse (left of keyboard)
-        drawMouse(in: ctx, physics: physics, theme: settings.keyboardTheme)
+        drawMouse(in: ctx, physics: physics, theme: keyboardTheme)
 
         // 2. Mini Angled 65% Mechanical Keyboard + Dynamic Keycap Glow
-        drawKeyboard(in: ctx, physics: physics, theme: settings.keyboardTheme, eyeTheme: settings.eyeTheme, showLegends: settings.showKeyLegends)
+        drawKeyboard(in: ctx, physics: physics, theme: keyboardTheme, eyeTheme: eyeTheme, showLegends: settings.showKeyLegends)
 
         // 3. Cat Tail (behind body)
         drawTail(in: ctx, seatX: seatX, seatY: seatY, physics: physics, coat: coat)
@@ -126,7 +128,7 @@ enum CatRenderer {
         }
 
         // 7. 2.5D Turning Head Features: Luminous Eyes & Whiskers
-        drawHeadFeatures(in: ctx, center: headCenter, physics: physics, eyeTheme: settings.eyeTheme, coat: coat)
+        drawHeadFeatures(in: ctx, center: headCenter, physics: physics, eyeTheme: eyeTheme, coat: coat)
 
         // 8. Front Arms / Paws (over torso & keyboard/mouse with crisp separation outlines / Siamese chocolate socks!)
         drawFrontPaws(in: ctx, seatX: seatX, seatY: seatY, breath: breath, physics: physics, coat: coat)
@@ -142,7 +144,7 @@ enum CatRenderer {
         }
 
         // 9. Subtle Petting Sparkles / Sleep Z
-        drawSparkles(in: ctx, physics: physics, eyeTheme: settings.eyeTheme)
+        drawSparkles(in: ctx, physics: physics, eyeTheme: eyeTheme)
 
         // 10. Optional non-intrusive Permission Pill if global monitoring not yet granted
         if showPermissionPill {

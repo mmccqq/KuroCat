@@ -5,6 +5,13 @@ final class CatCanvasView: NSView {
     let physics = CatPhysics()
     var onRequestPermission: (() -> Void)?
     var onRightClickMenu: ((NSEvent) -> Void)?
+    /// Cat Link: this view shows a friend's cat (no permission pill; petting is also sent to them).
+    var isRemote = false
+    var onPetStroke: ((_ canvasPoint: CGPoint, _ delta: CGFloat, _ isHead: Bool) -> Void)?
+    /// Small name tag above the cat, e.g. "小明 · 在线"; dimmed while the friend is offline.
+    var nameLabel: String? { didSet { if nameLabel != oldValue { needsDisplay = true } } }
+    var nameLabelDimmed = false
+    var positionKey = "KuroCat.Pos"
 
     private var lastHoverCanvasPt: CGPoint?
     private var isDragging = false
@@ -25,10 +32,28 @@ final class CatCanvasView: NSView {
         ctx.saveGState()
         ctx.scaleBy(x: scaleX, y: scaleY)
 
-        let showPill = InputEngine.shared.status == .needsPermission
+        let showPill = !isRemote && InputEngine.shared.status == .needsPermission
         CatRenderer.draw(in: ctx, physics: physics, showPermissionPill: showPill)
+        if let label = nameLabel { drawNameLabel(label, in: ctx) }
 
         ctx.restoreGState()
+    }
+
+    private func drawNameLabel(_ label: String, in ctx: CGContext) {
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
+            .foregroundColor: NSColor.white.withAlphaComponent(nameLabelDimmed ? 0.7 : 1),
+        ]
+        let text = NSAttributedString(string: label, attributes: attrs)
+        let size = text.size()
+        let pill = CGRect(x: CatPhysics.seatAnchor.x - size.width / 2 - 9, y: 22, width: size.width + 18, height: size.height + 6)
+        ctx.setFillColor(NSColor.black.withAlphaComponent(nameLabelDimmed ? 0.35 : 0.62).cgColor)
+        ctx.addPath(CGPath(roundedRect: pill, cornerWidth: pill.height / 2, cornerHeight: pill.height / 2, transform: nil))
+        ctx.fillPath()
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
+        text.draw(at: CGPoint(x: pill.minX + 9, y: pill.minY + 3))
+        NSGraphicsContext.restoreGraphicsState()
     }
 
     func canvasPoint(fromScreenPoint screenPt: CGPoint) -> CGPoint? {
@@ -45,7 +70,7 @@ final class CatCanvasView: NSView {
     func updateHoverAndClickThrough() {
         guard let win = window else { return }
         let screenPt = NSEvent.mouseLocation
-        let showPill = InputEngine.shared.status == .needsPermission
+        let showPill = !isRemote && InputEngine.shared.status == .needsPermission
 
         if isDragging {
             win.ignoresMouseEvents = false
@@ -70,6 +95,7 @@ final class CatCanvasView: NSView {
                 // Low minimum so slow, gentle strokes still count.
                 if delta > 0.5 && delta < 80 {
                     physics.registerPetStroke(canvasPoint: pt, delta: delta, isHead: zone == .head)
+                    onPetStroke?(pt, delta, zone == .head)
                 }
             }
             lastHoverCanvasPt = pt
@@ -112,7 +138,7 @@ final class CatCanvasView: NSView {
     override func mouseDown(with event: NSEvent) {
         guard let win = window else { return }
         let screenPt = NSEvent.mouseLocation
-        let showPill = InputEngine.shared.status == .needsPermission
+        let showPill = !isRemote && InputEngine.shared.status == .needsPermission
 
         if let pt = canvasPoint(fromScreenPoint: screenPt) {
             let zone = CatRenderer.hitTest(point: pt, physics: physics, showPermissionPill: showPill)
@@ -143,8 +169,8 @@ final class CatCanvasView: NSView {
         isDragging = false
         NSCursor.openHand.set()
         // Save position
-        UserDefaults.standard.set(Double(win.frame.origin.x), forKey: "KuroCat.PosX")
-        UserDefaults.standard.set(Double(win.frame.origin.y), forKey: "KuroCat.PosY")
+        UserDefaults.standard.set(Double(win.frame.origin.x), forKey: positionKey + "X")
+        UserDefaults.standard.set(Double(win.frame.origin.y), forKey: positionKey + "Y")
     }
 
     override func rightMouseDown(with event: NSEvent) {
@@ -154,14 +180,20 @@ final class CatCanvasView: NSView {
 
 final class OverlayWindow: NSPanel {
     let catView = CatCanvasView()
+    private let positionKey: String
+    private let defaultShiftX: CGFloat
 
-    init() {
+    /// `positionKey` keeps each cat's saved position separate; `defaultShiftX` moves the default
+    /// spot (a friend's cat sits to the left of yours).
+    init(positionKey: String = "KuroCat.Pos", defaultShiftX: CGFloat = 0) {
+        self.positionKey = positionKey
+        self.defaultShiftX = defaultShiftX
         let scale = CatSettings.shared.scale
         let size = CGSize(
             width: CatPhysics.canvasSize.width * scale,
             height: CatPhysics.canvasSize.height * scale
         )
-        let origin = OverlayWindow.initialOrigin(for: size)
+        let origin = OverlayWindow.initialOrigin(for: size, key: positionKey, shiftX: defaultShiftX)
 
         super.init(
             contentRect: CGRect(origin: origin, size: size),
@@ -183,6 +215,7 @@ final class OverlayWindow: NSPanel {
 
         catView.frame = CGRect(origin: .zero, size: size)
         catView.autoresizingMask = [.width, .height]
+        catView.positionKey = positionKey
         contentView = catView
     }
 
@@ -209,22 +242,22 @@ final class OverlayWindow: NSPanel {
             y: oldFrame.minY
         )
         setFrame(CGRect(origin: newOrigin, size: newSize), display: true)
-        UserDefaults.standard.set(Double(newOrigin.x), forKey: "KuroCat.PosX")
-        UserDefaults.standard.set(Double(newOrigin.y), forKey: "KuroCat.PosY")
+        UserDefaults.standard.set(Double(newOrigin.x), forKey: positionKey + "X")
+        UserDefaults.standard.set(Double(newOrigin.y), forKey: positionKey + "Y")
     }
 
     func resetPosition() {
-        let origin = OverlayWindow.defaultOrigin(for: frame.size)
+        let origin = OverlayWindow.defaultOrigin(for: frame.size, shiftX: defaultShiftX)
         setFrameOrigin(origin)
-        UserDefaults.standard.set(Double(origin.x), forKey: "KuroCat.PosX")
-        UserDefaults.standard.set(Double(origin.y), forKey: "KuroCat.PosY")
+        UserDefaults.standard.set(Double(origin.x), forKey: positionKey + "X")
+        UserDefaults.standard.set(Double(origin.y), forKey: positionKey + "Y")
     }
 
-    private static func initialOrigin(for size: CGSize) -> CGPoint {
+    private static func initialOrigin(for size: CGSize, key: String, shiftX: CGFloat) -> CGPoint {
         let d = UserDefaults.standard
-        if d.object(forKey: "KuroCat.PosX") != nil && d.object(forKey: "KuroCat.PosY") != nil {
-            let x = CGFloat(d.double(forKey: "KuroCat.PosX"))
-            let y = CGFloat(d.double(forKey: "KuroCat.PosY"))
+        if d.object(forKey: key + "X") != nil && d.object(forKey: key + "Y") != nil {
+            let x = CGFloat(d.double(forKey: key + "X"))
+            let y = CGFloat(d.double(forKey: key + "Y"))
             let saved = CGPoint(x: x, y: y)
             // Ensure saved origin is still on a connected display
             let rect = CGRect(origin: saved, size: size)
@@ -232,13 +265,13 @@ final class OverlayWindow: NSPanel {
                 return saved
             }
         }
-        return defaultOrigin(for: size)
+        return defaultOrigin(for: size, shiftX: shiftX)
     }
 
-    private static func defaultOrigin(for size: CGSize) -> CGPoint {
+    private static func defaultOrigin(for size: CGSize, shiftX: CGFloat = 0) -> CGPoint {
         let screen = NSScreen.main?.visibleFrame ?? CGRect(x: 0, y: 0, width: 1440, height: 900)
         return CGPoint(
-            x: screen.maxX - size.width - 28,
+            x: screen.maxX - size.width - 28 + shiftX,
             y: screen.minY + 18
         )
     }

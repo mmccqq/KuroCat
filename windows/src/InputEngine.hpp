@@ -38,6 +38,11 @@ public:
     int totalKeystrokesToday = 0;
     bool isRawInputRegistered = false;
 
+    // Cat Link: an engine fed from the network (the friend's cat) never polls this PC's mouse,
+    // and reports the friend's typing speed instead of ours.
+    bool externalFeed = false;
+    int kpmOverride = -1;
+
     std::function<void(PhysicalKey)> onKeyDown;
     std::function<void(PhysicalKey)> onKeyUp;
     std::function<void(int, bool)> onMouseClick;
@@ -135,6 +140,7 @@ public:
 
     /// Called at 60Hz from main loop to compute smooth cursor velocity (works in desktop & locked-cursor games!).
     void pollMouse(float dt) {
+        if (externalFeed) return;
         POINT cur = lastCursorPos;
         GetCursorPos(&cur);
         float dx = (float)(cur.x - lastCursorPos.x);
@@ -167,6 +173,7 @@ public:
     }
 
     int currentKPM() const {
+        if (kpmOverride >= 0) return kpmOverride;
         return (int)recentKeyTimes_.size() * 6;
     }
 

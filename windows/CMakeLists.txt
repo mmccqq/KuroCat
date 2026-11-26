@@ -16,4 +16,4 @@ else()
     target_compile_options(KuroCat PRIVATE -O2 -municode)
 endif()
 
-target_link_libraries(KuroCat PRIVATE user32 gdi32 gdiplus shell32 advapi32 winhttp wtsapi32)
+target_link_libraries(KuroCat PRIVATE user32 gdi32 gdiplus shell32 advapi32 winhttp wtsapi32 bcrypt ole32 oleaut32 uuid)

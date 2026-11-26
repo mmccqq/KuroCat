@@ -94,6 +94,8 @@ SWIFT_SOURCES=(
     "$ROOT/Sources/OverlayWindow.swift"
     "$ROOT/Sources/AppDelegate.swift"
     "$ROOT/Sources/AudioOutputMonitor.swift"
+    "$ROOT/Sources/CatLink.swift"
+    "$ROOT/Sources/CatLinkController.swift"
     "$ROOT/Sources/main.swift"
 )
 
@@ -105,6 +107,8 @@ COMMON_FLAGS=(
     -framework QuartzCore
     -framework IOKit
     -framework CoreAudio
+    -framework CryptoKit
+    -framework Carbon
     -framework ApplicationServices
 )
 

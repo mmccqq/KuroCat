@@ -12,7 +12,8 @@
 enum class CatHitZone {
     None,
     Head,
-    Body
+    Body,
+    Keyboard   // drag-only: moving the cursor over the keyboard is not petting
 };
 
 class CatRenderer {
@@ -29,11 +30,12 @@ public:
         float hdy = (p.y - headCenter.y) / 42.0f;
         if (hdx * hdx + hdy * hdy <= 1.0f) return CatHitZone::Head;
 
+        // Checked before the torso: the lower torso overlaps the keyboard.
+        if (p.x >= 58.0f && p.x <= 294.0f && p.y >= 232.0f && p.y <= 296.0f) return CatHitZone::Keyboard;
+
         float bdx = (p.x - cx) / 58.0f;
         float bdy = (p.y - 196.0f) / 56.0f;
         if (bdx * bdx + bdy * bdy <= 1.0f) return CatHitZone::Body;
-
-        if (p.x >= 58.0f && p.x <= 294.0f && p.y >= 232.0f && p.y <= 296.0f) return CatHitZone::Body;
         return CatHitZone::None;
     }
 
@@ -63,6 +65,10 @@ public:
 
         // 4. 3D-Projected Ears (behind crown silhouette)
         drawEarsLayer(g, headCenter, physics, settings.coatTheme);
+        // AirPods on the far side of a turned head show only where they stick out past the silhouette.
+        CatPhysics::EarbudPose earbudPose;
+        bool hasEarbuds = physics.earbudPose(earbudPose);
+        if (hasEarbuds) drawEarbuds(g, physics, earbudPose, true);
 
         // 5. Unified C1-Continuous Silhouette (+ 2.5D Siamese Mask)
         drawUnifiedSilhouette(g, seatX, seatY, headCenter, breath, physics, settings.coatTheme);
@@ -77,6 +83,9 @@ public:
 
         // 8. Front Paws (Idle Sitting & Dynamic Reaching)
         drawFrontPaws(g, seatX, seatY, breath, physics, settings.coatTheme);
+
+        // 8b. AirPods (in the ears, or held on top of the paws while putting them on / taking them off)
+        if (hasEarbuds) drawEarbuds(g, physics, earbudPose, false);
 
         // 9. Floating Keycap Badges (keyboard + mouse clicks)
         if (!physics.floatingKeycaps.empty()) {
@@ -245,6 +254,18 @@ private:
         addRoundedRect(wheelPath, -1.9f, 2.5f, 3.8f, 8.5f, 1.9f);
         SolidBrush wheelBrush(wheelCol);
         g.FillPath(&wheelBrush, &wheelPath);
+
+        // Wheel grip stripes that roll as you scroll
+        {
+            GraphicsState ws = g.Save();
+            g.SetClip(&wheelPath, CombineModeIntersect);
+            Pen stripe(Color(97, borderCol.GetR(), borderCol.GetG(), borderCol.GetB()), 0.8f);
+            const float spacing = 2.8f;
+            float offset = std::fmod(physics.wheelPhase, spacing);
+            if (offset < 0.0f) offset += spacing;
+            for (float y = 2.5f - spacing + offset; y < 11.0f + spacing; y += spacing) g.DrawLine(&stripe, -1.9f, y, 1.9f, y);
+            g.Restore(ws);
+        }
 
         Pen borderPen(borderCol, 1.7f);
         g.DrawEllipse(&borderPen, -13.5f, -16.5f, 27.0f, 33.0f);
@@ -460,13 +481,10 @@ private:
     static void drawEar3D(Gdiplus::Graphics& g, bool isLeft, float yawRad, float pitchRad, float fold, float twitch, CatCoatTheme coat) {
         using namespace Gdiplus;
         float sign = isLeft ? -1.0f : 1.0f;
-        float foldAngle = sign * (0.06f + fold * 0.34f) + twitch;
-        float tipDx = std::sin(foldAngle) * 32.0f;
-        float tipDy = -std::cos(foldAngle) * 32.0f;
-
-        Pt innerBase = projectHead3D(sign * 9.0f, -16.0f, 0.0f, yawRad, pitchRad);
-        Pt outerBase = projectHead3D(sign * 35.0f, -5.0f, -2.0f, yawRad, pitchRad);
-        Pt tip3D     = projectHead3D(sign * 24.5f + tipDx, -20.0f + tipDy, -3.0f, yawRad, pitchRad);
+        CatPhysics::EarCorners e = CatPhysics::earCorners(isLeft, fold, twitch);   // shared with the AirPods
+        Pt innerBase = projectHead3D(e.inner.x, e.inner.y, e.inner.z, yawRad, pitchRad);
+        Pt outerBase = projectHead3D(e.outer.x, e.outer.y, e.outer.z, yawRad, pitchRad);
+        Pt tip3D     = projectHead3D(e.tip.x, e.tip.y, e.tip.z, yawRad, pitchRad);
 
         Pt tipL = { tip3D.x - sign * 3.8f, tip3D.y + 2.8f };
         Pt tipR = { tip3D.x + sign * 3.8f, tip3D.y + 3.2f };
@@ -766,15 +784,19 @@ private:
         if (lDist < 6.0f && !physics.leftPawOnMouse && !physics.leftPawTyping) {
             drawIdleFrontLeg(g, { seatX - 18.0f, seatY - 30.0f }, { seatX - 16.0f, seatY + 12.0f }, true, coat);
         } else {
-            Pt mid = { (leftShoulder.x + lPos.x) * 0.5f - (physics.leftPawOnMouse ? 8.0f : 4.0f),
-                       (leftShoulder.y + lPos.y) * 0.5f - 6.0f };
+            Pt mid = physics.isEarbudGesture()
+                ? Pt{ std::min(leftShoulder.x, lPos.x) - 22.0f, (leftShoulder.y + lPos.y) * 0.5f }
+                : Pt{ (leftShoulder.x + lPos.x) * 0.5f - (physics.leftPawOnMouse ? 8.0f : 4.0f),
+                      (leftShoulder.y + lPos.y) * 0.5f - 6.0f };
             drawLimb(g, leftShoulder, mid, lPos, 19.0f, 13.5f, false, 0.78f, coat);
         }
 
         if (rDist < 6.0f && !physics.rightPawTyping) {
             drawIdleFrontLeg(g, { seatX + 18.0f, seatY - 30.0f }, { seatX + 16.0f, seatY + 12.0f }, false, coat);
         } else {
-            Pt mid = { (rightShoulder.x + rPos.x) * 0.5f + 4.0f, (rightShoulder.y + rPos.y) * 0.5f - 6.0f };
+            Pt mid = physics.isEarbudGesture()
+                ? Pt{ std::max(rightShoulder.x, rPos.x) + 22.0f, (rightShoulder.y + rPos.y) * 0.5f }
+                : Pt{ (rightShoulder.x + rPos.x) * 0.5f + 4.0f, (rightShoulder.y + rPos.y) * 0.5f - 6.0f };
             drawLimb(g, rightShoulder, mid, rPos, 19.0f, 13.5f, true, 0.78f, coat);
         }
     }
@@ -812,6 +834,24 @@ private:
         GraphicsPath p2;
         addQuadBezier(p2, { top.x - sign * 7.0f, top.y + 4.0f }, { top.x - sign * 6.5f, (top.y + bottom.y) * 0.5f }, { bottom.x - sign * 6.0f, bottom.y - 1.0f });
         g.DrawPath(&p, &p2);
+
+        // Plump paw resting on the keyboard's top edge, so the idle cat visibly has front paws.
+        RectF pawRect(bottom.x - 9.5f, bottom.y - 5.0f, 19.0f, 12.0f);
+        SolidBrush pawFill(coat == CatCoatTheme::Siamese ? siamesePoint() : (patterned(coat) ? pawColor(coat) : limbColor(coat)));
+        g.FillEllipse(&pawFill, pawRect);
+        Pen line(coat == CatCoatTheme::Siamese ? siameseOutline(158) : creaseColor(coat), 1.3f);
+        line.SetStartCap(LineCapRound); line.SetEndCap(LineCapRound);
+        {   // outline only on the lower half, so no line cuts across the leg
+            GraphicsState cs = g.Save();
+            g.SetClip(RectF(pawRect.X - 2.0f, bottom.y - 1.0f, pawRect.Width + 4.0f, pawRect.Height), CombineModeIntersect);
+            g.DrawEllipse(&line, pawRect);
+            g.Restore(cs);
+        }
+        Pen toe(coat == CatCoatTheme::Siamese ? siameseOutline(158) : creaseColor(coat), 1.2f);
+        toe.SetStartCap(LineCapRound); toe.SetEndCap(LineCapRound);
+        for (float dx : { -3.3f, 3.3f }) {
+            g.DrawLine(&toe, bottom.x + dx, pawRect.GetBottom() - 4.2f, bottom.x + dx, pawRect.GetBottom() - 1.4f);
+        }
     }
 
     static void drawLimb(Gdiplus::Graphics& g, Pt start, Pt ctrl, Pt end, float startW, float endW, bool outlineOnLeft, float outlineAlpha, CatCoatTheme coat) {
@@ -925,6 +965,92 @@ private:
 
     // MARK: - Floating Mechanical Keycaps
 
+    // MARK: - AirPods
+
+    /// Each bud is drawn twice at the same spot: behind the head silhouette and in front of it. The front
+    /// copy fades as an in-ear bud turns to the far side, so it slips behind the head smoothly.
+    static void drawEarbuds(Gdiplus::Graphics& g, const CatPhysics& physics, const CatPhysics::EarbudPose& pose, bool behindHead) {
+        for (int side = 0; side < 2; ++side) {
+            bool isLeft = side == 0;
+            float sign = isLeft ? -1.0f : 1.0f;
+            float z = 0.0f;
+            Pt ear = physics.earbudAnchor(isLeft, &z);
+            float facing = CatPhysics::smoothstep(-16.0f, -4.0f, z);
+            float alpha = behindHead ? pose.alpha * pose.inEar : pose.alpha * (1.0f - pose.inEar * (1.0f - facing));
+            Pt paw = isLeft ? physics.leftPaw.point() : physics.rightPaw.point();
+            Pt off = CatPhysics::earbudHoldOffset(isLeft);
+            Pt held = { paw.x + off.x, paw.y + off.y };
+            float t = pose.inEar;
+            Pt pos = { held.x + (ear.x - held.x) * t, held.y + (ear.y - held.y) * t };
+            // The stem points down and outward along the ear's outer edge, held the same way in the paw.
+            float rotation = (physics.headTilt.value + physics.earbudLean(isLeft)) * t - sign * CatPhysics::EarbudStemAngle;
+            drawAirPod(g, pos, isLeft, rotation, pose.scale, alpha);
+        }
+    }
+
+    /// One white AirPod seen from outside, as it looks when worn: silicone tip mostly hidden (a sliver peeks
+    /// out below the shell on the face side), shell flowing into the stem, black mesh, silver stem cap.
+    static void drawAirPod(Gdiplus::Graphics& g, Pt p, bool isLeft, float rotation, float scale, float alpha) {
+        using namespace Gdiplus;
+        if (alpha <= 0.01f || scale <= 0.01f) return;
+        float sign = isLeft ? -1.0f : 1.0f;
+        auto col = [alpha](unsigned int hex, float a = 1.0f) { return rgb(hex, (BYTE)std::clamp(alpha * a * 255.0f, 0.0f, 255.0f)); };
+        GraphicsState st = g.Save();
+        g.TranslateTransform(p.x, p.y);
+        g.RotateTransform(rotation * RadToDeg);
+        g.ScaleTransform(scale, scale);
+
+        // Silicone ear tip
+        RectF tip(-sign * 3.6f - 2.9f, 1.4f - 2.3f, 5.8f, 4.6f);
+        SolidBrush tipEdge(col(0x7E8187));
+        g.FillEllipse(&tipEdge, tip.X - 0.75f, tip.Y - 0.75f, tip.Width + 1.5f, tip.Height + 1.5f);
+        SolidBrush tipFill(col(0xE4E6E9));
+        g.FillEllipse(&tipFill, tip);
+
+        // Shell + stem as one white shape with a single grey outline
+        GraphicsPath shell;
+        shell.AddEllipse(-5.0f, -4.8f, 10.0f, 9.4f);
+        GraphicsPath stem;
+        addRoundedRect(stem, -2.25f, 0.0f, 4.5f, 13.0f, 2.1f);
+        Pen edge(col(0x7E8187), 1.5f);
+        g.DrawPath(&edge, &shell);
+        g.DrawPath(&edge, &stem);
+        SolidBrush white(col(0xF9F9F7));
+        g.FillPath(&white, &shell);
+        g.FillPath(&white, &stem);
+
+        // Soft shading on the side away from the light
+        {
+            GraphicsPath both;
+            both.SetFillMode(FillModeWinding);
+            both.AddEllipse(-5.0f, -4.8f, 10.0f, 9.4f);
+            addRoundedRect(both, -2.25f, 0.0f, 4.5f, 13.0f, 2.1f);
+            GraphicsState cs = g.Save();
+            g.SetClip(&both, CombineModeIntersect);
+            SolidBrush shade(col(0xDCDEE1));
+            float x0 = sign > 0 ? 1.2f : -6.2f;
+            g.FillRectangle(&shade, x0, -6.0f, 5.0f, 20.0f);
+            g.Restore(cs);
+        }
+
+        // Silver cap at the end of the stem
+        GraphicsPath cap;
+        addRoundedRect(cap, -2.25f, 11.2f, 4.5f, 1.8f, 0.9f);
+        SolidBrush capFill(col(0xB8BBC0));
+        g.FillPath(&capFill, &cap);
+
+        // Black oval mesh at the top of the stem
+        GraphicsPath mesh;
+        addRoundedRect(mesh, -1.05f, -1.4f, 2.1f, 4.4f, 1.05f);
+        SolidBrush meshFill(col(0x1D1E21));
+        g.FillPath(&meshFill, &mesh);
+
+        // Highlight
+        SolidBrush hi(col(0xFFFFFF));
+        g.FillEllipse(&hi, -sign * 2.4f - 1.2f, -3.6f, 2.4f, 1.5f);
+        g.Restore(st);
+    }
+
     static void drawFloatingKeycaps(Gdiplus::Graphics& g, const CatPhysics& physics) {
         using namespace Gdiplus;
         FontFamily ff(L"Segoe UI");
@@ -988,7 +1114,12 @@ private:
             if (a < 4) continue;
 
             Color c(a, baseCol.GetR(), baseCol.GetG(), baseCol.GetB());
-            if (sp.isSleepZ) {
+            if (!sp.note.empty()) {
+                FontFamily symbols(L"Segoe UI Symbol");
+                Font f(symbols.IsAvailable() ? &symbols : &ff, 12.0f + p * 2.0f, FontStyleBold, UnitPixel);
+                SolidBrush sb(c);
+                g.DrawString(sp.note.c_str(), -1, &f, PointF(sp.position.x, sp.position.y), &sb);
+            } else if (sp.isSleepZ) {
                 Font f(&ff, 11.0f + p * 3.0f, FontStyleBold, UnitPixel);
                 SolidBrush sb(c);
                 g.DrawString(L"z", -1, &f, PointF(sp.position.x, sp.position.y), &sb);

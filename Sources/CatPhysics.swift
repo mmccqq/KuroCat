@@ -234,6 +234,17 @@ final class CatPhysics {
     /// How long the paw stays on the wheel after the last scroll event.
     static let scrollHoldDuration: CFTimeInterval = 0.35
 
+    // Cat Link: a second cat driven by a friend's events instead of this Mac's input.
+    struct Appearance { var coat: CatCoatTheme; var keyboard: KeyboardTheme; var eye: EyeColorTheme }
+    /// Draw with these themes instead of this Mac's settings (the friend's own choices).
+    var appearance: Appearance?
+    /// Keys the friend is holding (anonymized); used instead of this Mac's keyboard.
+    var externalActiveKeys: Set<PhysicalKey>?
+    /// Typing speed for the tail wag; nil = this Mac's own KPM.
+    var kpmOverride: Int?
+    /// No key badges: a remote cat's keys are random stand-ins, so their letters mean nothing.
+    var showsKeyBadges = true
+
     // AirPods: when the sound output switches to headphones, both paws lift two AirPods into the
     // ears; when it switches back to speakers, the paws take them out and tuck them away.
     enum EarbudPhase { case off, puttingOn, on, takingOff }
@@ -331,7 +342,7 @@ final class CatPhysics {
         lastTypedPoint = pt
 
         // Snap memory to the appropriate paw with lively bounce velocity
-        let active = InputEngine.shared.activeKeys
+        let active = externalActiveKeys ?? InputEngine.shared.activeKeys
         let leftHeld = active.contains { $0.prefersLeftPaw }
         let rightHeld = active.contains { !$0.prefersLeftPaw }
 
@@ -356,7 +367,7 @@ final class CatPhysics {
         sleepiness = 0
 
         // Spawn floating keycap badge
-        if CatSettings.shared.showKeyBadges {
+        if showsKeyBadges && CatSettings.shared.showKeyBadges {
             spawnFloatingKeycap(label: key.badgeLabel, near: pt, now: now)
         }
     }
@@ -409,6 +420,14 @@ final class CatPhysics {
     }
 
     /// Called by the overlay window when cursor strokes across the cat's head or body.
+    /// A small floating symbol above the head (e.g. ♥ when a friend pets this cat from afar).
+    func spawnFloatingNote(_ note: String) {
+        let hc = headCenter
+        sparkles.append(PurrSparkle(position: CGPoint(x: hc.x + CGFloat.random(in: -30...22), y: hc.y - 58),
+                                    velocity: CGPoint(x: CGFloat.random(in: -8...8), y: -22),
+                                    lifetime: 1.6, isSleepZ: false, note: note))
+    }
+
     /// The sound output switched to headphones (true) or back to speakers (false).
     /// `animated: false` (at launch) just shows the final state without the paw gesture.
     func setHeadphonesConnected(_ connected: Bool, animated: Bool = true) {
@@ -942,7 +961,7 @@ final class CatPhysics {
         }
 
         // 7. Tail wag speed reacts organically to energy / petting / hunting tension!
-        let kpmBoost = min(2.4, CGFloat(engine.currentKPM) / 160.0)
+        let kpmBoost = min(2.4, CGFloat(kpmOverride ?? engine.currentKPM) / 160.0)
         let petBoost = max(petHeadIntensity, petBodyIntensity) * 1.4
         let huntBoost = hunt * 2.8
         let tailSpeed: CGFloat = 1.85 + kpmBoost + petBoost + huntBoost - sleepiness * 1.1
