@@ -19,24 +19,23 @@
 
 ## 🍴 About This Fork
 
-This is a fork of [chanke17/KuroCat](https://github.com/chanke17/KuroCat), based on upstream **v1.3.3**. The changes below are in **both the macOS and Windows** versions, which are kept feature-for-feature the same; the Linux version is unchanged from upstream.
+This repository is a fork of [chanke17/KuroCat](https://github.com/chanke17/KuroCat), based on upstream **v1.3.3**. **The macOS and Windows versions have the same features**; the Linux version is the same as upstream. What changed in each version: **[CHANGELOG](CHANGELOG.en.md)**.
 
-- **Deliberate petting**: the cat reacts after about **1 second** of stroking its head or back, not the instant the cursor passes over it. Slow strokes count, and short pauses (up to 0.6 s, such as lifting a finger off the trackpad) keep your progress.
-- **The keyboard isn't the cat**: moving the cursor over the mini keyboard no longer counts as petting. You can still drag the cat by its keyboard.
-- **Calmer hunting eyes**: the round boba pupils appear only after about **0.8 seconds** of continuous fast mouse movement, so ordinary cursor moves across the screen don't trigger them. Waving the mouse back and forth still does.
-- **Visible resting paws**: when idle, the cat's front paws rest on the keyboard's edge, with toe lines and each skin's paw color.
-- **Paw on the scroll wheel**: when you scroll, the paw on the mini mouse reaches onto the wheel and rubs it back and forth in rhythm, the wheel's stripes roll, and a "滚轮" (scroll wheel) badge pops up like the click badges.
-- **AirPods for headphones**: when the sound output switches to headphones (Bluetooth, USB, or the headphone jack), the cat lifts both paws and puts a pair of AirPods in its ears, and ♪ notes drift out while something is playing. When the output switches back to the computer's own speakers (or a monitor's speakers), it takes the AirPods out and tucks them away. Bluetooth speakers may count as headphones too, because the system reports them the same way. KuroCat reads only the output device's type, never any audio. Turn it off with **连接耳机时戴上 AirPods 🎧** in the menu.
-- **🔗 Cat Link (see a faraway friend's cat)**: one person creates a pairing code in the **🔗 猫咪连线** menu and sends it to a friend, who enters it (on Windows: copy it, then click **粘贴朋友的配对码并连线**, "paste a friend's code and connect"). Each friend's cat then appears next to the other's, with their skin, nickname and online status, typing, moving the mouse, scrolling and wearing headphones along with them. Pet your friend's cat and theirs closes its eyes on their screen, with floating ♥. Macs and Windows PCs can link with each other.
-  - **Privacy**: only "left paw / right paw is typing" is sent, never which key (the friend's cat presses random keys on that side, and its key bubbles show those random keys). Keyboard activity pauses while a password field is focused. Everything is encrypted with the pairing code and relayed through EMQX's free public server (Shanghai or US), so the server can't read it. It's opt-in, and nothing is sent after you disconnect.
-  - **🎬 演示：模拟一位朋友** ("Demo: simulate a friend") in the menu previews it locally without sending anything. The wire format is in [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
-- **🦟 A mosquito while it sleeps**: after the cat has been asleep for about 3 minutes, a mosquito buzzes in from the left and circles its head. The cat wakes up, follows it with half-open eyes and swats at it once on each side, but the mosquito dodges both times and flies off to the right, and the cat dozes off again. While it stays asleep, another one comes every 5–9 minutes; if you touch the keyboard or mouse, the mosquito leaves at once. **🎬 演示：蚊子来了** ("Demo: here comes a mosquito") in the menu shows it right away, and **睡着时会有蚊子来捣乱 🦟** turns it off.
-- **🤖 Claude Code alerts**: when you code with [Claude Code](https://claude.com/claude-code), a bubble pops up over the cat when a session finishes ("✓ project 完成了", "done"), and the cat hops twice with happy ^^ eyes. When Claude is waiting for you to approve something, an orange bubble says "project 等你确认" ("needs your OK"), and the cat looks at you and waves until you deal with it. Clicking a bubble closes it and brings back the window the session runs in (VS Code, a terminal, ...). Several sessions can show at once, each with its project name.
-  - **Setup**: in the menu, choose **Claude Code 提醒 🤖 → 复制 Claude Code 钩子设置** ("copy the Claude Code hook settings"), merge what it copies into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code. It uses Claude Code hooks (`Stop`, `Notification`, `PermissionRequest`) that run `KuroCat --claude-hook`. The same menu can show a test bubble and turn off the sound or the whole feature.
-  - **Local only**: only the project folder name, the event type and the window to bring back are passed. KuroCat never reads the conversation, and nothing goes over Cat Link.
-- **Updates from this fork only**: auto-update checks only this repository's [GitHub Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) and never contacts upstream, so it can't replace this fork with the official release. It checks at launch and every 6 hours. When there's a new version, it asks you once per version (after that, the menu keeps showing **🆕 发现新版本**, "new version found"); **立即更新** ("update now") downloads it, swaps it in and restarts. The Mac app installs only builds signed with the same certificate (which also keeps the Input Monitoring permission), and both platforms check the download's exact size. GitHub downloads can be slow or fail from mainland China; the download page is then offered instead.
+What's new:
 
-The timings can be tuned in `Sources/CatPhysics.swift` (Windows: `windows/src/CatPhysics.hpp`) (`petEngageDuration`, `petStrokeGap`, `huntArmDuration`, `huntGap`, `scrollHoldDuration`, `earbudPutOnDuration`, `earbudTakeOffDuration`).
+- **🔗 Cat Link**: see a faraway friend's cat on your screen, typing, moving the mouse and wearing headphones along with them, and pet each other's cats from afar. Macs and Windows PCs can link; everything is encrypted, and which keys you press is never sent.
+- **🎧 AirPods**: when the sound output switches to headphones, the cat puts on AirPods, with ♪ notes while music plays.
+- **🤖 Claude Code alerts**: a bubble over the cat when a Claude Code session finishes or needs your OK.
+- **🦟 A mosquito while it sleeps**: a few minutes into a nap, a mosquito wakes the cat, which swats at it and dozes off again.
+- **🐾 More natural moves**: petting must be deliberate, hunting eyes need sustained fast mouse movement, paws rest on the keyboard when idle, and a paw strokes the scroll wheel while you scroll.
+- **🔄 Updates from this fork only**: checks only this repository's Releases, and asks before updating.
+
+### How to use
+
+- **Cat Link**: in the menu, **🔗 猫咪连线 → 创建配对码，邀请朋友…** ("create a pairing code") and send the code to your friend, who picks **输入朋友的配对码…** ("enter a friend's code") in the same menu (on Windows: copy it, then click **粘贴朋友的配对码并连线**). **🎬 演示：模拟一位朋友** ("Demo: simulate a friend") previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
+- **Claude Code alerts**: **Claude Code 提醒 🤖 → 复制 Claude Code 钩子设置** ("copy the Claude Code hook settings"), merge it into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code.
+- **Mosquito**: **🎬 演示：蚊子来了** ("Demo: here comes a mosquito") shows it right away; untick **睡着时会有蚊子来捣乱 🦟** to turn it off.
+- **Updates**: checked at launch and every 6 hours, or any time with **检查更新** ("check for updates") in the menu.
 
 Pre-built versions are on the [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) page (the Mac app is signed with the maintainer's own certificate; the Windows exe is built by GitHub Actions), or build from source with `./build.sh` (see [Download & Run](#-download--run)). How releases are made: [docs/releasing.md](docs/releasing.md).
 
@@ -168,7 +167,7 @@ KuroCat/
 
 ## 🔒 Privacy
 
-All keyboard and mouse hardware signals in KuroCat are processed **strictly in local memory in real time** to drive animations and counters—**no keystrokes are ever logged or saved**. Aside from checking the official release endpoint for new versions on startup or when manually clicking "Check for Updates", KuroCat makes no network requests. The entire codebase is open source and auditable.
+All keyboard and mouse hardware signals in KuroCat are processed **strictly in local memory in real time** to drive animations and counters—**no keystrokes are ever logged or saved**. This fork goes online in only two cases: checking this repository's GitHub Releases for updates, and, if you turn on Cat Link, relaying activity encrypted with the pairing code through EMQX's public server (only which paw is typing, mouse movement and the like, never which key). Claude Code alerts stay on this computer. The entire codebase is open source and auditable.
 
 ## 📄 License
 

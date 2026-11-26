@@ -14,8 +14,11 @@ A release is "newer" when its tag has larger numbers: `v1.3.3-mmccqq.6` > `v1.3.
 1. Bump the version in **both** places, to the same value:
    - `Resources/Info.plist` → `KuroCatForkVersion`
    - `windows/src/main.cpp` → `APP_VERSION`
-2. Commit, merge to `main` and push.
-3. On the Mac that holds the "KuroCat Code Signing" certificate, run:
+2. Add a `## v<version> — <date>` section at the top of **both** `CHANGELOG.md` (中文) and
+   `CHANGELOG.en.md` (English). It becomes the release notes, which people see when they click
+   「打开下载页」 in the update prompt. The README lists only the key features, so put the details here.
+3. Commit, merge to `main` and push.
+4. On the Mac that holds the "KuroCat Code Signing" certificate, run:
 
    ```bash
    scripts/release.sh

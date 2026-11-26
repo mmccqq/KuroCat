@@ -4,7 +4,8 @@
 #   scripts/release.sh
 #
 # Publishes the version in Resources/Info.plist (KuroCatForkVersion), which must equal APP_VERSION
-# in windows/src/main.cpp. Run it on main, with everything committed and pushed. It:
+# in windows/src/main.cpp and have a "## v<version>" section in CHANGELOG.md and CHANGELOG.en.md
+# (used as the release notes). Run it on main, with everything committed and pushed. It:
 #   1. builds KuroCat.app here, signed with "KuroCat Code Signing" (the certificate never leaves this
 #      Mac; it is what lets updates keep macOS's Input Monitoring permission),
 #   2. checks that the installed KuroCat would accept this build as an update,
@@ -43,9 +44,15 @@ mkdir -p dist
 rm -f "$MAC_ZIP"
 ditto -c -k --keepParent KuroCat.app "$MAC_ZIP"
 
-PREV="$(git describe --tags --abbrev=0 --match 'v*-mmccqq.*' 2>/dev/null || true)"
-NOTES="$(git log --no-merges --pretty='- %s' ${PREV:+$PREV..}HEAD)"
-[ -n "$NOTES" ] || NOTES="KuroCat $TAG"
+# Release notes: this version's section of CHANGELOG.md (中文) and CHANGELOG.en.md (English).
+section() {   # print the body of "## <tag>..." up to the next "## " heading
+    awk -v tag="$2" '$0 ~ "^## " { if (found) exit; if ($0 == "## " tag || index($0, "## " tag " ") == 1) { found = 1; next } } found' "$1"
+}
+NOTES_ZH="$(section CHANGELOG.md "$TAG")"
+NOTES_EN="$(section CHANGELOG.en.md "$TAG")"
+[ -n "$(echo "$NOTES_ZH" | tr -d '[:space:]')" ] || die "CHANGELOG.md has no section for $TAG"
+[ -n "$(echo "$NOTES_EN" | tr -d '[:space:]')" ] || die "CHANGELOG.en.md has no section for $TAG"
+NOTES="$(printf '%s\n\n---\n\n**English**\n%s\n' "$NOTES_ZH" "$NOTES_EN")"
 
 echo "==> Tagging $TAG"
 git tag -a "$TAG" -m "KuroCat $TAG"
