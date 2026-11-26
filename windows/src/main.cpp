@@ -2386,16 +2386,20 @@ int renderPreviewSheet(const std::wstring& outPath) {
         snap(p, st, L"Claude needs you +0.85s", L"", &c);
     }
 
-    {   // Mosquito: dozing cat, mosquito circles, two swats, it leaves
+    {   // Mosquito: sleeping cat, mosquito circles, two swats, it leaves, the cat dozes off again.
+        // The mosquito counts its own steps, so wait on its age (a slow CI machine falls behind the clock).
         CatPhysics p; InputEngine eng = feed();
-        eng.lastMouseMoveTime = nowSeconds() - 10;
+        eng.lastMouseMoveTime = eng.lastKeyActivityTime = nowSeconds() - 500;   // long idle: asleep
+        auto runUntil = [&](std::function<bool()> done, double maxSeconds) {
+            double end = nowSeconds() + maxSeconds;
+            while (!done() && nowSeconds() < end) { p.step(1.0f / 60.0f, rect, eng, st); Sleep(16); }
+        };
         p.summonMosquito();
-        double start = nowSeconds() + 1.6;   // when it appears
-        for (double age : { 2.0, 2.92, 3.92 }) {
-            run(p, eng, st, start + age - nowSeconds(), nullptr);
+        for (float age : { 2.0f, 2.95f, 3.95f }) {
+            runUntil([&] { return p.mosquito.active && p.mosquito.age >= age; }, 30.0);
             snap(p, st, L"mosquito age " + std::to_wstring(age).substr(0, 4));
         }
-        run(p, eng, st, start + 6.6 + 2.6 - nowSeconds(), nullptr);   // still inside the demo nap
+        runUntil([&] { return !p.mosquito.active && p.mosquitoDisturb < 0.05f && p.sleepiness > 0.9f; }, 30.0);
         snap(p, st, L"mosquito gone, asleep again");
     }
 
@@ -2637,12 +2641,23 @@ DWORD runHookProcess(const std::string& json, double& seconds) {
 /// `KuroCat.exe --claude-selftest`: hook parsing, bubble rules, and the real hook process talking to a
 /// stand-in KuroCat window over WM_COPYDATA. Writes kurocat-claude-selftest.txt; exit code 0 = pass.
 int runClaudeSelfTest() {
+    // Bubbles measure their text with GDI+, which must be started first (as the app does at launch).
+    Gdiplus::GdiplusStartupInput gdipInput;
+    ULONG_PTR gdipToken = 0;
+    Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, nullptr);
     std::string report;
     int failures = 0;
+    auto save = [&] {   // after every check, so a crash still leaves a log that shows where
+        HANDLE f = CreateFileW(L"kurocat-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
+    };
     auto check = [&](bool ok, const std::string& what) {
         report += (ok ? "PASS  " : "FAIL  ") + what + "\r\n";
         if (!ok) ++failures;
+        save();
     };
+    report += "started\r\n";
+    save();
     using claude::Kind;
     {
         auto e = claude::parseHook(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\\u5f20\u4e09\\projects\\x_project\\","session_id":"s1"})");
@@ -2698,8 +2713,8 @@ int runClaudeSelfTest() {
     check(snippet.find(L"\"command\": \"C:/Users/a/KuroCat.exe\", \"args\": [\"--claude-hook\"]") != std::wstring::npos, "settings snippet uses exec form");
     check(catlink::JsonReader::parse(catlink::narrow(snippet)).has_value(), "settings snippet is valid JSON");
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
-    HANDLE f = CreateFileW(L"kurocat-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
-    if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
+    save();
+    Gdiplus::GdiplusShutdown(gdipToken);
     return failures == 0 ? 0 : 1;
 }
 

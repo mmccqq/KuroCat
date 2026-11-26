@@ -51,7 +51,7 @@ jobs:
           cd windows
           start "" /wait KuroCat.exe --claude-selftest
           set RC=%ERRORLEVEL%
-          type kurocat-claude-selftest.txt
+          if exist kurocat-claude-selftest.txt type kurocat-claude-selftest.txt
           exit /b %RC%
 
       - name: Render preview sheet
