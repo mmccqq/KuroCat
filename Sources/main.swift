@@ -1,6 +1,11 @@
 import Foundation
 import AppKit
 
+// Claude Code hook: tell the running KuroCat that a session finished or needs you, then exit.
+if CommandLine.arguments.contains("--claude-hook") {
+    ClaudeHook.runFromCommandLine(arguments: CommandLine.arguments)
+}
+
 // Support headless multi-pose preview rendering for visual verification
 if let idx = CommandLine.arguments.firstIndex(of: "--render-preview"),
    idx + 1 < CommandLine.arguments.count {

@@ -41,6 +41,7 @@ struct CatSettings {
     bool alwaysOnTop = true;
     bool runAsAdmin = false; // relaunch elevated so keys typed into admin-level games are visible (UIPI)
     bool earbudAnimation = true; // put on AirPods when the sound output switches to headphones
+    bool mosquitoVisits = true;  // a mosquito now and then bothers the sleeping cat
     float scale = 1.0f;
     CatCoatTheme coatTheme = CatCoatTheme::ClassicBlack;
     KeyboardTheme keyboardTheme = KeyboardTheme::ClassicMilk;
@@ -65,6 +66,7 @@ struct CatSettings {
         alwaysOnTop      = readDword(L"AlwaysOnTop", 1) != 0;
         runAsAdmin       = readDword(L"RunAsAdmin", 0) != 0;
         earbudAnimation  = readDword(L"EarbudAnimation", 1) != 0;
+        mosquitoVisits   = readDword(L"MosquitoVisits", 1) != 0;
         scale            = std::clamp((float)readDword(L"ScalePct", 100) / 100.0f, 0.5f, 2.0f);
         coatTheme        = (CatCoatTheme)std::clamp((int)readDword(L"CoatTheme", 0), 0, 3);
         keyboardTheme    = (KeyboardTheme)std::clamp((int)readDword(L"KeyboardTheme", 0), 0, 2);
@@ -92,6 +94,7 @@ struct CatSettings {
         writeDword(L"AlwaysOnTop", alwaysOnTop ? 1 : 0);
         writeDword(L"RunAsAdmin", runAsAdmin ? 1 : 0);
         writeDword(L"EarbudAnimation", earbudAnimation ? 1 : 0);
+        writeDword(L"MosquitoVisits", mosquitoVisits ? 1 : 0);
         writeDword(L"ScalePct", (DWORD)(scale * 100.0f + 0.5f));
         writeDword(L"CoatTheme", (DWORD)coatTheme);
         writeDword(L"KeyboardTheme", (DWORD)keyboardTheme);
@@ -205,7 +208,73 @@ public:
         return std::min(1.0f, std::max(blinkProgress_, std::max(petClose, sleepClose)));
     }
 
-    bool isHappyClosedEyes() const { return petHeadIntensity > 0.45f; }
+    bool isHappyClosedEyes() const { return petHeadIntensity > 0.45f || isCheering(); }
+
+    // Claude Code reactions (same as macOS): a "done" cheer, and waving while a session waits for you.
+    bool wantsAttention = false;
+    bool isCheering() const { return cheerClock_ - cheerStart_ < 1.15; }
+
+    // Mosquito (same as macOS): buzzes in from the left, circles the head, dodges two swats, leaves right.
+    struct Mosquito {
+        bool active = false;
+        float age = 0.0f;
+        Pt position = { 0.0f, 0.0f };
+        Pt anchor = { 0.0f, 0.0f };       // head centre when it arrived
+        Pt dodge = { 0.0f, 0.0f };
+        Pt dodgeVelocity = { 0.0f, 0.0f };
+        bool fleeing = false;              // the owner woke up: it zips away early
+        float fleeAge = 0.0f;
+        Pt fleeFrom = { 0.0f, 0.0f };
+        bool facingLeft = false;
+        float tilt = 0.0f;
+    };
+    Mosquito mosquito;
+    float mosquitoDisturb = 0.0f;          // 0 = asleep, 1 = fully bothered
+    static constexpr float MosquitoFirstDelay = 180.0f;   // seconds of deep sleep before the first visit
+    static constexpr float MosquitoRepeatMin = 300.0f, MosquitoRepeatMax = 540.0f;
+    static constexpr float MosquitoFlight = 6.6f;
+    static constexpr float MosquitoSwatAges[2] = { 2.88f, 3.88f };
+    static constexpr float MosquitoSwatDuration = 0.42f;
+
+    /// Menu demo: the cat dozes off, a mosquito visits, the cat dozes off again, then wakes up.
+    /// The nap ends once the cat has slept again for 2.5 s after the visit (60 s at most), so a slow
+    /// frame rate can't end it mid-visit.
+    void summonMosquito() {
+        double now = nowSeconds();
+        mosquitoDemoSleepUntil_ = now + 60.0;
+        mosquitoDemoSpawnAt_ = now + 1.6;
+        mosquitoDemoVisited_ = false;
+        mosquitoDemoDozeTime_ = 0.0f;
+    }
+
+    static Pt mosquitoPath(float t, Pt hc) {
+        const float pi = 3.14159265f;
+        Pt start = { -14.0f, hc.y - 58.0f }, exit = { 374.0f, hc.y - 82.0f };
+        Pt c = { hc.x, hc.y - 24.0f };
+        auto orbit = [&](float a) { return Pt{ c.x + std::cos(a) * 80.0f, c.y + std::sin(a) * 34.0f }; };
+        auto lerp = [](Pt p, Pt q, float u) { return Pt{ p.x + (q.x - p.x) * u, p.y + (q.y - p.y) * u }; };
+        float a0 = pi, a1 = pi + 2.0f * pi * 1.4f;
+        Pt base;
+        if (t < 2.0f) base = lerp(start, orbit(a0), smoothstep(0.0f, 1.0f, t / 2.0f));
+        else if (t < 4.8f) base = orbit(a0 + (a1 - a0) * (t - 2.0f) / 2.8f);
+        else { float u = std::min(1.0f, (t - 4.8f) / 1.8f); base = lerp(orbit(a1), exit, u * u); }
+        return { base.x + std::sin(t * 13.0f) * 2.2f, base.y + std::sin(t * 9.3f) * 3.4f };
+    }
+
+    /// A Claude Code session finished: two happy hops with ^^ eyes and two sparkles.
+    void cheer() {
+        cheerStart_ = cheerClock_;
+        cheerHopsDone_ = 0;
+        sleepiness = 0.0f;
+        Pt hc = headCenter();
+        for (float dx : { -34.0f, 30.0f }) {
+            PurrSparkle sp;
+            sp.position = { hc.x + dx, hc.y - 40.0f };
+            sp.velocity = { dx * 0.5f, -26.0f };
+            sp.lifetime = 1.2f;
+            sparkles.push_back(sp);
+        }
+    }
     bool isBlissfulSquint() const { return petBodyIntensity > 0.35f && !isHappyClosedEyes(); }
 
     // Petting must be deliberate: ~1 s of stroking (and some distance) before the cat reacts.
@@ -466,9 +535,11 @@ public:
         // 2. Sleepy idle detection
         double lastAny = std::max(engine.lastKeyActivityTime, std::max(engine.lastMouseMoveTime, lastPetTime_));
         double idleSec = lastAny > 0.0 ? (now - lastAny) : 0.0;
-        if (activeKeys.empty() && idleSec > 45.0) {
-            float targetSleep = std::min(1.0f, (float)((idleSec - 45.0) / 35.0));
-            sleepiness += (targetSleep - sleepiness) * dt * 1.5f;
+        if (!activeKeys.empty()) mosquitoDemoSleepUntil_ = 0.0;   // typing ends the menu demo
+        bool demoSleep = now < mosquitoDemoSleepUntil_;
+        if ((activeKeys.empty() && idleSec > 45.0) || demoSleep) {
+            float targetSleep = demoSleep ? 1.0f : std::min(1.0f, (float)((idleSec - 45.0) / 35.0));
+            sleepiness += (targetSleep - sleepiness) * dt * (demoSleep ? 3.0f : 1.5f);
             if (sleepiness > 0.8f) {
                 sleepZCooldown_ -= dt;
                 if (sleepZCooldown_ <= 0.0f) {
@@ -479,6 +550,7 @@ public:
         } else {
             sleepiness = std::max(0.0f, sleepiness - dt * 5.0f);
         }
+        updateMosquito(now, dt, !demoSleep && (idleSec < 45.0 || !activeKeys.empty()), settings);
 
         updateEarbudPhase(now, dt, settings);
 
@@ -610,6 +682,9 @@ public:
             leftPawTyping = rightPawTyping = leftPawOnMouse = false;
         }
 
+        updateClaudeReactions(now, dt);
+        applyMosquitoSwat();
+
         if (footKey != PhysicalKey::None) {
             hindFoot.setTarget(KeyboardLayout::canvasPointForKey(footKey));
             hindFootActive.target = 1.0f;
@@ -684,6 +759,21 @@ public:
             headYaw.target = std::clamp(lookX, -1.0f, 1.0f);
             headPitch.target = std::clamp(lookY, -1.0f, 1.0f);
         }
+        // Waiting on an approval: face the viewer when they aren't busy with the mouse or keys.
+        bool facesViewer = wantsAttention && !typingRecently && !mouseMovedRecently;
+        if (facesViewer) {
+            headYaw.target = 0.0f;
+            headPitch.target = -0.1f;
+        }
+        // Bothered by a mosquito: the head follows it.
+        bool followsMosquito = mosquito.active && mosquitoDisturb > 0.25f;
+        Pt mosquitoLook = { 0.0f, 0.0f };
+        if (followsMosquito) {
+            mosquitoLook = { std::clamp((mosquito.position.x - eyeOrigin.x) / 95.0f, -1.0f, 1.0f),
+                             std::clamp((mosquito.position.y - eyeOrigin.y) / 110.0f, -1.0f, 1.0f) };
+            headYaw.target = mosquitoLook.x;
+            headPitch.target = mosquitoLook.y;
+        }
         float headStiff = 88.0f + hunt * 75.0f;
         float headDamp  = 14.5f + hunt * 4.5f;
         headYaw.step(dt, headStiff, headDamp);
@@ -694,7 +784,7 @@ public:
         }
         headTilt.step(dt, 130.0f, 16.0f);
 
-        eyeGaze.setTarget({ lookX * 0.88f, lookY * 0.85f });
+        eyeGaze.setTarget(followsMosquito ? mosquitoLook : facesViewer ? Pt{ 0.0f, -0.05f } : Pt{ lookX * 0.88f, lookY * 0.85f });
         eyeGaze.step(dt, 210.0f + hunt * 80.0f, 21.0f);
 
         if (hindFootActive.value > 0.3f) {
@@ -702,6 +792,7 @@ public:
         } else if (now - engine.lastKeyActivityTime > 0.45 && now - engine.lastMouseClickTime > 0.45) {
             pupilScale.target = 1.0f;
         }
+        if (facesViewer) pupilScale.target = 1.18f;   // big hopeful eyes
         pupilScale.step(dt, 150.0f, 18.0f);
 
         // 6. Blinking (no blinking during locked-on hunting!)
@@ -792,6 +883,154 @@ private:
 
     int badgeCascade_ = 0;
     double lastBadgeTime_ = 0.0;
+
+    double cheerStart_ = -100.0;
+    double cheerClock_ = 0.0;
+    int cheerHopsDone_ = 2;
+    float attentionClock_ = 0.0f;
+
+    float deepSleepTime_ = 0.0f;
+    float nextMosquitoAfter_ = MosquitoFirstDelay;
+    float swatStart_ = -1.0f;              // mosquito age when the current swat started, -1 = none
+    bool swatIsLeft_ = false;
+    Pt swatTarget_ = { 0.0f, 0.0f };
+    int swatsDone_ = 0;
+    float mosquitoEarCooldown_ = 0.0f;
+    double mosquitoDemoSleepUntil_ = 0.0;
+    double mosquitoDemoSpawnAt_ = -1.0;
+    bool mosquitoDemoVisited_ = false;
+    float mosquitoDemoDozeTime_ = 0.0f;
+
+    void startMosquito() {
+        Pt hc = headCenter();
+        mosquito = Mosquito();
+        mosquito.active = true;
+        mosquito.anchor = hc;
+        mosquito.position = { -14.0f, hc.y - 58.0f };
+        swatsDone_ = 0;
+        swatStart_ = -1.0f;
+    }
+
+    void updateMosquito(double now, float dt, bool awake, const CatSettings& settings) {
+        if (mosquitoDemoSpawnAt_ >= 0.0 && now >= mosquitoDemoSpawnAt_) {
+            mosquitoDemoSpawnAt_ = -1.0;
+            if (!mosquito.active) startMosquito();
+        }
+        if (!mosquito.active) {
+            if (awake || !settings.mosquitoVisits) {
+                deepSleepTime_ = 0.0f;
+                if (awake) nextMosquitoAfter_ = MosquitoFirstDelay;
+            } else if (sleepiness > 0.8f) {
+                deepSleepTime_ += dt;
+                if (deepSleepTime_ >= nextMosquitoAfter_) {
+                    deepSleepTime_ = 0.0f;
+                    nextMosquitoAfter_ = randRange(MosquitoRepeatMin, MosquitoRepeatMax);
+                    startMosquito();
+                }
+            }
+        }
+
+        if (mosquito.active) {
+            Mosquito& m = mosquito;
+            Pt previous = m.position;
+            m.age += dt;
+            if (awake && !m.fleeing) { m.fleeing = true; m.fleeFrom = m.position; swatStart_ = -1.0f; }
+            if (m.fleeing) {
+                m.fleeAge += dt;
+                m.position = { m.fleeFrom.x + m.fleeAge * 230.0f, m.fleeFrom.y - m.fleeAge * 95.0f + std::sin(m.age * 11.0f) * 2.0f };
+            } else {
+                float k = std::max(0.0f, 1.0f - dt * 3.0f), back = std::max(0.0f, 1.0f - dt * 0.9f);
+                m.dodge.x += m.dodgeVelocity.x * dt;  m.dodge.y += m.dodgeVelocity.y * dt;
+                m.dodgeVelocity.x *= k;               m.dodgeVelocity.y *= k;
+                m.dodge.x *= back;                    m.dodge.y *= back;
+                Pt path = mosquitoPath(m.age, m.anchor);
+                m.position = { path.x + m.dodge.x, path.y + m.dodge.y };
+            }
+            float vx = (m.position.x - previous.x) / std::max(dt, 0.001f), vy = (m.position.y - previous.y) / std::max(dt, 0.001f);
+            if (std::fabs(vx) > 8.0f) m.facingLeft = vx < 0.0f;
+            m.tilt += (std::clamp(vy / 160.0f, -0.5f, 0.5f) - m.tilt) * std::min(1.0f, dt * 8.0f);
+
+            Pt hc = headCenter();
+            if (!m.fleeing) {
+                // Swat at it when it is beside the head; it dodges up and away at the last moment.
+                if (swatsDone_ < 2 && m.age >= MosquitoSwatAges[swatsDone_] && swatStart_ < 0.0f) {
+                    swatStart_ = m.age;
+                    swatIsLeft_ = m.position.x < hc.x;
+                    swatTarget_ = { std::clamp(m.position.x + (swatIsLeft_ ? -6.0f : 6.0f), hc.x - 82.0f, hc.x + 82.0f),
+                                    std::max(hc.y - 50.0f, m.position.y) };
+                    swatsDone_ += 1;
+                }
+                if (swatStart_ >= 0.0f) {
+                    float p = (m.age - swatStart_) / MosquitoSwatDuration;
+                    if (p >= 0.42f && p - dt / MosquitoSwatDuration < 0.42f) {
+                        m.dodgeVelocity = { (swatIsLeft_ ? -1.0f : 1.0f) * 55.0f, -120.0f };
+                        earTwitch.velocity += 30.0f;
+                    }
+                    if (p >= 1.0f) swatStart_ = -1.0f;
+                }
+                if (std::hypot(m.position.x - hc.x, m.position.y - hc.y) < 110.0f) {
+                    mosquitoEarCooldown_ -= dt;
+                    if (mosquitoEarCooldown_ <= 0.0f) {
+                        mosquitoEarCooldown_ = randRange(0.22f, 0.55f);
+                        earTwitch.velocity += randRange(-34.0f, 34.0f);
+                    }
+                }
+                if (m.age > 1.1f) mosquitoDisturb = std::min(1.0f, mosquitoDisturb + dt * 2.2f);
+            }
+            bool gone = m.position.x > 380.0f || m.position.y < -30.0f || (!m.fleeing && m.age >= MosquitoFlight);
+            if (m.fleeing) mosquitoDisturb = std::max(0.0f, mosquitoDisturb - dt * 2.0f);
+            if (gone) {
+                m.active = false;
+                swatsDone_ = 0;
+                swatStart_ = -1.0f;
+                if (mosquitoDemoSleepUntil_ > now) mosquitoDemoVisited_ = true;
+            }
+        } else {
+            mosquitoDisturb = std::max(0.0f, mosquitoDisturb - dt * 0.4f);
+        }
+        // Eyes open to a grumpy half-squint while bothered; afterwards the cat dozes off again.
+        if (mosquitoDisturb > 0.0f && !awake) sleepiness = std::min(sleepiness, 1.0f - 0.68f * mosquitoDisturb);
+        // Demo: wake up once the cat has slept again for a moment after the visit.
+        if (mosquitoDemoVisited_ && !mosquito.active && mosquitoDemoSleepUntil_ > now && sleepiness > 0.9f && mosquitoDisturb < 0.05f) {
+            mosquitoDemoDozeTime_ += dt;
+            if (mosquitoDemoDozeTime_ >= 2.5f) { mosquitoDemoSleepUntil_ = now; mosquitoDemoVisited_ = false; }
+        }
+    }
+
+    /// The paw on the mosquito's side strikes at where it was, then returns.
+    void applyMosquitoSwat() {
+        if (swatStart_ < 0.0f || !mosquito.active || isEarbudGesture()) return;
+        float p = (mosquito.age - swatStart_) / MosquitoSwatDuration;
+        Pt target = p < 0.55f ? swatTarget_ : (swatIsLeft_ ? LeftPawRest : RightPawRest);
+        if (swatIsLeft_) { leftPaw.setTarget(target); leftPawTyping = false; leftPawOnMouse = false; }
+        else { rightPaw.setTarget(target); rightPawTyping = false; }
+    }
+
+    /// Hops (head bounce + squash), then the attention wave. Runs after the normal limb targets.
+    void updateClaudeReactions(double now, float dt) {
+        cheerClock_ = now;
+        double ct = now - cheerStart_;
+        if (cheerHopsDone_ < 2 && ct >= cheerHopsDone_ * 0.42) {
+            cheerHopsDone_ += 1;
+            headOffsetY.velocity -= 300.0f;
+            bodySquash.velocity += 2.2f;
+            earTwitch.velocity += 28.0f;
+        }
+        if (!wantsAttention) { attentionClock_ = 0.0f; return; }
+        attentionClock_ += dt;
+        sleepiness = 0.0f;
+        // Every 2.4 s: raise the viewer's-right paw out beside the body and wave it ("hey, over here!").
+        float cycle = std::fmod(attentionClock_, 2.4f);
+        if (cycle < 1.2f && !rightPawTyping && !isEarbudGesture()) {
+            float lift = smoothstep(0.0f, 0.22f, cycle) * (1.0f - smoothstep(0.98f, 1.2f, cycle));
+            float wave = (cycle > 0.22f && cycle < 0.98f) ? std::sin((cycle - 0.22f) * 2.0f * 3.14159265f / 0.38f) : 0.0f;
+            Pt hc = headCenter();
+            Pt raised = { hc.x + 60.0f + wave * 7.0f, 146.0f - std::fabs(wave) * 5.0f };
+            rightPaw.setTarget({ RightPawRest.x + (raised.x - RightPawRest.x) * lift,
+                                 RightPawRest.y + (raised.y - RightPawRest.y) * lift });
+            if (cycle < 0.05f) earTwitch.velocity += 18.0f;
+        }
+    }
 
     void updateEarbudPhase(double now, float dt, const CatSettings& settings) {
         bool wants = headphonesConnected_ && settings.earbudAnimation;

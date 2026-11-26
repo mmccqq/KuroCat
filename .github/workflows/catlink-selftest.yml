@@ -5,7 +5,7 @@ name: Cat Link self-test (Windows)
 # (optionally) a conversation with a macOS peer that joined the given pairing code.
 on:
   push:
-    branches: [ cat-link ]
+    branches: [ cat-link, claude-code-alerts ]
   workflow_dispatch:
     inputs:
       code:
@@ -44,6 +44,16 @@ jobs:
           type kurocat-selftest.txt
           exit /b %RC%
 
+      - name: Run Claude Code hook self-test
+        if: always()
+        shell: cmd
+        run: |
+          cd windows
+          start "" /wait KuroCat.exe --claude-selftest
+          set RC=%ERRORLEVEL%
+          if exist kurocat-claude-selftest.txt type kurocat-claude-selftest.txt
+          exit /b %RC%
+
       - name: Render preview sheet
         if: always()
         shell: cmd
@@ -60,4 +70,5 @@ jobs:
           path: |
             windows/KuroCat.exe
             windows/kurocat-selftest.txt
+            windows/kurocat-claude-selftest.txt
             windows/preview.png

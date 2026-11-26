@@ -94,6 +94,7 @@ public:
 
         // 10. Subtle Petting Sparkles & Sleep Z
         drawSparkles(g, physics, settings.eyeTheme);
+        if (physics.mosquito.active) drawMosquito(g, physics.mosquito, physics.time);   // bothering the sleeping cat
     }
 
 private:
@@ -1102,6 +1103,82 @@ private:
     }
 
     // MARK: - Petting Sparkles & Sleep Z
+
+    /// A cartoon mosquito (same as macOS): round grey striped body, a big head with one white eye, a
+    /// long nose, two chunky flapping wings and three bent legs, with bold dark outlines.
+    static void drawMosquito(Gdiplus::Graphics& g, const CatPhysics::Mosquito& m, float time) {
+        using namespace Gdiplus;
+        GraphicsState state = g.Save();
+        g.TranslateTransform(m.position.x, m.position.y);
+        if (m.facingLeft) g.ScaleTransform(-1.0f, 1.0f);
+        g.RotateTransform(m.tilt * 57.2957795f);
+        g.ScaleTransform(1.15f, 1.15f);
+        const Color outline(255, 31, 31, 41), bodyFill(255, 107, 107, 122);
+        auto roundPen = [](Pen& p) { p.SetStartCap(LineCapRound); p.SetEndCap(LineCapRound); p.SetLineJoin(LineJoinRound); };
+
+        Pen legPen(outline, 1.1f);   // legs: three bent lines under the body
+        roundPen(legPen);
+        for (int i = 0; i < 3; ++i) {
+            float x = -2.5f + i * 2.6f;
+            PointF leg[3] = { { x, 2.5f }, { x - 2.2f, 6.0f }, { x - 1.2f, 9.5f } };
+            g.DrawLines(&legPen, leg, 3);
+        }
+
+        float flap = std::sin(time * 38.0f);
+        auto wing = [&](float angle, float alpha) {
+            GraphicsState ws = g.Save();
+            g.TranslateTransform(-1.0f, -2.6f);
+            g.RotateTransform(angle * 57.2957795f);
+            RectF r(-1.0f, -3.2f, 10.5f, 6.4f);
+            SolidBrush fill(Color((BYTE)(alpha * 255.0f), 219, 240, 255));
+            g.FillEllipse(&fill, r);
+            Pen edge(Color(191, 31, 31, 41), 0.9f);
+            g.DrawEllipse(&edge, r);
+            g.Restore(ws);
+        };
+        wing(-2.2f - flap * 0.35f, 0.55f);   // back wing, behind the body
+
+        Pen nose(outline, 1.4f);
+        roundPen(nose);
+        g.DrawLine(&nose, 6.5f, 0.8f, 13.5f, 3.4f);
+
+        {   // abdomen, tilted down at the back, with two stripes
+            GraphicsState as = g.Save();
+            g.TranslateTransform(-5.2f, 1.4f);
+            g.RotateTransform(0.32f * 57.2957795f);
+            RectF abdomen(-5.5f, -3.0f, 11.0f, 6.0f);
+            SolidBrush fill(bodyFill);
+            g.FillEllipse(&fill, abdomen);
+            GraphicsPath clip;
+            clip.AddEllipse(abdomen);
+            g.SetClip(&clip, CombineModeIntersect);
+            Pen stripe(Color(140, 31, 31, 41), 1.3f);
+            for (float x : { -2.0f, 1.2f }) {
+                PointF curve[3] = { { x, -3.2f }, { x + 0.9f, 0.0f }, { x, 3.2f } };
+                g.DrawCurve(&stripe, curve, 3);
+            }
+            g.ResetClip();
+            Pen edge(outline, 1.1f);
+            g.DrawEllipse(&edge, abdomen);
+            g.Restore(as);
+        }
+
+        RectF head(-0.6f, -4.2f, 8.0f, 7.6f);   // head with a big white eye
+        SolidBrush headFill(bodyFill);
+        g.FillEllipse(&headFill, head);
+        Pen headEdge(outline, 1.1f);
+        g.DrawEllipse(&headEdge, head);
+        RectF eye(2.6f, -3.0f, 4.0f, 4.0f);
+        SolidBrush white(Color(255, 255, 255, 255));
+        g.FillEllipse(&white, eye);
+        Pen eyeEdge(outline, 0.7f);
+        g.DrawEllipse(&eyeEdge, eye);
+        SolidBrush pupil(outline);
+        g.FillEllipse(&pupil, 4.4f, -1.9f, 1.9f, 1.9f);
+
+        wing(-2.6f + flap * 0.35f, 0.72f);   // front wing
+        g.Restore(state);
+    }
 
     static void drawSparkles(Gdiplus::Graphics& g, const CatPhysics& physics, EyeColorTheme eyeTheme) {
         using namespace Gdiplus;

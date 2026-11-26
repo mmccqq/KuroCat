@@ -73,6 +73,9 @@ final class CatSettings {
     var earbudAnimation: Bool {
         didSet { UserDefaults.standard.set(earbudAnimation, forKey: "KuroCat.EarbudAnimation") }
     }
+    var mosquitoVisits: Bool {
+        didSet { UserDefaults.standard.set(mosquitoVisits, forKey: "KuroCat.MosquitoVisits") }
+    }
     var fullClickThrough: Bool {
         didSet { UserDefaults.standard.set(fullClickThrough, forKey: "KuroCat.FullClickThrough") }
     }
@@ -100,6 +103,7 @@ final class CatSettings {
         footEasterEgg = d.object(forKey: "KuroCat.FootEasterEgg") as? Bool ?? true
         petInteraction = d.object(forKey: "KuroCat.PetInteraction") as? Bool ?? true
         earbudAnimation = d.object(forKey: "KuroCat.EarbudAnimation") as? Bool ?? true
+        mosquitoVisits = d.object(forKey: "KuroCat.MosquitoVisits") as? Bool ?? true
         fullClickThrough = d.object(forKey: "KuroCat.FullClickThrough") as? Bool ?? false
         fullScreenOverlay = d.object(forKey: "KuroCat.FullScreenOverlay") as? Bool ?? true
         let savedScale = d.double(forKey: "KuroCat.Scale")
@@ -324,7 +328,226 @@ final class CatPhysics {
 
     /// True when eyes should draw the signature glowing lime horizontal closed-eye lines
     var isHappyClosedEyes: Bool {
-        petHeadIntensity > 0.45
+        petHeadIntensity > 0.45 || isCheering
+    }
+
+    // MARK: - Mosquito (wakes the sleeping cat for a moment)
+
+    /// A mosquito that buzzes in from the left, circles the head, dodges two swats and leaves right.
+    struct Mosquito {
+        var age: CGFloat = 0
+        var position: CGPoint
+        let anchor: CGPoint          // head centre when it arrived
+        var dodge: CGPoint = .zero
+        var dodgeVelocity: CGPoint = .zero
+        var fleeing = false          // the owner woke up: it zips away early
+        var fleeAge: CGFloat = 0
+        var fleeFrom: CGPoint = .zero
+        var facingLeft = false
+        var tilt: CGFloat = 0
+    }
+    private(set) var mosquito: Mosquito?
+    /// Deep sleep needed before the first visit, then a random wait before the next one (seconds).
+    static let mosquitoFirstDelay: CGFloat = 180
+    static let mosquitoRepeatDelay: ClosedRange<CGFloat> = 300...540
+    static let mosquitoFlight: CGFloat = 6.6
+    /// Mosquito ages at which the cat swats: just before it passes the right, then the left side of
+    /// the head (outside the silhouette, so a black paw stays visible).
+    static let mosquitoSwatAges: [CGFloat] = [2.88, 3.88]
+    static let mosquitoSwatDuration: CGFloat = 0.42
+    private var deepSleepTime: CGFloat = 0
+    private var nextMosquitoAfter: CGFloat = CatPhysics.mosquitoFirstDelay
+    /// 0 = asleep, 1 = fully bothered (eyes half open, following the mosquito).
+    private(set) var mosquitoDisturb: CGFloat = 0
+    private var swatStart: CGFloat?
+    private var swatIsLeft = false
+    private var swatTarget: CGPoint = .zero
+    private var swatsDone = 0
+    private var mosquitoEarCooldown: CGFloat = 0
+    private var mosquitoDemoSleepUntil: CFTimeInterval = 0
+    private var mosquitoDemoSpawnAt: CFTimeInterval?
+
+    /// Menu demo: the cat dozes off, a mosquito visits, the cat dozes off again, then wakes up.
+    /// The nap ends once the cat has slept again for 2.5 s after the visit (60 s at most), so a slow
+    /// frame rate can't end it mid-visit.
+    func summonMosquito(now: CFTimeInterval = CACurrentMediaTime()) {
+        mosquitoDemoSleepUntil = now + 60
+        mosquitoDemoSpawnAt = now + 1.6
+        mosquitoDemoVisited = false
+        mosquitoDemoDozeTime = 0
+    }
+    private var mosquitoDemoVisited = false
+    private var mosquitoDemoDozeTime: CGFloat = 0
+
+    static func mosquitoPath(age t: CGFloat, anchor hc: CGPoint) -> CGPoint {
+        let start = CGPoint(x: -14, y: hc.y - 58)
+        let exit = CGPoint(x: 374, y: hc.y - 82)
+        let c = CGPoint(x: hc.x, y: hc.y - 24)
+        func orbit(_ a: CGFloat) -> CGPoint { CGPoint(x: c.x + cos(a) * 80, y: c.y + sin(a) * 34) }
+        let a0 = CGFloat.pi, a1 = CGFloat.pi + 2 * .pi * 1.4   // left of the head, over the top, 1.4 turns
+        func lerp(_ p: CGPoint, _ q: CGPoint, _ u: CGFloat) -> CGPoint { CGPoint(x: p.x + (q.x - p.x) * u, y: p.y + (q.y - p.y) * u) }
+        let base: CGPoint
+        if t < 2.0 {
+            base = lerp(start, orbit(a0), smoothstep(0, 1, t / 2.0))
+        } else if t < 4.8 {
+            base = orbit(a0 + (a1 - a0) * (t - 2.0) / 2.8)
+        } else {
+            let u = min(1, (t - 4.8) / 1.8)
+            base = lerp(orbit(a1), exit, u * u)
+        }
+        return CGPoint(x: base.x + sin(t * 13) * 2.2, y: base.y + sin(t * 9.3) * 3.4)
+    }
+
+    private func updateMosquito(now: CFTimeInterval, dt: CGFloat, awake: Bool) {
+        if let at = mosquitoDemoSpawnAt, now >= at {
+            mosquitoDemoSpawnAt = nil
+            if mosquito == nil { mosquito = Mosquito(position: CGPoint(x: -14, y: headCenter.y - 58), anchor: headCenter) }
+        }
+        if mosquito == nil {
+            if awake || !CatSettings.shared.mosquitoVisits {
+                deepSleepTime = 0
+                if awake { nextMosquitoAfter = CatPhysics.mosquitoFirstDelay }
+            } else if sleepiness > 0.8 {
+                deepSleepTime += dt
+                if deepSleepTime >= nextMosquitoAfter {
+                    deepSleepTime = 0
+                    nextMosquitoAfter = .random(in: CatPhysics.mosquitoRepeatDelay)
+                    mosquito = Mosquito(position: CGPoint(x: -14, y: headCenter.y - 58), anchor: headCenter)
+                }
+            }
+        }
+
+        if var m = mosquito {
+            let previous = m.position
+            m.age += dt
+            if awake && !m.fleeing { m.fleeing = true; m.fleeFrom = m.position; swatStart = nil }
+            if m.fleeing {
+                m.fleeAge += dt
+                m.position = CGPoint(x: m.fleeFrom.x + m.fleeAge * 230, y: m.fleeFrom.y - m.fleeAge * 95 + sin(m.age * 11) * 2)
+            } else {
+                m.dodge.x += m.dodgeVelocity.x * dt
+                m.dodge.y += m.dodgeVelocity.y * dt
+                m.dodgeVelocity.x *= max(0, 1 - dt * 3)
+                m.dodgeVelocity.y *= max(0, 1 - dt * 3)
+                m.dodge.x *= max(0, 1 - dt * 0.9)
+                m.dodge.y *= max(0, 1 - dt * 0.9)
+                let path = CatPhysics.mosquitoPath(age: m.age, anchor: m.anchor)
+                m.position = CGPoint(x: path.x + m.dodge.x, y: path.y + m.dodge.y)
+            }
+            let vx = (m.position.x - previous.x) / max(dt, 0.001), vy = (m.position.y - previous.y) / max(dt, 0.001)
+            if abs(vx) > 8 { m.facingLeft = vx < 0 }
+            m.tilt += (max(-0.5, min(0.5, vy / 160)) - m.tilt) * min(1, dt * 8)
+
+            if !m.fleeing {
+                // Swat at it when it is beside the head; it dodges up and away at the last moment.
+                if swatsDone < CatPhysics.mosquitoSwatAges.count, m.age >= CatPhysics.mosquitoSwatAges[swatsDone], swatStart == nil {
+                    swatStart = m.age
+                    swatIsLeft = m.position.x < headCenter.x
+                    let hc = headCenter
+                    swatTarget = CGPoint(x: max(hc.x - 82, min(hc.x + 82, m.position.x + (swatIsLeft ? -6 : 6))), y: max(hc.y - 50, m.position.y))
+                    swatsDone += 1
+                }
+                if let st = swatStart {
+                    let p = (m.age - st) / CatPhysics.mosquitoSwatDuration
+                    if p >= 0.42 && p - dt / CatPhysics.mosquitoSwatDuration < 0.42 {
+                        m.dodgeVelocity = CGPoint(x: (swatIsLeft ? -1 : 1) * 55, y: -120)
+                        earTwitch.velocity += 30
+                    }
+                    if p >= 1 { swatStart = nil }
+                }
+            }
+            let nearHead = hypot(m.position.x - headCenter.x, m.position.y - headCenter.y) < 110
+            if nearHead && !m.fleeing {
+                mosquitoEarCooldown -= dt
+                if mosquitoEarCooldown <= 0 {
+                    mosquitoEarCooldown = .random(in: 0.22...0.55)
+                    earTwitch.velocity += .random(in: -34...34)
+                }
+            }
+            let gone = m.position.x > 380 || m.position.y < -30 || (!m.fleeing && m.age >= CatPhysics.mosquitoFlight)
+            mosquito = gone ? nil : m
+            if gone {
+                swatsDone = 0
+                swatStart = nil
+                if mosquitoDemoSleepUntil > now { mosquitoDemoVisited = true }
+            }
+            // Bothered from the moment it gets close until a little after it leaves.
+            if !m.fleeing && m.age > 1.1 { mosquitoDisturb = min(1, mosquitoDisturb + dt * 2.2) }
+        } else {
+            mosquitoDisturb = max(0, mosquitoDisturb - dt * 0.4)
+        }
+        if mosquito?.fleeing == true { mosquitoDisturb = max(0, mosquitoDisturb - dt * 2) }
+        // Eyes open to a grumpy half-squint while bothered; afterwards the cat dozes off again.
+        if mosquitoDisturb > 0 && !awake { sleepiness = min(sleepiness, 1 - 0.68 * mosquitoDisturb) }
+        // Demo: wake up once the cat has slept again for a moment after the visit.
+        if mosquitoDemoVisited && mosquito == nil && mosquitoDemoSleepUntil > now && sleepiness > 0.9 && mosquitoDisturb < 0.05 {
+            mosquitoDemoDozeTime += dt
+            if mosquitoDemoDozeTime >= 2.5 { mosquitoDemoSleepUntil = now; mosquitoDemoVisited = false }
+        }
+    }
+
+    /// The paw on the mosquito's side strikes at where it was, then returns.
+    private func applyMosquitoSwat() {
+        guard let st = swatStart, let m = mosquito, !isEarbudGesture else { return }
+        let p = (m.age - st) / CatPhysics.mosquitoSwatDuration
+        let target = p < 0.55 ? swatTarget : (swatIsLeft ? CatPhysics.leftPawRest : CatPhysics.rightPawRest)
+        if swatIsLeft {
+            leftPaw.target = target
+            leftPawTyping = false
+            leftPawOnMouse = false
+        } else {
+            rightPaw.target = target
+            rightPawTyping = false
+        }
+    }
+
+    // MARK: - Claude Code reactions
+
+    /// When the last "done" cheer started (two happy hops with ^^ eyes).
+    private var cheerStart: CFTimeInterval = -100
+    private var cheerHopsDone = 2
+    private var cheerClock: CFTimeInterval = 0
+    var isCheering: Bool { cheerClock - cheerStart < 1.15 }
+    /// A Claude Code session is waiting for an approval: look at the viewer and tap the screen.
+    var wantsAttention = false
+    private var attentionClock: CGFloat = 0
+
+    /// A Claude Code session finished.
+    func cheer() {
+        cheerStart = cheerClock
+        cheerHopsDone = 0
+        sleepiness = 0
+        let hc = headCenter
+        for dx in [-34, 30] as [CGFloat] {
+            sparkles.append(PurrSparkle(position: CGPoint(x: hc.x + dx, y: hc.y - 40),
+                                        velocity: CGPoint(x: dx * 0.5, y: -26), lifetime: 1.2, isSleepZ: false))
+        }
+    }
+
+    /// Hops (head bounce + squash), then the attention paw tap. Runs after the normal limb targets.
+    private func updateClaudeReactions(now: CFTimeInterval, dt: CGFloat) {
+        cheerClock = now
+        let ct = now - cheerStart
+        if cheerHopsDone < 2 && ct >= Double(cheerHopsDone) * 0.42 {
+            cheerHopsDone += 1
+            headOffsetY.velocity -= 300
+            bodySquash.velocity += 2.2
+            earTwitch.velocity += 28
+        }
+
+        guard wantsAttention else { attentionClock = 0; return }
+        attentionClock += dt
+        sleepiness = 0
+        // Every 2.4 s: raise the viewer's-right paw out beside the body and wave it ("hey, over here!").
+        let cycle = attentionClock.truncatingRemainder(dividingBy: 2.4)
+        if cycle < 1.2 && !rightPawTyping && !isEarbudGesture {
+            let lift = CatPhysics.smoothstep(0, 0.22, cycle) * (1 - CatPhysics.smoothstep(0.98, 1.2, cycle))
+            let wave = sin(max(0, cycle - 0.22) * 2 * .pi / 0.38) * (cycle > 0.22 && cycle < 0.98 ? 1 : 0)
+            let rest = CatPhysics.rightPawRest
+            let raised = CGPoint(x: headCenter.x + 60 + wave * 7, y: 146 - abs(wave) * 5)
+            rightPaw.target = CGPoint(x: rest.x + (raised.x - rest.x) * lift, y: rest.y + (raised.y - rest.y) * lift)
+            if cycle < 0.05 { earTwitch.velocity += 18 }
+        }
     }
 
     var isBlissfulSquint: Bool {
@@ -672,9 +895,11 @@ final class CatPhysics {
         // 2. Sleepy idle detection
         let lastAnyActivity = max(curLastKeyTime, max(curLastMouseMove, lastPetTime))
         let idleSeconds = lastAnyActivity > 0 ? (now - lastAnyActivity) : 0
-        if activeKeys.isEmpty && idleSeconds > 45 {
-            let targetSleep = min(1.0, CGFloat((idleSeconds - 45) / 35.0))
-            sleepiness += (targetSleep - sleepiness) * dt * 1.5
+        if !activeKeys.isEmpty { mosquitoDemoSleepUntil = 0 }   // typing ends the menu demo
+        let demoSleep = now < mosquitoDemoSleepUntil
+        if (activeKeys.isEmpty && idleSeconds > 45) || demoSleep {
+            let targetSleep = demoSleep ? 1.0 : min(1.0, CGFloat((idleSeconds - 45) / 35.0))
+            sleepiness += (targetSleep - sleepiness) * dt * (demoSleep ? 3.0 : 1.5)
             if sleepiness > 0.8 {
                 sleepZCooldown -= dt
                 if sleepZCooldown <= 0 {
@@ -689,6 +914,7 @@ final class CatPhysics {
         } else {
             sleepiness = max(0, sleepiness - dt * 5.0)
         }
+        updateMosquito(now: now, dt: dt, awake: !demoSleep && (idleSeconds < 45 || !activeKeys.isEmpty))
 
         updateEarbudPhase(now: now, dt: dt)
 
@@ -833,6 +1059,9 @@ final class CatPhysics {
             leftPawOnMouse = false
         }
 
+        updateClaudeReactions(now: now, dt: dt)
+        applyMosquitoSwat()
+
         // Hind foot target (3rd simultaneous key!)
         if let fk = footKey {
             hindFoot.target = KeyboardLayout.canvasPoint(for: fk)
@@ -920,6 +1149,20 @@ final class CatPhysics {
             headYaw.target = max(-1.0, min(1.0, lookTargetX))
             headPitch.target = max(-1.0, min(1.0, lookTargetY))
         }
+        // Waiting on an approval: face the viewer when they aren't busy with the mouse or keys.
+        let facesViewer = wantsAttention && !typingRecently && !mouseMovedRecently
+        if facesViewer {
+            headYaw.target = 0
+            headPitch.target = -0.1
+        }
+        // Bothered by a mosquito: the head follows it.
+        var mosquitoLook: CGPoint?
+        if let m = mosquito, mosquitoDisturb > 0.25 {
+            mosquitoLook = CGPoint(x: max(-1, min(1, (m.position.x - eyeOriginCanvas.x) / 95)),
+                                   y: max(-1, min(1, (m.position.y - eyeOriginCanvas.y) / 110)))
+            headYaw.target = mosquitoLook!.x
+            headPitch.target = mosquitoLook!.y
+        }
         let headStiff: CGFloat = 88 + hunt * 75
         let headDamp: CGFloat = 14.5 + hunt * 4.5
         headYaw.step(dt: dt, stiffness: headStiff, damping: headDamp)
@@ -932,7 +1175,7 @@ final class CatPhysics {
         headTilt.step(dt: dt, stiffness: 130, damping: 16)
 
         // Eyes lead slightly ahead of the 2.5D head turn
-        eyeGaze.target = CGPoint(x: lookTargetX * 0.88, y: lookTargetY * 0.85)
+        eyeGaze.target = mosquitoLook ?? (facesViewer ? CGPoint(x: 0, y: -0.05) : CGPoint(x: lookTargetX * 0.88, y: lookTargetY * 0.85))
         eyeGaze.step(dt: dt, stiffness: 210 + hunt * 80, damping: 21)
 
         // Pupil dilation
@@ -941,6 +1184,7 @@ final class CatPhysics {
         } else if now - curLastKeyTime > 0.45 && now - curLastMouseClick > 0.45 {
             pupilScale.target = 1.0
         }
+        if facesViewer { pupilScale.target = 1.18 }   // big hopeful eyes
         pupilScale.step(dt: dt, stiffness: 150, damping: 18)
 
         // 6. Blinking (cats lock eyes without blinking during hunting mode!)
