@@ -1,0 +1,56 @@
+name: Release (Windows build)
+
+# A version tag (pushed by scripts/release.sh) builds KuroCat.exe on Windows, runs the self-tests,
+# and attaches it to that tag's draft release as KuroCat-Windows-x64.exe. The script adds the macOS
+# build (signed on the maintainer's Mac) and then publishes the release, which is what the apps'
+# auto-update looks at.
+on:
+  push:
+    tags: [ 'v*' ]
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Version matches the tag
+        shell: bash
+        run: |
+          v=$(sed -n 's/.*APP_VERSION = L"\([^"]*\)".*/\1/p' windows/src/main.cpp)
+          echo "APP_VERSION=$v tag=$GITHUB_REF_NAME"
+          test "v$v" = "$GITHUB_REF_NAME"
+
+      - name: Build KuroCat.exe
+        shell: cmd
+        run: |
+          cd windows
+          call build.bat
+
+      - name: Self-tests
+        shell: cmd
+        run: |
+          cd windows
+          start "" /wait KuroCat.exe --claude-selftest
+          if errorlevel 1 (type kurocat-claude-selftest.txt & exit /b 1)
+          start "" /wait KuroCat.exe --update-selftest
+          if errorlevel 1 (type kurocat-update-selftest.txt & exit /b 1)
+          echo self-tests passed
+
+      - name: Attach to the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp windows/KuroCat.exe KuroCat-Windows-x64.exe
+          gh release create "$GITHUB_REF_NAME" --draft --title "KuroCat $GITHUB_REF_NAME" \
+              --notes "KuroCat $GITHUB_REF_NAME" KuroCat-Windows-x64.exe \
+            || gh release upload "$GITHUB_REF_NAME" KuroCat-Windows-x64.exe --clobber

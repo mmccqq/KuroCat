@@ -34,11 +34,11 @@
 - **🤖 Claude Code 提醒**：用 [Claude Code](https://claude.com/claude-code) 写代码时，一个会话完成，小猫头上会弹出「✓ 项目名 完成了」，开心地蹦两下、眯眼笑；Claude 等你批准操作时，会弹出橙色的「项目名 等你确认」，小猫看着你、举起爪子招手，直到你处理。点气泡会关掉它，并切回这个会话所在的窗口（VS Code、终端等）。可以同时显示几个会话，各显示各的项目名。
   - **设置**：菜单「Claude Code 提醒 🤖」→「复制 Claude Code 钩子设置」，把复制的内容合并到 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），然后重新打开 Claude Code。它用的是 Claude Code 的 hooks（`Stop`、`Notification`、`PermissionRequest`），每次运行 `KuroCat --claude-hook`；菜单里也可以试一下效果、关掉提示音或整个功能。
   - **只在本机**：只传项目文件夹名、事件类型，以及要切回的窗口；不读取对话内容，也不会通过猫咪连线发给朋友。
-- **关闭了更新检查**：不再连接上游的更新服务器，所以不会提示“更新”成官方版本而把本分支覆盖掉。想更新请拉取本仓库后重新构建。
+- **只从本分支更新**：自动更新只检查本仓库的 [GitHub Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases)，从不连接上游，所以不会被“更新”成官方版本。启动时和之后每 6 小时检查一次；有新版本时会弹窗问你（每个版本只问一次，之后菜单里一直有「🆕 发现新版本」），点「立即更新」会下载、替换并重启。Mac 版只安装用同一张签名证书签名的版本（同时保留「输入监控」权限）；两个平台都会核对下载的文件大小。在中国大陆访问 GitHub 下载可能很慢或失败，这时可以打开下载页手动下载。
 
 触发时间可在 `Sources/CatPhysics.swift`（Windows：`windows/src/CatPhysics.hpp`）中调整（`petEngageDuration`、`petStrokeGap`、`huntArmDuration`、`huntGap`、`scrollHoldDuration`、`earbudPutOnDuration`、`earbudTakeOffDuration`）。
 
-本分支不提供预编译下载，请用 `./build.sh` 从源码构建（见下方“下载与运行”）。
+预编译版本在 [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) 页面（Mac 版用作者自己的证书签名，Windows 版由 GitHub Actions 构建），也可以用 `./build.sh` 从源码构建（见下方“下载与运行”）。发布流程见 [docs/releasing.md](docs/releasing.md)。
 
 macOS 按应用的代码签名记住「输入监控」权限。想让权限在重新构建后保留，请在构建前运行一次：
 

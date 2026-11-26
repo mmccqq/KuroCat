@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Security
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
@@ -14,8 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var isHandingOverToNewerCopy = false
     private let catLink = CatLinkController()
 
+    /// This fork's version, e.g. "1.3.3-mmccqq.5" (Info.plist KuroCatForkVersion); release tags are "v" + it.
     private var currentAppVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.3"
+        Bundle.main.infoDictionary?["KuroCatForkVersion"] as? String
+            ?? Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.3"
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -95,12 +98,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         startRenderLoop()
 
-        // Auto-check GitHub Releases for updates shortly after launch
-        if Self.updateChecksEnabled {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
-                self?.checkForUpdates(manual: false)
-            }
-        }
+        // Check this fork's GitHub Releases shortly after launch, then every few hours
+        startUpdateChecks()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -150,7 +149,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static func shortVersion(ofAppAt url: URL) -> String? {
         let plistURL = url.appendingPathComponent("Contents/Info.plist")
         guard let dict = NSDictionary(contentsOf: plistURL) as? [String: Any] else { return nil }
-        return dict["CFBundleShortVersionString"] as? String
+        return dict["KuroCatForkVersion"] as? String ?? dict["CFBundleShortVersionString"] as? String
     }
 
     /// A newer KuroCat.app that is already on disk (e.g. downloaded to ~/Downloads but never
@@ -633,11 +632,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     /// Off in this fork: the endpoints below serve the upstream app, and "updating" would
     /// replace this fork with upstream's build. Kept as a switch so upstream merges stay simple.
-    private static let updateChecksEnabled = false
+    // MARK: - Updates (only from this fork's own GitHub Releases, never from upstream)
 
-    private static let updatePageURLString = "https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L"
-    private static let updateVersionJSONURLString = "https://kurocat-download.app.workbuddy.host/version.json?sharecode=JVAABIVZ7L"
-    private static let defaultMacAssetURLString = "https://kurocat-download.app.workbuddy.host/downloads/KuroCat-macOS-universal.zip?sharecode=JVAABIVZ7L"
+    private static let updateChecksEnabled = true
+    private static let updateRepo = "mmccqq/KuroCat-vibecoding"
+    private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
+    private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
+    private static let macAssetName = "KuroCat-macOS-universal.zip"
+    private static let updateCheckInterval: TimeInterval = 6 * 3600
+    /// The newest version we already showed the "new version" prompt for (later checks only update the menu).
+    private static let promptedTagKey = "KuroCat.UpdatePromptedTag"
+    private var availableAssetSize: Int?
+    private var updateTimer: Timer?
+
+    struct UpdateInfo {
+        let tag: String
+        let pageURL: URL?
+        let assetURL: URL?
+        let assetSize: Int?
+    }
 
     @objc private func manualCheckForUpdates() {
         checkForUpdates(manual: true)
@@ -647,70 +660,62 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         performInAppUpdate()
     }
 
-    private func parseUpdateInfo(from data: Data) -> (tag: String, pageURL: URL?, assetURL: URL?)? {
-        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let tagName = json["tag_name"] as? String, !tagName.isEmpty {
-            let pageStr = (json["html_url"] as? String) ?? Self.updatePageURLString
-            let assets = json["assets"] as? [String: Any]
-            let macStr = (assets?["macos"] as? String) ?? Self.defaultMacAssetURLString
-            return (tagName, URL(string: pageStr), URL(string: macStr))
+    private func startUpdateChecks() {
+        guard Self.updateChecksEnabled else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [weak self] in
+            self?.checkForUpdates(manual: false)
         }
-        if let html = String(data: data, encoding: .utf8) {
-            let patterns = [
-                #"v(\d+\.\d+\.\d+)\s*已发布"#,
-                #"版本\s*v(\d+\.\d+\.\d+)"#
-            ]
-            for pattern in patterns {
-                if let regex = try? NSRegularExpression(pattern: pattern),
-                   let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
-                   let r = Range(match.range(at: 1), in: html) {
-                    return ("v" + String(html[r]), URL(string: Self.updatePageURLString), URL(string: Self.defaultMacAssetURLString))
-                }
-            }
+        updateTimer = Timer.scheduledTimer(withTimeInterval: Self.updateCheckInterval, repeats: true) { [weak self] _ in
+            self?.checkForUpdates(manual: false)
         }
-        return nil
     }
 
-    private func fetchUpdateEndpoint(_ urlString: String, completion: @escaping ((tag: String, pageURL: URL?, assetURL: URL?)?) -> Void) {
-        guard let url = URL(string: urlString) else {
-            completion(nil)
-            return
-        }
-        var req = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 10)
-        req.setValue("KuroCat/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+    /// GitHub's "latest release" JSON -> tag, release page, and the macOS zip (URL + exact size).
+    static func parseUpdateInfo(from data: Data) -> UpdateInfo? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let tag = json["tag_name"] as? String, !tag.isEmpty else { return nil }
+        let page = (json["html_url"] as? String).flatMap(URL.init(string:))
+        let asset = (json["assets"] as? [[String: Any]])?.first { ($0["name"] as? String) == Self.macAssetName }
+        let assetURL = (asset?["browser_download_url"] as? String).flatMap(URL.init(string:))
+        return UpdateInfo(tag: tag, pageURL: page, assetURL: assetURL, assetSize: asset?["size"] as? Int)
+    }
 
-        URLSession.shared.dataTask(with: req) { [weak self] data, _, error in
-            guard let self else { return }
-            guard error == nil, let data, let parsed = self.parseUpdateInfo(from: data) else {
-                completion(nil)
-                return
+    private enum UpdateCheckOutcome { case found(UpdateInfo), noRelease, failed }
+
+    private func fetchLatestRelease(completion: @escaping (UpdateCheckOutcome) -> Void) {
+        var req = URLRequest(url: URL(string: Self.latestReleaseAPI)!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
+        req.setValue("KuroCat/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
+        URLSession.shared.dataTask(with: req) { data, response, error in
+            let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+            let outcome: UpdateCheckOutcome
+            if status == 404 {
+                outcome = .noRelease
+            } else if error == nil, status == 200, let data, let info = Self.parseUpdateInfo(from: data) {
+                outcome = .found(info)
+            } else {
+                outcome = .failed
             }
-            completion(parsed)
+            DispatchQueue.main.async { completion(outcome) }
         }.resume()
     }
 
     private func checkForUpdates(manual: Bool) {
-        guard Self.updateChecksEnabled else { return }
-        fetchUpdateEndpoint(Self.updateVersionJSONURLString) { [weak self] primary in
+        guard Self.updateChecksEnabled, !isUpdating else { return }
+        fetchLatestRelease { [weak self] outcome in
             guard let self else { return }
-            if let info = primary {
-                DispatchQueue.main.async { self.handleUpdateResult(info, manual: manual) }
-                return
-            }
-            self.fetchUpdateEndpoint(Self.updatePageURLString) { [weak self] fallback in
-                guard let self else { return }
-                DispatchQueue.main.async {
-                    if let info = fallback {
-                        self.handleUpdateResult(info, manual: manual)
-                    } else if manual {
-                        self.showInfoAlert(title: "检查更新失败", message: "无法连接到更新服务器，请稍后重试或检查网络连接。")
-                    }
-                }
+            switch outcome {
+            case .found(let info):
+                self.handleUpdateResult(info, manual: manual)
+            case .noRelease:
+                if manual { self.showInfoAlert(title: "已是最新版本", message: "当前版本 v\(self.currentAppVersion)，还没有发布更新的版本。") }
+            case .failed:
+                if manual { self.showInfoAlert(title: "检查更新失败", message: "无法连接到 GitHub，请稍后重试或检查网络连接。") }
             }
         }
     }
 
-    private func handleUpdateResult(_ info: (tag: String, pageURL: URL?, assetURL: URL?), manual: Bool) {
+    private func handleUpdateResult(_ info: UpdateInfo, manual: Bool) {
         if isVersion(info.tag, newerThan: currentAppVersion),
            let local = newestDownloadedCopy(), !isVersion(info.tag, newerThan: local.version) {
             // The user already downloaded the latest version; they are just still running the old copy.
@@ -730,16 +735,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             availableUpdateVersion = info.tag
             availableUpdateURL = info.pageURL
             availableAssetURL = info.assetURL
-            promptUpdateAvailable(latestTag: info.tag)
-        } else if manual {
-            showInfoAlert(title: "已是最新版本", message: "当前版本 v\(currentAppVersion) 已是最新版本。")
+            availableAssetSize = info.assetSize
+            // Ask once per new version; after "later" the menu keeps offering it.
+            let defaults = UserDefaults.standard
+            if manual || defaults.string(forKey: Self.promptedTagKey) != info.tag {
+                defaults.set(info.tag, forKey: Self.promptedTagKey)
+                promptUpdateAvailable(latestTag: info.tag)
+            }
+        } else {
+            availableUpdateVersion = nil
+            if manual {
+                showInfoAlert(title: "已是最新版本", message: "当前版本 v\(currentAppVersion) 已是最新版本。")
+            }
         }
     }
 
-    private func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
+    /// True if the app at `url` is signed with the same certificate as this one (it satisfies this
+    /// app's designated requirement). Only such builds may replace this app: a tampered download is
+    /// refused, and macOS keeps the Input Monitoring permission across the update.
+    static func isSignedLikeThisApp(_ url: URL) -> Bool {
+        var me: SecCode?
+        guard SecCodeCopySelf([], &me) == errSecSuccess, let me else { return false }
+        var myStatic: SecStaticCode?
+        guard SecCodeCopyStaticCode(me, [], &myStatic) == errSecSuccess, let myStatic else { return false }
+        var requirement: SecRequirement?
+        guard SecCodeCopyDesignatedRequirement(myStatic, [], &requirement) == errSecSuccess, let requirement else { return false }
+        var newCode: SecStaticCode?
+        guard SecStaticCodeCreateWithPath(url as CFURL, [], &newCode) == errSecSuccess, let newCode else { return false }
+        let flags = SecCSFlags(rawValue: SecCSFlags.RawValue(kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode))
+        return SecStaticCodeCheckValidity(newCode, flags, requirement) == errSecSuccess
+    }
+
+    /// Compares the numbers in two versions: "v1.3.3-mmccqq.5" is [1, 3, 3, 5], newer than "1.3.3".
+    static func isVersion(_ lhs: String, newerThan rhs: String) -> Bool {
         func parse(_ v: String) -> [Int] {
-            let trimmed = v.trimmingCharacters(in: CharacterSet(charactersIn: "vV "))
-            return trimmed.split(separator: ".").map { Int($0.prefix(while: { $0.isNumber })) ?? 0 }
+            v.split(whereSeparator: { !$0.isNumber }).map { Int($0) ?? 0 }
         }
         let a = parse(lhs)
         let b = parse(rhs)
@@ -751,6 +781,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
         return false
     }
+
+    private func isVersion(_ lhs: String, newerThan rhs: String) -> Bool { Self.isVersion(lhs, newerThan: rhs) }
 
     private func promptUpdateAvailable(latestTag: String) {
         NSApp.activate(ignoringOtherApps: true)
@@ -770,9 +802,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         }
     }
 
+    private func showSignatureMismatchAlert() {
+        NSApp.activate(ignoringOtherApps: true)
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "没有安装这个更新"
+        alert.informativeText = "下载的新版本和当前 KuroCat 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。"
+        alert.addButton(withTitle: "打开下载页")
+        alert.addButton(withTitle: "取消")
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(availableUpdateURL ?? URL(string: Self.updatePageURLString)!)
+        }
+    }
+
     private func performInAppUpdate() {
         guard !isUpdating else { return }
-        guard let assetURL = availableAssetURL ?? URL(string: Self.defaultMacAssetURLString) else { return }
+        guard let assetURL = availableAssetURL else {
+            // This release has no macOS download (yet): show the release page instead.
+            NSWorkspace.shared.open(availableUpdateURL ?? URL(string: Self.updatePageURLString)!)
+            return
+        }
+        let expectedSize = availableAssetSize
         isUpdating = true
 
         var req = URLRequest(url: assetURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60)
@@ -798,7 +848,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try fm.copyItem(at: tempURL, to: zipURL)
                 let attrs = try fm.attributesOfItem(atPath: zipURL.path)
                 let fileSize = (attrs[.size] as? NSNumber)?.intValue ?? 0
-                guard fileSize > 50_000 else {
+                // Must be complete: exactly the size GitHub lists for this file.
+                guard fileSize > 50_000, expectedSize == nil || fileSize == expectedSize else {
                     throw NSError(domain: "KuroCatUpdate", code: 1)
                 }
 
@@ -815,6 +866,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 guard fm.fileExists(atPath: newAppURL.appendingPathComponent("Contents/MacOS/KuroCat").path) else {
                     throw NSError(domain: "KuroCatUpdate", code: 3)
                 }
+                guard Self.isSignedLikeThisApp(newAppURL) else {
+                    throw NSError(domain: "KuroCatUpdate", code: 4)
+                }
 
                 let currentAppURL = Bundle.main.bundleURL
                 let parentWritable = fm.isWritableFile(atPath: currentAppURL.deletingLastPathComponent().path)
@@ -824,9 +878,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 }
             } catch {
                 try? fm.removeItem(at: workDir)
+                let signatureMismatch = (error as NSError).code == 4
                 DispatchQueue.main.async {
                     self.isUpdating = false
-                    self.handleUpdateDownloadFailure()
+                    if signatureMismatch { self.showSignatureMismatchAlert() } else { self.handleUpdateDownloadFailure() }
                 }
             }
         }.resume()
@@ -842,7 +897,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let tmp = shQuote(workDir.path)
 
         if needsAdmin {
-            let cmd = "rm -rf \(dst).bak && mv \(dst) \(dst).bak && cp -R \(src) \(dst) && rm -rf \(dst).bak \(tmp)"
+            let cmd = "rm -rf \(dst).bak && mv \(dst) \(dst).bak && /usr/bin/ditto \(src) \(dst) && rm -rf \(dst).bak \(tmp)"
             let escaped = cmd.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
             let osa = Process()
             osa.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -868,7 +923,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let script = """
         while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
         rm -rf \(dst).bak
-        if mv \(dst) \(dst).bak && cp -R \(src) \(dst); then
+        if mv \(dst) \(dst).bak && /usr/bin/ditto \(src) \(dst); then
             rm -rf \(dst).bak
             open -n \(dst)
         else

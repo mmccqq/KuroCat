@@ -35,16 +35,19 @@
 
 namespace {
 
-constexpr const wchar_t* APP_VERSION = L"1.3.3";
+// This fork's version; release tags are "v" + it (keep in step with Resources/Info.plist KuroCatForkVersion).
+constexpr const wchar_t* APP_VERSION = L"1.3.3-mmccqq.5";
 constexpr const wchar_t* VERSION_PROP = L"KuroCatVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"KuroCatTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"KuroCatOverlayWindowClass";
 constexpr const wchar_t* FRIEND_CLASS = L"KuroCatFriendWindowClass";
-// This fork has its own features (e.g. Cat Link): never offer to "update" it to the upstream release.
-constexpr bool UPDATE_CHECKS_ENABLED = false;
+// Updates come only from this fork's own GitHub Releases, never from upstream.
+constexpr bool UPDATE_CHECKS_ENABLED = true;
+constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/mmccqq/KuroCat-vibecoding/releases/latest";
+constexpr const char* UPDATE_WIN_ASSET_NAME = "KuroCat-Windows-x64.exe";
+constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
-constexpr const wchar_t* UPDATE_PAGE_URL = L"https://kurocat-download.app.workbuddy.host/?sharecode=JVAABIVZ7L";
-constexpr const wchar_t* UPDATE_WIN_EXE_PATH = L"/downloads/KuroCat-Windows-x64.exe?sharecode=JVAABIVZ7L";
+constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/mmccqq/KuroCat-vibecoding/releases/latest";
 constexpr UINT WM_TRAYICON = WM_APP + 1;
 constexpr UINT WM_WAKE_EXISTING = WM_APP + 2;
 constexpr UINT WM_UPDATE_CHECK_DONE = WM_APP + 3;
@@ -144,6 +147,9 @@ struct AppState {
 
     std::wstring availableUpdateVersion;
     std::wstring availableUpdateUrl;
+    std::wstring availableAssetUrl;   // the .exe on the release
+    long long availableAssetSize = 0; // its exact size, as GitHub lists it
+    double nextUpdateCheckTime = 0.0;
     bool isUpdating = false;
 
     // Robustness against games, Win+L, sleep and display changes
@@ -384,8 +390,11 @@ struct UpdateCheckResult {
     bool ok = false;
     bool manual = false;
     bool hasUpdate = false;
+    bool noRelease = false;           // the fork has not published a release yet (HTTP 404)
     std::wstring latestTag;
     std::wstring releaseUrl;
+    std::wstring assetUrl;
+    long long assetSize = 0;
 };
 
 std::wstring utf8ToWide(const std::string& s) {
@@ -397,39 +406,21 @@ std::wstring utf8ToWide(const std::string& s) {
     return w;
 }
 
-std::string extractJsonStringField(const std::string& json, const char* fieldName) {
-    std::string key = std::string("\"") + fieldName + "\"";
-    size_t pos = json.find(key);
-    if (pos == std::string::npos) return "";
-    pos = json.find(':', pos + key.size());
-    if (pos == std::string::npos) return "";
-    pos = json.find('"', pos + 1);
-    if (pos == std::string::npos) return "";
-    size_t end = json.find('"', pos + 1);
-    if (end == std::string::npos) return "";
-    return json.substr(pos + 1, end - pos - 1);
+/// Every number in a version, in order: "v1.3.3-mmccqq.5" -> {1, 3, 3, 5}.
+std::vector<int> versionParts(const std::wstring& v) {
+    std::vector<int> parts;
+    int cur = 0;
+    bool inNum = false;
+    for (wchar_t c : v) {
+        if (c >= L'0' && c <= L'9') { cur = cur * 10 + (c - L'0'); inNum = true; }
+        else if (inNum) { parts.push_back(cur); cur = 0; inNum = false; }
+    }
+    if (inNum) parts.push_back(cur);
+    return parts;
 }
 
 bool isSemVerNewer(const std::wstring& lhs, const std::wstring& rhs) {
-    auto parse = [](const std::wstring& v) {
-        std::vector<int> parts;
-        size_t i = 0;
-        while (i < v.size() && (v[i] == L'v' || v[i] == L'V' || v[i] == L' ')) i++;
-        int cur = 0; bool inNum = false;
-        for (; i < v.size(); ++i) {
-            if (v[i] >= L'0' && v[i] <= L'9') {
-                cur = cur * 10 + (v[i] - L'0');
-                inNum = true;
-            } else if (v[i] == L'.') {
-                parts.push_back(inNum ? cur : 0);
-                cur = 0; inNum = false;
-            } else {
-                break;
-            }
-        }
-        if (inNum) parts.push_back(cur);
-        return parts;
-    };
+    auto parse = versionParts;
     auto a = parse(lhs);
     auto b = parse(rhs);
     size_t n = std::max(a.size(), b.size());
@@ -441,16 +432,13 @@ bool isSemVerNewer(const std::wstring& lhs, const std::wstring& rhs) {
     return false;
 }
 
-/// "1.3.3" -> 10303. Stored as a window property so a newly launched (newer) build can tell
-/// which version is already running. Builds up to 1.3.2 never set it, which reads back as 0.
+/// "1.3.3-mmccqq.5" -> 1030305. Stored as a window property so a newly launched (newer) build can
+/// tell which version is already running. Builds up to 1.3.2 never set it (reads back as 0); older
+/// builds stored "1.3.3" as 10303, which is still smaller than every fork release.
 int versionToNumber(const std::wstring& v) {
-    int parts[3] = { 0, 0, 0 };
-    int idx = 0;
-    for (wchar_t c : v) {
-        if (c >= L'0' && c <= L'9') parts[idx] = parts[idx] * 10 + (c - L'0');
-        else if (c == L'.') { if (++idx >= 3) break; }
-    }
-    return parts[0] * 10000 + parts[1] * 100 + parts[2];
+    std::vector<int> p = versionParts(v);
+    p.resize(4, 0);
+    return p[0] * 1000000 + p[1] * 10000 + p[2] * 100 + std::min(p[3], 99);
 }
 
 std::wstring currentExePath() {
@@ -459,72 +447,63 @@ std::wstring currentExePath() {
     return std::wstring(buf, len);
 }
 
-std::string extractVersionFromHtml(const std::string& html) {
-    auto parseVerAt = [&](size_t pos) -> std::string {
-        if (pos >= html.size() || (html[pos] != 'v' && html[pos] != 'V')) return "";
-        size_t i = pos + 1;
-        int dots = 0;
-        std::string ver = "v";
-        while (i < html.size()) {
-            char c = html[i];
-            if (c >= '0' && c <= '9') {
-                ver.push_back(c);
-            } else if (c == '.') {
-                dots++;
-                ver.push_back(c);
-            } else {
-                break;
-            }
-            i++;
-        }
-        return (dots >= 2 && ver.size() > 5) ? ver : "";
-    };
-
-    const char* marker = "\xE5\xB7\xB2\xE5\x8F\x91\xE5\xB8\x83"; // "已发布" in UTF-8
-    size_t mPos = html.find(marker);
-    if (mPos != std::string::npos) {
-        size_t searchStart = (mPos > 32) ? (mPos - 32) : 0;
-        for (size_t i = mPos; i > searchStart; --i) {
-            if (html[i - 1] == 'v' || html[i - 1] == 'V') {
-                std::string v = parseVerAt(i - 1);
-                if (!v.empty()) return v;
-            }
-        }
-    }
-
-    const char* verPrefix = "\xE7\x89\x88\xE6\x9C\xAC "; // "版本 " in UTF-8
-    size_t vPos = html.find(verPrefix);
-    if (vPos != std::string::npos) {
-        std::string v = parseVerAt(vPos + 7);
-        if (!v.empty()) return v;
-    }
-    return "";
-}
-
-std::string fetchWorkBuddyPath(HINTERNET hConnect, LPCWSTR path) {
+/// HTTPS GET of a full URL (redirects followed, e.g. GitHub -> its download servers). Returns the body
+/// for a 2xx answer; `status` gets the HTTP status (0 if there was no answer).
+std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeoutMs, size_t maxBytes) {
+    status = 0;
     std::string body;
-    HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
-    if (hRequest) {
-        if (WinHttpSendRequest(hRequest, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
-            WinHttpReceiveResponse(hRequest, nullptr)) {
-            DWORD statusCode = 0, statusSize = sizeof(statusCode);
-            WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &statusCode, &statusSize, WINHTTP_NO_HEADER_INDEX);
-            if (statusCode >= 200 && statusCode < 300) {
-                DWORD avail = 0;
-                while (WinHttpQueryDataAvailable(hRequest, &avail) && avail > 0) {
-                    std::vector<char> buf(avail);
-                    DWORD readBytes = 0;
-                    if (WinHttpReadData(hRequest, buf.data(), avail, &readBytes) && readBytes > 0) {
-                        body.append(buf.data(), readBytes);
-                    } else {
-                        break;
+    URL_COMPONENTS uc = { sizeof(uc) };
+    wchar_t host[256] = {}, path[2048] = {};
+    uc.lpszHostName = host; uc.dwHostNameLength = 255;
+    uc.lpszUrlPath = path;  uc.dwUrlPathLength = 2047;
+    if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc) || uc.nScheme != INTERNET_SCHEME_HTTPS) return body;
+    std::wstring ua = std::wstring(L"KuroCat/") + APP_VERSION;
+    HINTERNET hSession = WinHttpOpen(ua.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+    if (!hSession) return body;
+    WinHttpSetTimeouts(hSession, 10000, 10000, 15000, (int)receiveTimeoutMs);
+    if (HINTERNET hConnect = WinHttpConnect(hSession, host, uc.nPort, 0)) {
+        if (HINTERNET hRequest = WinHttpOpenRequest(hConnect, L"GET", path, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE)) {
+            const wchar_t* headers = L"Accept: application/vnd.github+json, application/octet-stream\r\n";
+            if (WinHttpSendRequest(hRequest, headers, (DWORD)-1L, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) &&
+                WinHttpReceiveResponse(hRequest, nullptr)) {
+                DWORD size = sizeof(status);
+                WinHttpQueryHeaders(hRequest, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, WINHTTP_HEADER_NAME_BY_INDEX, &status, &size, WINHTTP_NO_HEADER_INDEX);
+                if (status >= 200 && status < 300) {
+                    DWORD avail = 0;
+                    while (WinHttpQueryDataAvailable(hRequest, &avail) && avail > 0 && body.size() < maxBytes) {
+                        std::vector<char> buf(avail);
+                        DWORD got = 0;
+                        if (!WinHttpReadData(hRequest, buf.data(), avail, &got) || got == 0) break;
+                        body.append(buf.data(), got);
                     }
                 }
             }
+            WinHttpCloseHandle(hRequest);
         }
-        WinHttpCloseHandle(hRequest);
+        WinHttpCloseHandle(hConnect);
     }
+    WinHttpCloseHandle(hSession);
     return body;
+}
+
+/// GitHub's "latest release" JSON -> tag, release page and the Windows .exe (URL + exact size).
+bool parseLatestRelease(const std::string& json, UpdateCheckResult& out) {
+    auto v = catlink::JsonReader::parse(json);
+    if (!v || v->type != catlink::JsonReader::Value::Object) return false;
+    auto str = [](const catlink::JsonReader::Value* x) { return x && x->type == catlink::JsonReader::Value::String ? x->str : std::string(); };
+    std::string tag = str(v->get("tag_name"));
+    if (tag.empty()) return false;
+    out.latestTag = utf8ToWide(tag);
+    std::string page = str(v->get("html_url"));
+    out.releaseUrl = page.empty() ? UPDATE_PAGE_URL : utf8ToWide(page);
+    if (const auto* assets = v->get("assets"); assets && assets->type == catlink::JsonReader::Value::Array) {
+        for (const auto& asset : assets->items) {
+            if (str(asset.get("name")) != UPDATE_WIN_ASSET_NAME) continue;
+            out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
+            if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
+        }
+    }
+    return true;
 }
 
 void startAsyncUpdateCheck(HWND notifyHwnd, bool manual, int delayMs = 0) {
@@ -532,33 +511,14 @@ void startAsyncUpdateCheck(HWND notifyHwnd, bool manual, int delayMs = 0) {
         if (delayMs > 0) Sleep((DWORD)delayMs);
         auto* res = new UpdateCheckResult();
         res->manual = manual;
-
-        std::wstring ua = std::wstring(L"KuroCat/") + APP_VERSION;
-        HINTERNET hSession = WinHttpOpen(ua.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (hSession) {
-            WinHttpSetTimeouts(hSession, 8000, 8000, 8000, 8000);
-            HINTERNET hConnect = WinHttpConnect(hSession, L"kurocat-download.app.workbuddy.host", INTERNET_DEFAULT_HTTPS_PORT, 0);
-            if (hConnect) {
-                std::string body = fetchWorkBuddyPath(hConnect, L"/version.json?sharecode=JVAABIVZ7L");
-                std::string tag = extractJsonStringField(body, "tag_name");
-                std::string url = extractJsonStringField(body, "html_url");
-
-                if (tag.empty()) {
-                    std::string html = fetchWorkBuddyPath(hConnect, L"/?sharecode=JVAABIVZ7L");
-                    tag = extractVersionFromHtml(html);
-                }
-
-                if (!tag.empty()) {
-                    res->ok = true;
-                    res->latestTag = utf8ToWide(tag);
-                    res->releaseUrl = url.empty() ? UPDATE_PAGE_URL : utf8ToWide(url);
-                    res->hasUpdate = isSemVerNewer(res->latestTag, APP_VERSION);
-                }
-                WinHttpCloseHandle(hConnect);
-            }
-            WinHttpCloseHandle(hSession);
+        DWORD status = 0;
+        std::string body = httpsGet(UPDATE_API_URL, status, 15000, 1u << 20);
+        if (status == 404) {
+            res->noRelease = true;
+        } else if (status == 200 && parseLatestRelease(body, *res)) {
+            res->ok = true;
+            res->hasUpdate = isSemVerNewer(res->latestTag, APP_VERSION);
         }
-
         if (!PostMessageW(notifyHwnd, WM_UPDATE_CHECK_DONE, 0, reinterpret_cast<LPARAM>(res))) {
             delete res;
         }
@@ -575,23 +535,16 @@ void startInAppUpdate(AppState& app) {
     app.isUpdating = true;
     HWND notifyHwnd = app.menuOwnerHwnd;
 
-    std::thread([notifyHwnd]() {
+    std::wstring assetUrl = app.availableAssetUrl;
+    long long expectedSize = app.availableAssetSize;
+    std::thread([notifyHwnd, assetUrl, expectedSize]() {
         auto* res = new UpdateDownloadResult();
-        std::string exeBytes;
+        DWORD status = 0;
+        std::string exeBytes = assetUrl.empty() ? std::string() : httpsGet(assetUrl, status, 60000, 64u << 20);
 
-        std::wstring ua = std::wstring(L"KuroCat/") + APP_VERSION;
-        HINTERNET hSession = WinHttpOpen(ua.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (hSession) {
-            WinHttpSetTimeouts(hSession, 10000, 10000, 30000, 60000);
-            HINTERNET hConnect = WinHttpConnect(hSession, L"kurocat-download.app.workbuddy.host", INTERNET_DEFAULT_HTTPS_PORT, 0);
-            if (hConnect) {
-                exeBytes = fetchWorkBuddyPath(hConnect, UPDATE_WIN_EXE_PATH);
-                WinHttpCloseHandle(hConnect);
-            }
-            WinHttpCloseHandle(hSession);
-        }
-
-        if (exeBytes.size() > 50000 && exeBytes[0] == 'M' && exeBytes[1] == 'Z') {
+        // Must be a complete Windows program: exactly the size GitHub lists, starting with "MZ".
+        bool complete = expectedSize <= 0 || (long long)exeBytes.size() == expectedSize;
+        if (complete && exeBytes.size() > 50000 && exeBytes[0] == 'M' && exeBytes[1] == 'Z') {
             wchar_t curExe[MAX_PATH] = {};
             GetModuleFileNameW(nullptr, curExe, MAX_PATH);
             wchar_t tempDir[MAX_PATH] = {};
@@ -815,6 +768,15 @@ void housekeeping(AppState& app) {
         return;
     }
     if (app.isVisible && !IsWindowVisible(app.hwnd)) ShowWindow(app.hwnd, SW_SHOWNOACTIVATE);
+
+    // Check this fork's releases again every few hours (the first check runs shortly after launch).
+    if (UPDATE_CHECKS_ENABLED && app.menuOwnerHwnd && !app.isUpdating) {
+        if (app.nextUpdateCheckTime == 0.0) app.nextUpdateCheckTime = now + UPDATE_CHECK_INTERVAL;
+        else if (now >= app.nextUpdateCheckTime) {
+            app.nextUpdateCheckTime = now + UPDATE_CHECK_INTERVAL;
+            startAsyncUpdateCheck(app.menuOwnerHwnd, false);
+        }
+    }
 
     bool fullscreenFg = isForegroundFullscreen();
     if (app.pendingTopmostTime > 0.0 && now >= app.pendingTopmostTime) {
@@ -2157,9 +2119,17 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
         case WM_UPDATE_CHECK_DONE: {
             auto* res = reinterpret_cast<UpdateCheckResult*>(lParam);
             if (res) {
+                bool askNow = false;
                 if (app && res->ok && res->hasUpdate) {
                     app->availableUpdateVersion = res->latestTag;
                     app->availableUpdateUrl = res->releaseUrl;
+                    app->availableAssetUrl = res->assetUrl;
+                    app->availableAssetSize = res->assetSize;
+                    // Ask once per new version; after "no" the menu keeps offering it.
+                    askNow = res->manual || regReadString(L"UpdatePromptedTag") != res->latestTag;
+                    if (askNow) regWrite(L"UpdatePromptedTag", &res->latestTag, 0);
+                }
+                if (app && res->ok && res->hasUpdate && askNow) {
                     // Show WHICH exe is running: the usual cause of "I already updated but it still
                     // says there's a new version" is an old copy (Desktop / autostart) still running.
                     std::wstring msg = L"\u53D1\u73B0 KuroCat \u65B0\u7248\u672C " + res->latestTag
@@ -2171,12 +2141,17 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                                     MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST) == IDYES) {
                         startInAppUpdate(*app);
                     }
+                } else if (app && res->ok && res->hasUpdate) {
+                    // Already asked about this version: the menu shows it.
                 } else if (res->manual) {
-                    if (res->ok) {
+                    if (res->noRelease) {
+                        std::wstring msg = std::wstring(L"当前版本 v") + APP_VERSION + L"，还没有发布更新的版本。";
+                        MessageBoxW(nullptr, msg.c_str(), L"KuroCat 检查更新", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                    } else if (res->ok) {
                         std::wstring msg = std::wstring(L"\u5F53\u524D\u7248\u672C v") + APP_VERSION + L" \u5DF2\u662F\u6700\u65B0\u7248\u672C\u3002";
                         MessageBoxW(nullptr, msg.c_str(), L"KuroCat \u68C0\u67E5\u66F4\u65B0", MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else {
-                        MessageBoxW(nullptr, L"\u65E0\u6CD5\u8FDE\u63A5\u5230\u66F4\u65B0\u670D\u52A1\u5668\uFF0C\u8BF7\u7A0D\u540E\u91CD\u8BD5\u6216\u68C0\u67E5\u7F51\u7EDC\u3002",
+                        MessageBoxW(nullptr, L"无法连接到 GitHub，请稍后重试或检查网络连接。",
                                     L"KuroCat \u68C0\u67E5\u66F4\u65B0", MB_OK | MB_ICONWARNING | MB_TOPMOST);
                     }
                 }
@@ -2717,6 +2692,56 @@ int runClaudeSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
+/// `KuroCat.exe --update-selftest`: version rules, release parsing, and a real download through
+/// GitHub (upstream's latest release has the same file names). Writes kurocat-update-selftest.txt.
+int runUpdateSelfTest() {
+    std::string report;
+    int failures = 0;
+    auto save = [&] {
+        HANDLE f = CreateFileW(L"kurocat-update-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
+    };
+    auto check = [&](bool ok, const std::string& what) {
+        report += (ok ? "PASS  " : "FAIL  ") + what + "\r\n";
+        if (!ok) ++failures;
+        save();
+    };
+    struct Case { const wchar_t* a; const wchar_t* b; bool newer; };
+    for (const Case& c : { Case{ L"v1.3.3-mmccqq.6", L"1.3.3-mmccqq.5", true }, Case{ L"v1.3.3-mmccqq.5", L"1.3.3-mmccqq.5", false },
+                           Case{ L"v1.3.3-mmccqq.4", L"1.3.3-mmccqq.5", false }, Case{ L"v1.3.3-mmccqq.10", L"1.3.3-mmccqq.9", true },
+                           Case{ L"v1.3.3-mmccqq.5", L"1.3.3", true }, Case{ L"v1.3.4-mmccqq.1", L"1.3.3-mmccqq.9", true } }) {
+        check(isSemVerNewer(c.a, c.b) == c.newer, catlink::narrow(std::wstring(c.a) + L" newer than " + c.b + (c.newer ? L" == true" : L" == false")));
+    }
+    check(versionToNumber(L"1.3.3-mmccqq.5") > versionToNumber(L"1.3.3-mmccqq.4") && versionToNumber(L"1.3.3-mmccqq.4") > 10303,
+          "running-copy numbers grow with the fork number and beat the old 1.3.3 value (10303)");
+    check(versionToNumber(APP_VERSION) == 1030305 || isSemVerNewer(APP_VERSION, L"1.3.3-mmccqq.5"), "APP_VERSION is a fork version");
+
+    UpdateCheckResult r;
+    check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.9","html_url":"https://github.com/x/y/releases/tag/v1.3.3-mmccqq.9","assets":[{"name":"KuroCat-macOS-universal.zip","size":1,"browser_download_url":"https://a/mac.zip"},{"name":"KuroCat-Windows-x64.exe","size":585728,"browser_download_url":"https://a/win.exe"}]})", r)
+          && r.latestTag == L"v1.3.3-mmccqq.9" && r.assetUrl == L"https://a/win.exe" && r.assetSize == 585728, "release JSON -> tag, .exe URL and size");
+    UpdateCheckResult none;
+    check(!parseLatestRelease(R"({"message":"Not Found"})", none) && !parseLatestRelease("garbage", none), "404 body and garbage rejected");
+
+    DWORD status = 0;
+    std::string body = httpsGet(L"https://api.github.com/repos/chanke17/KuroCat/releases/latest", status, 15000, 1u << 20);
+    UpdateCheckResult live;
+    bool parsed = status == 200 && parseLatestRelease(body, live);
+    check(parsed && !live.assetUrl.empty() && live.assetSize > 50000, "live GitHub API: " + catlink::narrow(live.latestTag) + ", exe " + std::to_string(live.assetSize) + " bytes (HTTP " + std::to_string(status) + ")");
+    if (parsed && !live.assetUrl.empty()) {
+        double t0 = nowSeconds();
+        std::string exe = httpsGet(live.assetUrl, status, 60000, 64u << 20);
+        report += "      download took " + std::to_string((int)((nowSeconds() - t0) * 1000)) + " ms\r\n";
+        check((long long)exe.size() == live.assetSize && exe.size() > 2 && exe[0] == 'M' && exe[1] == 'Z',
+              "download follows GitHub's redirect, exact size, starts with MZ (" + std::to_string(exe.size()) + " bytes)");
+    }
+    DWORD missing = 0;
+    httpsGet(L"https://api.github.com/repos/mmccqq/KuroCat-vibecoding/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
+    check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));
+    report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
+    save();
+    return failures == 0 ? 0 : 1;
+}
+
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     // Enable crisp Per-Monitor V2 DPI awareness on Windows 10/11
     SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
@@ -2730,6 +2755,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         return claude::runHook(TRAY_OWNER_CLASS, manual);
     }
     if (commandLineHasFlag(L"--claude-selftest")) return runClaudeSelfTest();
+    if (commandLineHasFlag(L"--update-selftest")) return runUpdateSelfTest();
     if (commandLineHasFlag(L"--link-selftest")) {
         int argc = 0;
         LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);

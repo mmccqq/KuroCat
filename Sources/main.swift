@@ -1,6 +1,14 @@
 import Foundation
 import AppKit
 
+// `KuroCat --verify-update <KuroCat.app>`: exit 0 if that app is signed like this one, so the
+// in-app updater would install it (used by scripts/release.sh before publishing).
+if let idx = CommandLine.arguments.firstIndex(of: "--verify-update"), idx + 1 < CommandLine.arguments.count {
+    let ok = AppDelegate.isSignedLikeThisApp(URL(fileURLWithPath: CommandLine.arguments[idx + 1]))
+    print(ok ? "OK: signed with the same certificate" : "REFUSED: not signed like this app")
+    exit(ok ? 0 : 1)
+}
+
 // Claude Code hook: tell the running KuroCat that a session finished or needs you, then exit.
 if CommandLine.arguments.contains("--claude-hook") {
     ClaudeHook.runFromCommandLine(arguments: CommandLine.arguments)
