@@ -1,15 +1,16 @@
 name: Release (Windows build)
 
 # A version tag (pushed by scripts/release.sh) builds KuroCat.exe on Windows, runs the self-tests,
-# and attaches it to that tag's draft release as KuroCat-Windows-x64.exe. The script adds the macOS
-# build (signed on the maintainer's Mac) and then publishes the release, which is what the apps'
-# auto-update looks at.
+# and stores it as the build artifact "KuroCat-Windows-x64". The script downloads it and creates the
+# release itself, with the macOS build (signed on the maintainer's Mac) and the Windows exe together.
+# Only the script creates releases: GitHub can't look up a draft by its tag, so two creators would
+# make two drafts.
 on:
   push:
     tags: [ 'v*' ]
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   windows:
@@ -45,12 +46,12 @@ jobs:
           if errorlevel 1 (type kurocat-update-selftest.txt & exit /b 1)
           echo self-tests passed
 
-      - name: Attach to the draft release
+      - name: Store the Windows build
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          cp windows/KuroCat.exe KuroCat-Windows-x64.exe
-          gh release create "$GITHUB_REF_NAME" --draft --title "KuroCat $GITHUB_REF_NAME" \
-              --notes "KuroCat $GITHUB_REF_NAME" KuroCat-Windows-x64.exe \
-            || gh release upload "$GITHUB_REF_NAME" KuroCat-Windows-x64.exe --clobber
+        run: cp windows/KuroCat.exe KuroCat-Windows-x64.exe
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: KuroCat-Windows-x64
+          path: KuroCat-Windows-x64.exe
+          if-no-files-found: error

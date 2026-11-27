@@ -10,8 +10,8 @@
 #   1. builds KuroCat.app here, signed with "KuroCat Code Signing" (the certificate never leaves this
 #      Mac; it is what lets updates keep macOS's Input Monitoring permission),
 #   2. checks that the installed KuroCat would accept this build as an update,
-#   3. tags and pushes v<version>; .github/workflows/release.yml then builds the Windows .exe,
-#   4. creates a draft release with the macOS zip, waits for the .exe, then publishes the release.
+#   3. tags and pushes v<version>; .github/workflows/release.yml then builds and tests the Windows .exe,
+#   4. downloads that .exe and publishes the release with both files (only this script creates releases).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -74,11 +74,6 @@ echo "==> Tagging $TAG"
 git tag -a "$TAG" -m "KuroCat $TAG"
 git push -q origin "$TAG"
 
-echo "==> Draft release with the macOS build"
-gh release create "$TAG" -R "$REPO" --draft --title "KuroCat $TAG" --notes "$NOTES" "$MAC_ZIP" \
-    || gh release upload "$TAG" -R "$REPO" "$MAC_ZIP" --clobber
-gh release edit "$TAG" -R "$REPO" --notes "$NOTES" >/dev/null
-
 echo "==> Waiting for the Windows build"
 SHA="$(git rev-parse HEAD)"
 RUN=""
@@ -91,9 +86,18 @@ done
 [ -n "$RUN" ] || die "the Windows release build did not start (check GitHub Actions)"
 gh run watch "$RUN" -R "$REPO" --exit-status --interval 20 >/dev/null || die "the Windows release build failed: gh run view $RUN -R $REPO --log-failed"
 
+WIN_DIR="dist/windows"
+rm -rf "$WIN_DIR"
+gh run download "$RUN" -R "$REPO" -n KuroCat-Windows-x64 -D "$WIN_DIR"
+WIN_EXE="$WIN_DIR/KuroCat-Windows-x64.exe"
+[ "$(head -c 2 "$WIN_EXE")" = "MZ" ] || die "the downloaded Windows build is not a Windows program"
+python3 -I -c 'import sys; sys.exit(0 if sys.argv[2].encode("utf-16-le") in open(sys.argv[1], "rb").read() else 1)' "$WIN_EXE" "$VERSION" \
+    || die "the Windows build does not contain version $VERSION"
+
+echo "==> Publishing the release"
+if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then die "a release for $TAG already exists"; fi
+gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "KuroCat $TAG" --notes "$NOTES" "$MAC_ZIP" "$WIN_EXE"
 ASSETS="$(gh release view "$TAG" -R "$REPO" --json assets -q '.assets[].name')"
 grep -qx "KuroCat-macOS-universal.zip" <<<"$ASSETS" || die "the release has no macOS zip"
 grep -qx "KuroCat-Windows-x64.exe" <<<"$ASSETS" || die "the release has no Windows exe"
-
-gh release edit "$TAG" -R "$REPO" --draft=false --latest >/dev/null
 echo "==> Published $TAG: https://github.com/$REPO/releases/tag/$TAG"
