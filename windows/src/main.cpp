@@ -2613,6 +2613,7 @@ int runLinkSelfTest(const std::wstring& joinCode) {
         a.stop();
         pump(5, [&] { return b.status() == catlink::Status::FriendOffline; });
         check(b.status() == catlink::Status::FriendOffline, "friend leaving is noticed");
+        pump(0.5, nullptr);   // let A's last events (still in the 120 ms playback buffer) play out
 
         // A friend who links while already paused never shows up as a cat.
         c.profile = [] { return testHello("C", "shorthair"); };
