@@ -4,7 +4,7 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
 
-## v1.3.3-mmccqq.7 — unreleased
+## v1.3.3-mmccqq.7 — 2026-11-27
 
 macOS and Windows.
 
@@ -14,6 +14,7 @@ macOS and Windows.
   - **I've rested** (from the second reminder on): for a break the cat couldn't see. The work timer starts again.
   - **What counts as a break**: 15 minutes without the mouse or keyboard (shorter pauses could just be thinking), 2 minutes after OK, or 2 minutes with the screen locked or the computer asleep. Tiny mouse movements, like bumping the desk, don't count as input. After a break, the timer starts again when you come back.
   - It stays on this computer: nothing about it goes over Cat Link.
+- **Fixed (Mac): a paw stuck on the keyboard**: after the screen was locked, or while typing in a password field, macOS sometimes didn't tell KuroCat that a key was released, so a paw stayed pressed on that key until you pressed it again. Caps Lock also kept a paw down while it was on. The cat now checks the keyboard four times a second and lets go of keys that aren't held anymore, as the Windows version already did. Keys you really hold, like WASD in a game, stay down.
 
 ## v1.3.3-mmccqq.6 — 2026-11-26
 
