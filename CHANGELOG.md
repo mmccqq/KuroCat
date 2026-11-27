@@ -4,6 +4,13 @@
 
 本分支（基于上游 [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3）每个版本的改动，最新的在最上面。版本号形如 `v1.3.3-mmccqq.5`：前面是上游版本，最后的数字是本分支的第几个版本。
 
+## v1.3.3-mmccqq.8 — 未发布
+
+macOS 和 Windows。
+
+- **KuroCat 即将改名为 Whiskerkey**：项目已经搬到 [github.com/whiskerkey/whiskerkey](https://github.com/whiskerkey/whiskerkey)（旧链接仍然可以用）。这个版本为改名做准备：改为从新地址检查更新，自动更新也能安装改名后的程序（Mac 上是 Whiskerkey.app，Windows 上是 Whiskerkey.exe）来替换 KuroCat。下一个版本就是 Whiskerkey 2.0，会带上你的设置和猫咪连线。
+- **新的许可证**：本项目现在采用 [GNU GPL v3.0](LICENSE)，适用于 KuroCat v1.3.3 之后的全部改动（从 v1.3.3-mmccqq.1 起的每个版本）。项目最初基于的代码（chanke17 的 KuroCat v1.3.3）保留其 MIT 声明，见 [LICENSE-MIT](LICENSE-MIT)。旧版本不再提供下载。
+
 ## v1.3.3-mmccqq.7 — 2026-11-27
 
 macOS 和 Windows。
@@ -37,7 +44,7 @@ macOS 和 Windows。从这个版本开始，两个平台的版本号和功能都
   - **设置**：菜单「Claude Code 提醒 🤖」→「复制 Claude Code 钩子设置」，把复制的内容合并到 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），然后重新打开 Claude Code。它用的是 Claude Code 的 hooks（`Stop`、`Notification`、`PermissionRequest`），每次运行 `KuroCat --claude-hook`；菜单里也可以试一下效果、关掉提示音或整个功能。
   - **只在本机**：只传项目文件夹名、事件类型，以及要切回的窗口；不读取对话内容，也不会通过猫咪连线发给朋友。
 - **🦟 睡觉时的蚊子**：小猫睡着约 3 分钟后，会有一只卡通蚊子从左边嗡嗡飞来，绕着它的头转圈。小猫被吵醒，半睁着眼盯着蚊子，左右各挥一爪去拍，蚊子都躲开了，然后从右边飞走，小猫又慢慢睡着。之后只要一直睡着，每隔 5～9 分钟会再来一只；你一动键盘或鼠标，蚊子就会马上飞走。菜单「🎬 演示：蚊子来了」可以立刻看效果，「睡着时会有蚊子来捣乱 🦟」可以关闭。
-- **🔄 只从本分支自动更新**：自动更新只检查本仓库的 [GitHub Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases)，从不连接上游，所以不会被“更新”成官方版本。启动时和之后每 6 小时检查一次；有新版本时会弹窗问你（每个版本只问一次，之后菜单里一直有「🆕 发现新版本」），点「立即更新」会下载、替换并重启。Mac 版只安装用同一张签名证书签名的版本（同时保留「输入监控」权限）；两个平台都会核对下载的文件大小。在中国大陆访问 GitHub 下载可能很慢或失败，这时可以打开下载页手动下载。
+- **🔄 只从本分支自动更新**：自动更新只检查本仓库的 [GitHub Releases](https://github.com/whiskerkey/whiskerkey/releases)，从不连接上游，所以不会被“更新”成官方版本。启动时和之后每 6 小时检查一次；有新版本时会弹窗问你（每个版本只问一次，之后菜单里一直有「🆕 发现新版本」），点「立即更新」会下载、替换并重启。Mac 版只安装用同一张签名证书签名的版本（同时保留「输入监控」权限）；两个平台都会核对下载的文件大小。在中国大陆访问 GitHub 下载可能很慢或失败，这时可以打开下载页手动下载。
 
 - **🌐 中英文界面**：整个程序（菜单、提示框、气泡、猫咪连线的名字标签）都有中文和英文。默认跟随系统语言（中文系统显示中文，其他显示英文），随时可以在菜单「语言 / Language」里切换。昵称和项目名按原样显示；中文界面和英文界面的小猫照样可以连线。
 

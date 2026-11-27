@@ -37,18 +37,19 @@
 namespace {
 
 // This fork's version; release tags are "v" + it (keep in step with Resources/Info.plist KuroCatForkVersion).
-constexpr const wchar_t* APP_VERSION = L"1.3.3-mmccqq.7";
+constexpr const wchar_t* APP_VERSION = L"1.3.3-mmccqq.8";
 constexpr const wchar_t* VERSION_PROP = L"KuroCatVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"KuroCatTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"KuroCatOverlayWindowClass";
 constexpr const wchar_t* FRIEND_CLASS = L"KuroCatFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
-constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/mmccqq/KuroCat-vibecoding/releases/latest";
-constexpr const char* UPDATE_WIN_ASSET_NAME = "KuroCat-Windows-x64.exe";
+constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest";
+// KuroCat is becoming Whiskerkey. While it moves, updates may use either name; the new one is preferred.
+constexpr const char* UPDATE_WIN_ASSET_NAMES[] = { "Whiskerkey-Windows-x64.exe", "KuroCat-Windows-x64.exe" };
 constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
-constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/mmccqq/KuroCat-vibecoding/releases/latest";
+constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whiskerkey/whiskerkey/releases/latest";
 constexpr UINT WM_TRAYICON = WM_APP + 1;
 constexpr UINT WM_WAKE_EXISTING = WM_APP + 2;
 constexpr UINT WM_UPDATE_CHECK_DONE = WM_APP + 3;
@@ -160,6 +161,7 @@ struct AppState {
     std::wstring availableUpdateUrl;
     std::wstring availableAssetUrl;   // the .exe on the release
     long long availableAssetSize = 0; // its exact size, as GitHub lists it
+    std::wstring availableAssetName;  // Whiskerkey-Windows-x64.exe or (before the rename) KuroCat-Windows-x64.exe
     double nextUpdateCheckTime = 0.0;
     bool isUpdating = false;
 
@@ -408,6 +410,7 @@ struct UpdateCheckResult {
     std::wstring releaseUrl;
     std::wstring assetUrl;
     long long assetSize = 0;
+    std::wstring assetName;
 };
 
 std::wstring utf8ToWide(const std::string& s) {
@@ -510,10 +513,14 @@ bool parseLatestRelease(const std::string& json, UpdateCheckResult& out) {
     std::string page = str(v->get("html_url"));
     out.releaseUrl = page.empty() ? UPDATE_PAGE_URL : utf8ToWide(page);
     if (const auto* assets = v->get("assets"); assets && assets->type == catlink::JsonReader::Value::Array) {
-        for (const auto& asset : assets->items) {
-            if (str(asset.get("name")) != UPDATE_WIN_ASSET_NAME) continue;
-            out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
-            if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
+        for (const char* wanted : UPDATE_WIN_ASSET_NAMES) {
+            for (const auto& asset : assets->items) {
+                if (str(asset.get("name")) != wanted) continue;
+                out.assetName = utf8ToWide(wanted);
+                out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
+                if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
+            }
+            if (!out.assetUrl.empty()) break;
         }
     }
     return true;
@@ -543,6 +550,62 @@ struct UpdateDownloadResult {
     std::wstring batPath;
 };
 
+/// Where a downloaded update goes. A Whiskerkey exe goes next to the running exe as Whiskerkey.exe,
+/// and the old KuroCat.exe is removed afterwards; otherwise it replaces the running exe. If that folder
+/// can't be written, it goes to %LOCALAPPDATA%\Programs\<name> instead.
+struct UpdateTarget { std::wstring exe; bool renamed = false; std::wstring fallbackDir; std::wstring fallbackExe; };
+UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetName, const std::wstring& localAppData, const std::wstring& tempDir) {
+    UpdateTarget t;
+    size_t slash = curExe.find_last_of(L"\\/");
+    std::wstring dir = slash == std::wstring::npos ? L"." : curExe.substr(0, slash);
+    std::wstring file = slash == std::wstring::npos ? curExe : curExe.substr(slash + 1);
+    bool whiskerkey = assetName.rfind(L"Whiskerkey", 0) == 0;
+    t.renamed = whiskerkey && _wcsicmp(file.c_str(), L"Whiskerkey.exe") != 0;
+    t.exe = t.renamed ? dir + L"\\Whiskerkey.exe" : curExe;
+    std::wstring name = whiskerkey ? L"Whiskerkey" : L"KuroCat";
+    t.fallbackDir = !localAppData.empty() ? localAppData + L"\\Programs\\" + name : tempDir + name;
+    t.fallbackExe = t.fallbackDir + L"\\" + name + L".exe";
+    return t;
+}
+
+/// The batch file that waits for this process to quit, moves the download into place (removing the old
+/// exe if the update has a new name), and starts it. If the move keeps failing, the update is copied to the
+/// per-user fallback folder instead; if even that fails, the old exe is started again. `launch` starts a
+/// program (the self-test passes "rem" so nothing runs). Paths are in the local ANSI code page, for cmd.exe.
+std::string updateBatch(DWORD pid, const std::string& src, const std::string& dst, const std::string& oldExe, bool renamed,
+                        const std::string& fbDir, const std::string& fbExe, const std::string& launch = "start \"\"") {
+    std::string bat = "@echo off\r\n:wait\r\n"
+        "tasklist /FI \"PID eq " + std::to_string(pid) + "\" 2>nul | find \"" + std::to_string(pid) + "\" >nul\r\n"
+        "if not errorlevel 1 (\r\n"
+        "  ping -n 2 127.0.0.1 >nul\r\n"
+        "  goto wait\r\n"
+        ")\r\n"
+        "set /a tries=0\r\n"
+        ":retry\r\n"
+        "move /y \"" + src + "\" \"" + dst + "\" >nul 2>&1\r\n"
+        "if not errorlevel 1 goto moved\r\n"
+        "set /a tries+=1\r\n"
+        "if %tries% lss 15 (\r\n"
+        "  ping -n 2 127.0.0.1 >nul\r\n"
+        "  goto retry\r\n"
+        ")\r\n"
+        "if not exist \"" + fbDir + "\" mkdir \"" + fbDir + "\"\r\n"
+        "copy /y \"" + src + "\" \"" + fbExe + "\" >nul 2>&1\r\n"
+        "if errorlevel 1 goto launchold\r\n"
+        "del /q \"" + src + "\" >nul 2>&1\r\n" +
+        launch + " \"" + fbExe + "\"\r\n"
+        "goto done\r\n"
+        ":moved\r\n" +
+        (renamed ? "del /q \"" + oldExe + "\" >nul 2>&1\r\n" : std::string()) +
+        launch + " \"" + dst + "\"\r\n"
+        "goto done\r\n"
+        ":launchold\r\n" +
+        launch + " \"" + oldExe + "\"\r\n"
+        ":done\r\n"
+        "del \"%~f0\"\r\n";
+    return bat;
+}
+
 void startInAppUpdate(AppState& app) {
     if (app.isUpdating || !app.menuOwnerHwnd) return;
     app.isUpdating = true;
@@ -550,7 +613,8 @@ void startInAppUpdate(AppState& app) {
 
     std::wstring assetUrl = app.availableAssetUrl;
     long long expectedSize = app.availableAssetSize;
-    std::thread([notifyHwnd, assetUrl, expectedSize]() {
+    std::wstring assetName = app.availableAssetName;
+    std::thread([notifyHwnd, assetUrl, expectedSize, assetName]() {
         auto* res = new UpdateDownloadResult();
         DWORD status = 0;
         std::string exeBytes = assetUrl.empty() ? std::string() : httpsGet(assetUrl, status, 60000, 64u << 20);
@@ -579,21 +643,6 @@ void startInAppUpdate(AppState& app) {
                 CloseHandle(hNew);
                 if (okWrite && written == (DWORD)exeBytes.size()) {
                     std::wstring batPath = std::wstring(tempDir) + L"kurocat_update.bat";
-                    DWORD pid = GetCurrentProcessId();
-                    std::string batUtf8 = "@echo off\r\n:wait\r\n"
-                        "tasklist /FI \"PID eq " + std::to_string(pid) + "\" 2>nul | find \"" + std::to_string(pid) + "\" >nul\r\n"
-                        "if not errorlevel 1 (\r\n"
-                        "  ping -n 2 127.0.0.1 >nul\r\n"
-                        "  goto wait\r\n"
-                        ")\r\n";
-
-                    auto wideToUtf8 = [](const std::wstring& w) -> std::string {
-                        if (w.empty()) return "";
-                        int n = WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), nullptr, 0, nullptr, nullptr);
-                        std::string s(n, '\0');
-                        WideCharToMultiByte(CP_UTF8, 0, w.c_str(), (int)w.size(), &s[0], n, nullptr, nullptr);
-                        return s;
-                    };
                     // Use local ANSI codepage for cmd.exe .bat compatibility
                     auto wideToAcp = [](const std::wstring& w) -> std::string {
                         if (w.empty()) return "";
@@ -602,39 +651,14 @@ void startInAppUpdate(AppState& app) {
                         WideCharToMultiByte(CP_ACP, 0, w.c_str(), (int)w.size(), &s[0], n, nullptr, nullptr);
                         return s;
                     };
-                    (void)wideToUtf8;
-                    std::string srcAcp = wideToAcp(newExePath);
-                    std::string dstAcp = wideToAcp(curExe);
-
                     // Per-user fallback location (no admin rights needed) for when the old exe cannot be
                     // overwritten (read-only folder, antivirus lock...). Previously the move failed silently,
                     // the OLD exe was restarted and users kept being told a new version was available.
                     wchar_t localAppData[MAX_PATH] = {};
                     GetEnvironmentVariableW(L"LOCALAPPDATA", localAppData, MAX_PATH);
-                    std::wstring fallbackDirW = localAppData[0] ? (std::wstring(localAppData) + L"\\Programs\\KuroCat")
-                                                                : (std::wstring(tempDir) + L"KuroCat");
-                    std::string fbDirAcp = wideToAcp(fallbackDirW);
-                    std::string fbExeAcp = fbDirAcp + "\\KuroCat.exe";
-
-                    batUtf8 += "set /a tries=0\r\n"
-                               ":retry\r\n"
-                               "move /y \"" + srcAcp + "\" \"" + dstAcp + "\" >nul 2>&1\r\n"
-                               "if not errorlevel 1 goto launch\r\n"
-                               "set /a tries+=1\r\n"
-                               "if %tries% lss 15 (\r\n"
-                               "  ping -n 2 127.0.0.1 >nul\r\n"
-                               "  goto retry\r\n"
-                               ")\r\n"
-                               "if not exist \"" + fbDirAcp + "\" mkdir \"" + fbDirAcp + "\"\r\n"
-                               "copy /y \"" + srcAcp + "\" \"" + fbExeAcp + "\" >nul 2>&1\r\n"
-                               "if errorlevel 1 goto launch\r\n"
-                               "del /q \"" + srcAcp + "\" >nul 2>&1\r\n"
-                               "start \"\" \"" + fbExeAcp + "\"\r\n"
-                               "goto done\r\n"
-                               ":launch\r\n"
-                               "start \"\" \"" + dstAcp + "\"\r\n"
-                               ":done\r\n"
-                               "del \"%~f0\"\r\n";
+                    UpdateTarget target = updateTarget(curExe, assetName, localAppData, tempDir);
+                    std::string batUtf8 = updateBatch(GetCurrentProcessId(), wideToAcp(newExePath), wideToAcp(target.exe), wideToAcp(curExe),
+                                                      target.renamed, wideToAcp(target.fallbackDir), wideToAcp(target.fallbackExe));
 
                     HANDLE hBat = CreateFileW(batPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
                     if (hBat != INVALID_HANDLE_VALUE) {
@@ -2239,6 +2263,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     app->availableUpdateUrl = res->releaseUrl;
                     app->availableAssetUrl = res->assetUrl;
                     app->availableAssetSize = res->assetSize;
+                    app->availableAssetName = res->assetName;
                     // Ask once per new version; after "no" the menu keeps offering it.
                     askNow = res->manual || regReadString(L"UpdatePromptedTag") != res->latestTag;
                     if (askNow) regWrite(L"UpdatePromptedTag", &res->latestTag, 0);
@@ -3119,7 +3144,60 @@ int runUpdateSelfTest() {
 
     UpdateCheckResult r;
     check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.9","html_url":"https://github.com/x/y/releases/tag/v1.3.3-mmccqq.9","assets":[{"name":"KuroCat-macOS-universal.zip","size":1,"browser_download_url":"https://a/mac.zip"},{"name":"KuroCat-Windows-x64.exe","size":585728,"browser_download_url":"https://a/win.exe"}]})", r)
-          && r.latestTag == L"v1.3.3-mmccqq.9" && r.assetUrl == L"https://a/win.exe" && r.assetSize == 585728, "release JSON -> tag, .exe URL and size");
+          && r.latestTag == L"v1.3.3-mmccqq.9" && r.assetUrl == L"https://a/win.exe" && r.assetSize == 585728 && r.assetName == L"KuroCat-Windows-x64.exe", "release JSON -> tag, .exe URL and size");
+    UpdateCheckResult both;
+    check(parseLatestRelease(R"({"tag_name":"v2.0.0","assets":[{"name":"KuroCat-Windows-x64.exe","size":1,"browser_download_url":"https://a/old.exe"},{"name":"Whiskerkey-Windows-x64.exe","size":2,"browser_download_url":"https://a/new.exe"}]})", both)
+          && both.assetName == L"Whiskerkey-Windows-x64.exe" && both.assetUrl == L"https://a/new.exe" && both.assetSize == 2, "Whiskerkey exe preferred over the KuroCat one");
+    check(isSemVerNewer(L"v2.0.0", L"1.3.3-mmccqq.8") && versionToNumber(L"2.0.0") > versionToNumber(L"1.3.3-mmccqq.99"), "2.0.0 is newer than every 1.3.3-mmccqq version");
+    {
+        UpdateTarget a = updateTarget(L"C:\\Users\\a\\Downloads\\KuroCat.exe", L"Whiskerkey-Windows-x64.exe", L"C:\\Users\\a\\AppData\\Local", L"C:\\T\\");
+        check(a.renamed && a.exe == L"C:\\Users\\a\\Downloads\\Whiskerkey.exe" && a.fallbackExe == L"C:\\Users\\a\\AppData\\Local\\Programs\\Whiskerkey\\Whiskerkey.exe",
+              "KuroCat.exe + Whiskerkey update -> Whiskerkey.exe in the same folder");
+        UpdateTarget b = updateTarget(L"C:\\Users\\a\\Downloads\\KuroCat.exe", L"KuroCat-Windows-x64.exe", L"", L"C:\\T\\");
+        check(!b.renamed && b.exe == L"C:\\Users\\a\\Downloads\\KuroCat.exe" && b.fallbackExe == L"C:\\T\\KuroCat\\KuroCat.exe", "KuroCat update replaces KuroCat.exe");
+        UpdateTarget c = updateTarget(L"D:\\Apps\\whiskerkey.EXE", L"Whiskerkey-Windows-x64.exe", L"C:\\L", L"C:\\T\\");
+        check(!c.renamed && c.exe == L"D:\\Apps\\whiskerkey.EXE", "Whiskerkey.exe updates in place");
+    }
+    {   // Run the real batch file on throwaway files (`rem` instead of starting anything; PID 99999999 isn't running)
+        wchar_t tmpW[MAX_PATH] = {};
+        GetTempPathW(MAX_PATH, tmpW);
+        std::string tmp = catlink::narrow(tmpW);
+        auto writeFile = [](const std::string& path, const std::string& text) {
+            HANDLE f = CreateFileA(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+            if (f == INVALID_HANDLE_VALUE) return false;
+            DWORD n = 0; BOOL ok = WriteFile(f, text.data(), (DWORD)text.size(), &n, nullptr); CloseHandle(f);
+            return ok && n == text.size();
+        };
+        auto readFile = [](const std::string& path) -> std::string {
+            HANDLE f = CreateFileA(path.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+            if (f == INVALID_HANDLE_VALUE) return "<missing>";
+            char buf[64] = {}; DWORD n = 0; ReadFile(f, buf, sizeof(buf), &n, nullptr); CloseHandle(f);
+            return std::string(buf, n);
+        };
+        auto exists = [](const std::string& path) { return GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES; };
+        auto runBatch = [&](const std::string& bat, const std::string& path) {
+            if (!writeFile(path, bat)) return false;
+            std::wstring cmd = L"cmd.exe /c \"" + utf8ToWide(path) + L"\"";
+            STARTUPINFOW si = { sizeof(si) }; PROCESS_INFORMATION pi = {};
+            if (!CreateProcessW(nullptr, &cmd[0], nullptr, nullptr, FALSE, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi)) return false;
+            bool done = WaitForSingleObject(pi.hProcess, 60000) == WAIT_OBJECT_0;
+            CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
+            return done;
+        };
+        std::string dir = tmp + "kurocat-update-test";
+        CreateDirectoryA(dir.c_str(), nullptr);
+        std::string oldExe = dir + "\\KuroCat.exe", src = dir + "\\KuroCat.update.exe", dst = dir + "\\Whiskerkey.exe", bat = dir + "\\u.bat";
+        DeleteFileA(dst.c_str());
+        writeFile(oldExe, "old"); writeFile(src, "new");
+        bool ran = runBatch(updateBatch(99999999, src, dst, oldExe, true, dir + "\\fb", dir + "\\fb\\Whiskerkey.exe", "rem"), bat);
+        check(ran && readFile(dst) == "new" && !exists(oldExe) && !exists(src) && !exists(bat),
+              "batch: Whiskerkey.exe in place, KuroCat.exe and the download removed, batch deleted itself");
+        writeFile(oldExe, "old"); writeFile(src, "new");
+        ran = runBatch(updateBatch(99999999, src, oldExe, oldExe, false, dir + "\\fb", dir + "\\fb\\KuroCat.exe", "rem"), bat);
+        check(ran && readFile(oldExe) == "new" && !exists(src), "batch: same name replaces KuroCat.exe in place");
+        DeleteFileA(oldExe.c_str()); DeleteFileA(dst.c_str());
+        RemoveDirectoryA(dir.c_str());
+    }
     UpdateCheckResult none;
     check(!parseLatestRelease(R"({"message":"Not Found"})", none) && !parseLatestRelease("garbage", none), "404 body and garbage rejected");
 
@@ -3143,7 +3221,7 @@ int runUpdateSelfTest() {
     check(zh && en, std::string("language switch works; this machine's display language -> ") + (l10n::isChinese() ? "Chinese" : "English"));
 
     DWORD missing = 0;
-    httpsGet(L"https://api.github.com/repos/mmccqq/KuroCat-vibecoding/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
+    httpsGet(L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
     check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();

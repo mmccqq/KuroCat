@@ -4,6 +4,13 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
 
+## v1.3.3-mmccqq.8 — unreleased
+
+macOS and Windows.
+
+- **KuroCat is becoming Whiskerkey**: the project now lives at [github.com/whiskerkey/whiskerkey](https://github.com/whiskerkey/whiskerkey) (old links still work). This version gets ready for the new name: it checks for updates at the new address, and its updater can install the renamed app (Whiskerkey.app on Mac, Whiskerkey.exe on Windows) in place of KuroCat. The next version will be Whiskerkey 2.0, and it will bring your settings and Cat Link along.
+- **New license**: the project is now licensed under the [GNU GPL v3.0](LICENSE). This covers every change made since KuroCat v1.3.3, in all versions from v1.3.3-mmccqq.1 on. The code it started from (KuroCat v1.3.3 by chanke17) keeps its MIT notice in [LICENSE-MIT](LICENSE-MIT). Older versions are no longer offered for download.
+
 ## v1.3.3-mmccqq.7 — 2026-11-27
 
 macOS and Windows.
@@ -37,7 +44,7 @@ macOS and Windows. From this version on, both platforms have the same version nu
   - **Setup**: in the menu, choose **Claude Code alerts 🤖 → Copy Claude Code hook settings**, merge what it copies into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code. It uses Claude Code hooks (`Stop`, `Notification`, `PermissionRequest`) that run `KuroCat --claude-hook`. The same menu can show a test bubble and turn off the sound or the whole feature.
   - **Local only**: only the project folder name, the event type and the window to bring back are passed. KuroCat never reads the conversation, and nothing goes over Cat Link.
 - **🦟 A mosquito while it sleeps**: after the cat has been asleep for about 3 minutes, a cartoon mosquito buzzes in from the left and circles its head. The cat wakes up, follows it with half-open eyes and swats at it once on each side, but the mosquito dodges both times and flies off to the right, and the cat dozes off again. While it stays asleep, another one comes every 5–9 minutes; if you touch the keyboard or mouse, the mosquito leaves at once. **🎬 Demo: here comes a mosquito** in the menu shows it right away, and **Mosquito visits while asleep 🦟** turns it off.
-- **🔄 Updates from this fork only**: auto-update checks only this repository's [GitHub Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) and never contacts upstream, so it can't replace this fork with the official release. It checks at launch and every 6 hours. When there's a new version, it asks you once per version (after that, the menu keeps showing **🆕 New version**); **Update now** downloads it, swaps it in and restarts. The Mac app installs only builds signed with the same certificate (which also keeps the Input Monitoring permission), and both platforms check the download's exact size. GitHub downloads can be slow or fail from mainland China; the download page is then offered instead.
+- **🔄 Updates from this fork only**: auto-update checks only this repository's [GitHub Releases](https://github.com/whiskerkey/whiskerkey/releases) and never contacts upstream, so it can't replace this fork with the official release. It checks at launch and every 6 hours. When there's a new version, it asks you once per version (after that, the menu keeps showing **🆕 New version**); **Update now** downloads it, swaps it in and restarts. The Mac app installs only builds signed with the same certificate (which also keeps the Input Monitoring permission), and both platforms check the download's exact size. GitHub downloads can be slow or fail from mainland China; the download page is then offered instead.
 
 - **🌐 English and Chinese**: the whole app (menus, alerts, bubbles, the Cat Link name tag) is now in both languages. It follows the system language (Chinese on a Chinese system, English otherwise); **语言 / Language** in the menu switches any time. Nicknames and project names show as typed, and a Chinese cat and an English cat can still link.
 

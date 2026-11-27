@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 import Security
+import CryptoKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var statusItem: NSStatusItem!
@@ -669,10 +670,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Updates (only from this fork's own GitHub Releases, never from upstream)
 
     private static let updateChecksEnabled = true
-    private static let updateRepo = "mmccqq/KuroCat-vibecoding"
+    private static let updateRepo = "whiskerkey/whiskerkey"
     private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
     private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
-    private static let macAssetName = "KuroCat-macOS-universal.zip"
+    /// KuroCat is becoming Whiskerkey (with its own app ID). While it moves, updates may use either name;
+    /// the new name is preferred. The download must still be signed with this app's own certificate.
+    static let macAssetNames = ["Whiskerkey-macOS-universal.zip", "KuroCat-macOS-universal.zip"]
+    static let updateAppNames = ["Whiskerkey", "KuroCat"]
+    static let updateIdentifiers = ["com.whiskerkey.app", "com.chanke.kurocat"]
     private static let updateCheckInterval: TimeInterval = 6 * 3600
     /// The newest version we already showed the "new version" prompt for (later checks only update the menu).
     private static let promptedTagKey = "KuroCat.UpdatePromptedTag"
@@ -709,7 +714,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let tag = json["tag_name"] as? String, !tag.isEmpty else { return nil }
         let page = (json["html_url"] as? String).flatMap(URL.init(string:))
-        let asset = (json["assets"] as? [[String: Any]])?.first { ($0["name"] as? String) == Self.macAssetName }
+        let assets = json["assets"] as? [[String: Any]] ?? []
+        let asset = Self.macAssetNames.lazy.compactMap { name in assets.first { ($0["name"] as? String) == name } }.first
         let assetURL = (asset?["browser_download_url"] as? String).flatMap(URL.init(string:))
         return UpdateInfo(tag: tag, pageURL: page, assetURL: assetURL, assetSize: asset?["size"] as? Int)
     }
@@ -792,12 +798,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         guard SecCodeCopySelf([], &me) == errSecSuccess, let me else { return false }
         var myStatic: SecStaticCode?
         guard SecCodeCopyStaticCode(me, [], &myStatic) == errSecSuccess, let myStatic else { return false }
-        var requirement: SecRequirement?
-        guard SecCodeCopyDesignatedRequirement(myStatic, [], &requirement) == errSecSuccess, let requirement else { return false }
+        return isSigned(url, likeApp: myStatic)
+    }
+
+    /// True if `url` is a valid app signed with the same certificate as `reference`, under one of
+    /// `updateIdentifiers` (KuroCat or Whiskerkey). An ad-hoc signed reference accepts nothing.
+    static func isSigned(_ url: URL, likeApp reference: SecStaticCode) -> Bool {
+        guard let requirement = updateRequirement(likeApp: reference) else { return false }
         var newCode: SecStaticCode?
         guard SecStaticCodeCreateWithPath(url as CFURL, [], &newCode) == errSecSuccess, let newCode else { return false }
         let flags = SecCSFlags(rawValue: SecCSFlags.RawValue(kSecCSCheckAllArchitectures | kSecCSStrictValidate | kSecCSCheckNestedCode))
         return SecStaticCodeCheckValidity(newCode, flags, requirement) == errSecSuccess
+    }
+
+    /// `certificate leaf = H"<the reference's leaf certificate>" and (identifier "…" or identifier "…")`.
+    static func updateRequirement(likeApp reference: SecStaticCode) -> SecRequirement? {
+        var info: CFDictionary?
+        guard SecCodeCopySigningInformation(reference, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
+              let dict = info as? [String: Any],
+              let certificates = dict[kSecCodeInfoCertificates as String] as? [SecCertificate],
+              let leaf = certificates.first else { return nil }
+        let hash = Insecure.SHA1.hash(data: SecCertificateCopyData(leaf) as Data).map { String(format: "%02x", $0) }.joined()
+        let identifiers = updateIdentifiers.map { "identifier \"\($0)\"" }.joined(separator: " or ")
+        var requirement: SecRequirement?
+        guard SecRequirementCreateWithString("certificate leaf = H\"\(hash)\" and (\(identifiers))" as CFString, [], &requirement) == errSecSuccess else { return nil }
+        return requirement
+    }
+
+    /// The app inside an extracted update: Whiskerkey.app, or KuroCat.app from before the rename.
+    static func updatedApp(in folder: URL) -> URL? {
+        for name in updateAppNames {
+            let app = folder.appendingPathComponent("\(name).app")
+            if FileManager.default.isExecutableFile(atPath: app.appendingPathComponent("Contents/MacOS/\(name)").path) { return app }
+        }
+        return nil
+    }
+
+    /// The shell script that replaces the running app once it has quit. The update keeps its own name
+    /// (Whiskerkey.app replaces KuroCat.app in the same folder). On failure the old app is put back.
+    /// `open` is the command that starts an app (tests pass `true`).
+    static func installScript(pid: Int32, currentApp: URL, newApp: URL, workDir: URL, open: String = "open -n") -> String {
+        func q(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
+        let old = q(currentApp.path)
+        let dstURL = currentApp.deletingLastPathComponent().appendingPathComponent(newApp.lastPathComponent)
+        let dst = q(dstURL.path)
+        let renamed = dstURL.standardizedFileURL != currentApp.standardizedFileURL
+        return """
+        while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
+        rm -rf \(old).bak \(dst).bak
+        if mv \(old) \(old).bak && { \(renamed ? "[ ! -e \(dst) ] || mv \(dst) \(dst).bak; " : "")/usr/bin/ditto \(q(newApp.path)) \(dst); }; then
+            rm -rf \(old).bak \(dst).bak
+            \(open) \(dst)
+        else
+            \(renamed ? "rm -rf \(dst); mv \(dst).bak \(dst) 2>/dev/null; " : "")mv \(old).bak \(old) 2>/dev/null
+            \(open) \(old)
+        fi
+        rm -rf \(q(workDir.path))
+        """
     }
 
     /// Compares the numbers in two versions: "v1.3.3-mmccqq.5" is [1, 3, 3, 5], newer than "1.3.3".
@@ -875,7 +932,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             let fm = FileManager.default
             let workDir = fm.temporaryDirectory.appendingPathComponent("KuroCatUpdate-\(UUID().uuidString)")
-            let zipURL = workDir.appendingPathComponent("KuroCat-macOS-universal.zip")
+            let zipURL = workDir.appendingPathComponent("update.zip")
             let extractDir = workDir.appendingPathComponent("extracted")
             do {
                 try fm.createDirectory(at: extractDir, withIntermediateDirectories: true)
@@ -896,8 +953,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                     throw NSError(domain: "KuroCatUpdate", code: 2)
                 }
 
-                let newAppURL = extractDir.appendingPathComponent("KuroCat.app")
-                guard fm.fileExists(atPath: newAppURL.appendingPathComponent("Contents/MacOS/KuroCat").path) else {
+                guard let newAppURL = Self.updatedApp(in: extractDir) else {
                     throw NSError(domain: "KuroCatUpdate", code: 3)
                 }
                 guard Self.isSignedLikeThisApp(newAppURL) else {
@@ -930,8 +986,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let src = shQuote(newAppURL.path)
         let tmp = shQuote(workDir.path)
 
+        let installed = currentAppURL.deletingLastPathComponent().appendingPathComponent(newAppURL.lastPathComponent)
         if needsAdmin {
-            let cmd = "rm -rf \(dst).bak && mv \(dst) \(dst).bak && /usr/bin/ditto \(src) \(dst) && rm -rf \(dst).bak \(tmp)"
+            // Whiskerkey.app replaces KuroCat.app: the old one is moved aside, then removed.
+            let newDst = shQuote(installed.path)
+            let clearNew = installed.standardizedFileURL == currentAppURL.standardizedFileURL ? "" : "rm -rf \(newDst) && "
+            let cmd = "rm -rf \(dst).bak && mv \(dst) \(dst).bak && \(clearNew)/usr/bin/ditto \(src) \(newDst) && rm -rf \(dst).bak \(tmp)"
             let escaped = cmd.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
             let osa = Process()
             osa.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
@@ -942,7 +1002,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 if osa.terminationStatus == 0 {
                     let relaunch = Process()
                     relaunch.executableURL = URL(fileURLWithPath: "/usr/bin/open")
-                    relaunch.arguments = ["-n", currentAppURL.path]
+                    relaunch.arguments = ["-n", installed.path]
                     try? relaunch.run()
                     NSApp.terminate(nil)
                     return
@@ -954,17 +1014,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             return
         }
 
-        let script = """
-        while kill -0 \(pid) 2>/dev/null; do sleep 0.2; done
-        rm -rf \(dst).bak
-        if mv \(dst) \(dst).bak && /usr/bin/ditto \(src) \(dst); then
-            rm -rf \(dst).bak
-            open -n \(dst)
-        else
-            mv \(dst).bak \(dst) 2>/dev/null
-        fi
-        rm -rf \(tmp)
-        """
+        let script = Self.installScript(pid: pid, currentApp: currentAppURL, newApp: newAppURL, workDir: workDir)
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: "/bin/sh")
         proc.arguments = ["-c", script]

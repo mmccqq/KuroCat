@@ -41,7 +41,7 @@ What's new:
 - **Updates**: checked at launch and every 6 hours, or any time with **Check for updates** in the menu.
 - **Language**: the menus follow your system language (Chinese on a Chinese system, English otherwise). Change it any time with **语言 / Language** in the menu.
 
-Pre-built versions are on the [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) page (the Mac app is signed with the maintainer's own certificate; the Windows exe is built by GitHub Actions), or build from source with `./build.sh` (see [Download & Run](#-download--run)). How releases are made: [docs/releasing.md](docs/releasing.md).
+Pre-built versions are on the [Releases](https://github.com/whiskerkey/whiskerkey/releases) page (the Mac app is signed with the maintainer's own certificate; the Windows exe is built by GitHub Actions), or build from source with `./build.sh` (see [Download & Run](#-download--run)). How releases are made: [docs/releasing.md](docs/releasing.md).
 
 macOS remembers the Input Monitoring permission by the app's code signature. To keep it across rebuilds, run this once before building:
 
@@ -175,4 +175,6 @@ All keyboard and mouse hardware signals in KuroCat are processed **strictly in l
 
 ## 📄 License
 
-[MIT License](LICENSE)
+This project is licensed under the [GNU General Public License v3.0](LICENSE). Everything added or changed after KuroCat v1.3.3, in every version from v1.3.3-mmccqq.1 on, is Copyright (C) 2026 mmccqq.
+
+It started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 (with cat coats by andyforfun168), which is MIT-licensed. That code keeps its [MIT notice](LICENSE-MIT), which covers only that code.

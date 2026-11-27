@@ -41,7 +41,7 @@
 - **更新**：启动时和之后每 6 小时检查一次，也可以在菜单里点「检查更新」。
 - **语言**：默认跟随系统语言（中文系统显示中文，其他显示英文），随时可以在菜单「语言 / Language」里切换。
 
-预编译版本在 [Releases](https://github.com/mmccqq/KuroCat-vibecoding/releases) 页面（Mac 版用作者自己的证书签名，Windows 版由 GitHub Actions 构建），也可以用 `./build.sh` 从源码构建（见下方“下载与运行”）。发布流程见 [docs/releasing.md](docs/releasing.md)。
+预编译版本在 [Releases](https://github.com/whiskerkey/whiskerkey/releases) 页面（Mac 版用作者自己的证书签名，Windows 版由 GitHub Actions 构建），也可以用 `./build.sh` 从源码构建（见下方“下载与运行”）。发布流程见 [docs/releasing.md](docs/releasing.md)。
 
 macOS 按应用的代码签名记住「输入监控」权限。想让权限在重新构建后保留，请在构建前运行一次：
 
@@ -178,4 +178,6 @@ KuroCat 的所有键盘与鼠标硬件信号**仅在本地内存实时驱动桌�
 
 ## 📄 License
 
-[MIT License](LICENSE)
+本项目采用 [GNU 通用公共许可证 v3.0（GPL-3.0）](LICENSE)。KuroCat v1.3.3 之后新增或修改的全部内容（从 v1.3.3-mmccqq.1 起的每个版本），版权归 mmccqq 所有（Copyright (C) 2026 mmccqq）。
+
+本项目基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3（其中两款猫咪皮肤由 andyforfun168 制作），原代码采用 MIT 许可证，并保留其 [MIT 声明](LICENSE-MIT)；MIT 许可证只适用于这部分原代码。

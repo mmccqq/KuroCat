@@ -17,7 +17,7 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
-REPO="mmccqq/KuroCat-vibecoding"
+REPO="whiskerkey/whiskerkey"
 MAC_ZIP="dist/KuroCat-macOS-universal.zip"
 die() { echo "release: $*" >&2; exit 1; }
 # A dry run reports these problems instead of stopping, so it can still check the rest.
