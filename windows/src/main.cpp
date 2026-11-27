@@ -102,6 +102,7 @@ enum MenuCmd : UINT {
     CMD_LINK_EXPLAIN,
     CMD_LINK_NICKNAME,
     CMD_LINK_DEMO,
+    CMD_LINK_PAUSE,
     CMD_TOGGLE_EARBUDS,
     CMD_SHOW_ALL,
     CMD_HIDE_ALL,
@@ -987,6 +988,12 @@ const wchar_t* linkWhatIsShared() {
               L"Keyboard activity pauses while you type a password. Everything is encrypted with the pairing code, so the relay server can't read it.");
 }
 
+/// What pausing and disconnecting do (shown in "What does my friend see?").
+const wchar_t* linkPauseAndDisconnect() {
+    return tr(L"\n\n勾选本菜单里的「⏸ 暂停分享我的猫」后，你的猫会从朋友的屏幕上消失，你的任何动作都不再发送，只发一个“已暂停”的信号，让对方知道你们还连着；你仍然能看到朋友的猫。断开连线后就不再发送任何内容。",
+              L"\n\nWith \u23F8 Pause sharing my cat (in this menu) on, your cat disappears from your friend's screen and none of your activity is sent, only a \"paused\" signal so their app knows you're still linked. You still see their cat. Nothing is sent after you disconnect.");
+}
+
 std::wstring regReadString(const wchar_t* name) {
     HKEY k = nullptr;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &k) != ERROR_SUCCESS) return L"";
@@ -1083,6 +1090,16 @@ void setTrayTip(AppState& app, const wchar_t* tip) {
     app.nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
 }
 
+/// The tray tooltip: whether Cat Link is on, and whether our sharing is paused.
+const wchar_t* linkTrayTip(AppState& app) {
+    catlink::Status st = app.link.status();
+    if (st != catlink::Status::Linked && st != catlink::Status::FriendPaused) {
+        return tr(L"KuroCat 黑猫键盘桌宠 (右键/左键打开菜单)", L"KuroCat keyboard cat (click for the menu)");
+    }
+    return app.link.paused() ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中（暂停分享）", L"KuroCat \u00B7 Cat Link on (sharing paused)")
+                             : tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on");
+}
+
 void showFriendWindow(AppState& app, bool show) {
     auto& f = app.friendCat;
     if (!f.hwnd) return;
@@ -1115,14 +1132,14 @@ void ensureFriendCat(AppState& app) {
 void onLinkStatusChanged(AppState& app, catlink::Status before, catlink::Status now) {
     using catlink::Status;
     auto& f = app.friendCat;
-    if (now == Status::FriendOffline || now == Status::Off) f.driver.releaseAll();
-    if (now == Status::Off) showFriendWindow(app, false);
+    if (now == Status::FriendOffline || now == Status::Off || now == Status::FriendPaused) f.driver.releaseAll();
+    if (now == Status::Off || now == Status::FriendPaused) showFriendWindow(app, false);
     if (now == Status::Linked && before != Status::Linked) {
         std::string name = app.link.friendName();
         std::wstring body = (name.empty() ? std::wstring(tr(L"朋友", L"Your friend")) : catlink::widen(name)) + tr(L" 的猫出现在你的桌面上了，它会跟着对方一起打字、动鼠标。", L"'s cat is on your desktop now. It types and moves the mouse along with them.");
         showTrayBalloon(app, tr(L"🔗 猫咪连线成功", L"\U0001F517 Cat Link connected"), body.c_str());
     }
-    setTrayTip(app, now == Status::Linked ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on") : tr(L"KuroCat 黑猫桌宠", L"KuroCat"));
+    setTrayTip(app, linkTrayTip(app));
     updateFriendLabel(app);
 }
 
@@ -1196,7 +1213,8 @@ void linkTick(AppState& app) {
     }
     if (app.demoUntil > 0.0 && now >= app.demoUntil) {   // demo over
         app.demoUntil = 0.0;
-        if (app.link.status() == catlink::Status::Off) showFriendWindow(app, false);
+        catlink::Status st = app.link.status();
+        if (st == catlink::Status::Off || st == catlink::Status::FriendPaused) showFriendWindow(app, false);
         updateFriendLabel(app);
     }
     catlink::Status st = app.link.status();
@@ -1285,6 +1303,7 @@ void appendLinkMenu(AppState& app, HMENU menu) {
         case Status::Linked: status = tr(L"已和 ", L"linked with ") + friendW + tr(L" 连线 \u25CF", L" \u25CF"); break;
         case Status::FriendOffline: status = friendW + tr(L" 已离线，等待对方回来", L" is offline, waiting for them to come back"); break;
         case Status::Reconnecting: status = tr(L"网络中断，正在重新连接…", L"network lost, reconnecting\u2026"); break;
+        case Status::FriendPaused: status = friendW + tr(L" 暂停了分享，暂时看不到 TA 的猫", L" paused sharing, so their cat is hidden"); break;
     }
     AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, (tr(L"状态：", L"Status: ") + status).c_str());
     std::wstring err = app.link.lastError();
@@ -1298,6 +1317,9 @@ void appendLinkMenu(AppState& app, HMENU menu) {
         AppendMenuW(sub, MF_STRING, CMD_LINK_COPY, (tr(L"复制配对码 ", L"Copy pairing code ") + code->display()).c_str());
         AppendMenuW(sub, MF_STRING, CMD_LINK_DISCONNECT, tr(L"断开连线", L"Disconnect"));
     }
+    bool paused = app.link.paused();
+    AppendMenuW(sub, MF_STRING | (paused ? MF_CHECKED : 0), CMD_LINK_PAUSE, tr(L"\u23F8 暂停分享我的猫", L"\u23F8 Pause sharing my cat"));
+    if (paused) AppendMenuW(sub, MF_STRING | MF_GRAYED, 0, tr(L"    朋友看不到你的猫，也收不到你的任何动作", L"    Your friend can't see your cat or any of your activity"));
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
     HMENU server = CreatePopupMenu();
     AppendMenuW(server, MF_STRING | (app.linkServer == 'C' ? MF_CHECKED : 0), CMD_LINK_SERVER_CN, tr(L"EMQX 中国（上海）", L"EMQX China (Shanghai)"));
@@ -1308,7 +1330,10 @@ void appendLinkMenu(AppState& app, HMENU menu) {
     AppendMenuW(sub, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(sub, MF_STRING, CMD_LINK_DEMO, tr(L"\U0001F3AC 演示：模拟一位朋友", L"\U0001F3AC Demo: pretend friend"));
     AppendMenuW(sub, MF_STRING, CMD_LINK_EXPLAIN, tr(L"对方能看到什么？", L"What does my friend see?"));
-    AppendMenuW(menu, MF_POPUP, (UINT_PTR)sub, st == Status::Linked ? tr(L"\U0001F517 猫咪连线（已连线）", L"\U0001F517 Cat Link (linked)") : tr(L"\U0001F517 猫咪连线", L"\U0001F517 Cat Link"));
+    const wchar_t* title = paused && st != Status::Off ? tr(L"\U0001F517 猫咪连线（暂停分享中）", L"\U0001F517 Cat Link (sharing paused)")
+                         : st == Status::Linked || st == Status::FriendPaused ? tr(L"\U0001F517 猫咪连线（已连线）", L"\U0001F517 Cat Link (linked)")
+                         : tr(L"\U0001F517 猫咪连线", L"\U0001F517 Cat Link");
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)sub, title);
 }
 
 void handleLinkCommand(AppState& app, UINT cmd) {
@@ -1374,8 +1399,13 @@ void handleLinkCommand(AppState& app, UINT cmd) {
         case CMD_LINK_DEMO:
             startLinkDemo(app);
             break;
+        case CMD_LINK_PAUSE:
+            app.link.setPaused(!app.link.paused());
+            regWrite(L"LinkPaused", nullptr, app.link.paused() ? 1 : 0);
+            setTrayTip(app, linkTrayTip(app));
+            break;
         case CMD_LINK_EXPLAIN: {
-            std::wstring msg = std::wstring(linkWhatIsShared()) + tr(L"\n\n断开连线后就不再发送任何内容。", L"\n\nNothing is sent after you disconnect.");
+            std::wstring msg = std::wstring(linkWhatIsShared()) + linkPauseAndDisconnect();
             MessageBoxW(nullptr, msg.c_str(), tr(L"猫咪连线会分享什么？", L"What does Cat Link share?"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
             break;
         }
@@ -1627,6 +1657,7 @@ void showContextMenu(AppState& app, POINT screenPt) {
         case CMD_LINK_CREATE: case CMD_LINK_JOIN: case CMD_LINK_RECONNECT: case CMD_LINK_COPY:
         case CMD_LINK_DISCONNECT: case CMD_LINK_SERVER_CN: case CMD_LINK_SERVER_GLOBAL:
         case CMD_LINK_SHOW_FRIEND: case CMD_LINK_EXPLAIN: case CMD_LINK_NICKNAME: case CMD_LINK_DEMO:
+        case CMD_LINK_PAUSE:
             handleLinkCommand(app, cmd);
             break;
         case CMD_TOGGLE_EARBUDS:
@@ -1643,9 +1674,7 @@ void showContextMenu(AppState& app, POINT screenPt) {
         case CMD_LANG_SYSTEM: case CMD_LANG_CHINESE: case CMD_LANG_ENGLISH:
             l10n::set(cmd == CMD_LANG_CHINESE ? l10n::Language::Chinese : cmd == CMD_LANG_ENGLISH ? l10n::Language::English : l10n::Language::System);
             // Menus are rebuilt each time they open; refresh the tray tip and the friend's name tag.
-            setTrayTip(app, app.link.status() == catlink::Status::Linked
-                ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on")
-                : tr(L"KuroCat 黑猫键盘桌宠 (右键/左键打开菜单)", L"KuroCat keyboard cat (click for the menu)"));
+            setTrayTip(app, linkTrayTip(app));
             updateFriendLabel(app);
             break;
         case CMD_CLAUDE_TOGGLE:
@@ -1710,7 +1739,7 @@ void drawFriendLabel(Gdiplus::Graphics& g, const std::wstring& text, bool dim) {
     Gdiplus::RectF bounds;
     g.MeasureString(text.c_str(), -1, &font, Gdiplus::PointF(0.0f, 0.0f), &bounds);
     float h = bounds.Height + 4.0f, w = bounds.Width + 14.0f;
-    float x = CatPhysics::SeatAnchor.x - w / 2.0f, y = 22.0f;
+    float x = CatPhysics::SeatAnchor.x - w / 2.0f, y = 46.0f;   // just above the ear tips (same as macOS nameLabelTop)
     Gdiplus::GraphicsPath pill;
     pill.AddArc(x, y, h, h, 90.0f, 180.0f);
     pill.AddArc(x + w - h, y, h, h, 270.0f, 180.0f);
@@ -2508,7 +2537,7 @@ int runLinkSelfTest(const std::wstring& joinCode) {
     // 3. Two sessions over the real relay (broker-cn.emqx.io)
     {
         catlink::Code live = catlink::Code::generate('C');
-        catlink::Session a, b;
+        catlink::Session a, b, c;
         a.profile = [] { return testHello("A", "siamese"); };
         b.profile = [] { return testHello("B", "orangeWhite"); };
         InputEngine idle;
@@ -2521,6 +2550,7 @@ int runLinkSelfTest(const std::wstring& joinCode) {
                 double now = nowSeconds();
                 a.update(now, idle);
                 b.update(now, idle);
+                c.update(now, idle);
                 for (auto& d : b.takeDue(now)) { gotB[d.e.k]++; if (d.e.k == "hello") helloOnB = d.e.n.value_or("") + "/" + d.e.coat.value_or(""); }
                 for (auto& d : a.takeDue(now)) gotA[d.e.k]++;
                 if (until && until()) return;
@@ -2549,9 +2579,49 @@ int runLinkSelfTest(const std::wstring& joinCode) {
         check(gotB["c"] == 2, "click down + up arrive");
         check(gotA["pet"] == 12, "12 petting strokes arrive the other way: " + std::to_string(gotA["pet"]));
         check(helloOnB == "A/siamese", "friend's hello arrives: " + helloOnB);
+
+        // Pausing: only a "hide" heartbeat goes out, so the friend hides our cat; we still see theirs.
+        auto kinds = [](const std::map<std::string, int>& got) {
+            std::string out;
+            for (auto& kv : got) out += " " + kv.first + "=" + std::to_string(kv.second);
+            return out.empty() ? std::string(" none") : out;
+        };
+        a.setPaused(true);
+        pump(5, [&] { return b.status() == catlink::Status::FriendPaused; });
+        check(b.status() == catlink::Status::FriendPaused, "pausing: the friend sees 'paused'");
+        check(a.status() == catlink::Status::Linked, "pausing: we stay linked");
+        gotA.clear(); gotB.clear();
+        for (PhysicalKey k : keys) {
+            a.noteKeyDown(k, prefersViewerLeftPaw(k), false); pump(0.04, nullptr);
+            a.noteKeyUp(k); pump(0.05, nullptr);
+        }
+        a.noteClick(0, true); a.noteClick(0, false); a.noteScroll(4.0f);
+        a.notePet({172.0f, 100.0f}, 6.0f, true);
+        a.profileChanged();
+        for (int i = 0; i < 4; ++i) { b.notePet({172.0f, 100.0f}, 6.0f, true); pump(0.05, nullptr); }
+        pump(2.5, nullptr);
+        check(gotB.empty(), "pausing: none of our activity arrives:" + kinds(gotB));
+        check(gotA["pet"] == 4, "pausing: the friend's petting still reaches us:" + kinds(gotA));
+        pump(28, nullptr);
+        check(b.status() == catlink::Status::FriendPaused, "pausing: after 28 s still 'paused', not 'offline' (heartbeat)");
+        check(gotB.empty(), "pausing: still nothing but the heartbeat:" + kinds(gotB));
+        helloOnB.clear();
+        a.setPaused(false);
+        pump(5, [&] { return b.status() == catlink::Status::Linked && !helloOnB.empty(); });
+        check(b.status() == catlink::Status::Linked && helloOnB == "A/siamese", "resuming: our profile arrives and we're linked again");
+
         a.stop();
         pump(5, [&] { return b.status() == catlink::Status::FriendOffline; });
         check(b.status() == catlink::Status::FriendOffline, "friend leaving is noticed");
+
+        // A friend who links while already paused never shows up as a cat.
+        c.profile = [] { return testHello("C", "shorthair"); };
+        c.setPaused(true);
+        gotB.clear();
+        c.start(live);
+        pump(25, [&] { return b.status() == catlink::Status::FriendPaused; });
+        check(b.status() == catlink::Status::FriendPaused && gotB.empty(), "linking while paused: the friend sees 'paused' and no events:" + kinds(gotB));
+        c.stop();
         b.stop();
     }
 
@@ -2987,6 +3057,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     g_passwordWatcher.start();
     g_audioWatcher.start();
     g_mouseHook = SetWindowsHookExW(WH_MOUSE_LL, mouseHookProc, hInst, 0);
+    app.link.setPaused(regReadDword(L"LinkPaused", 0) != 0);
     if (regReadDword(L"LinkEnabled", 0)) {
         if (auto code = catlink::Code::parse(app.savedLinkCode)) app.link.start(*code);
     }

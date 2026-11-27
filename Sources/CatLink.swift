@@ -75,7 +75,7 @@ struct CatLinkCode: Equatable {
 
 /// One event. Fields are short and optional to keep messages tiny; see docs/cat-link-protocol.md.
 struct CatLinkEvent: Codable, Equatable {
-    var k: String                 // kind: hello, kd, ku, m, c, w, pet, bye
+    var k: String                 // kind: hello, kd, ku, m, c, w, pet, hide, bye
     var o: Int? = nil             // milliseconds after the batch's first event
     var id: Int? = nil            // kd/ku: anonymous press id (not the key)
     var s: String? = nil          // kd: paw, "l" or "r" (viewer's left/right paw)
@@ -275,6 +275,8 @@ final class MQTTWebSocketClient: NSObject, URLSessionWebSocketDelegate {
 final class CatLinkSession {
     enum Status: Equatable {
         case off, connecting, waitingForFriend, linked, friendOffline, reconnecting
+        /// Connected to the friend, but they paused sharing: their cat is hidden.
+        case friendPaused
     }
 
     static let shared = CatLinkSession()
@@ -288,6 +290,9 @@ final class CatLinkSession {
     private(set) var code: CatLinkCode?
     private(set) var lastError: String?
     private(set) var friendName: String?
+    /// Sharing paused: we stay linked and still see the friend's cat, but send none of our activity,
+    /// only a "hide" heartbeat, so the friend's app hides our cat (and knows we're still linked).
+    private(set) var isPaused = false
 
     let peerID: String
     private var client: MQTTWebSocketClient?
@@ -298,6 +303,7 @@ final class CatLinkSession {
     private var retryDelay: TimeInterval = 2
     private var friendPeer: String?
     private var lastHeard: CFTimeInterval = 0
+    private var friendPaused = false
     private var pressIDs: [PhysicalKey: Int] = [:]
     private var nextPressID = 1
     private var lastMouseSent = CGPoint(x: -1, y: -1)
@@ -335,6 +341,7 @@ final class CatLinkSession {
         pressIDs = [:]
         friendPeer = nil
         friendName = nil
+        friendPaused = false
         status = .off
     }
 
@@ -349,7 +356,7 @@ final class CatLinkSession {
             self.lastError = nil
             c.subscribe(code.topic)
             if self.friendPeer == nil { self.status = .waitingForFriend }
-            else { self.status = CACurrentMediaTime() - self.lastHeard < 25 ? .linked : .friendOffline }
+            else { self.status = CACurrentMediaTime() - self.lastHeard < 25 ? self.friendStatus : .friendOffline }
             self.sendHello()
         }
         c.onMessage = { [weak self] _, data in self?.receive(data) }
@@ -421,13 +428,29 @@ final class CatLinkSession {
     }
 
     /// Our nickname, themes or headphones changed.
-    func profileChanged() { sendHello() }
+    func profileChanged() {
+        if !isPaused { sendHello() }
+    }
 
-    private var isSending: Bool { client?.isConnected == true }
+    /// Pause or resume sharing. Pausing drops anything not sent yet and tells the friend to hide our
+    /// cat; resuming sends our profile, which brings it back.
+    func setPaused(_ paused: Bool) {
+        guard paused != isPaused else { return }
+        isPaused = paused
+        pending = []
+        pressIDs = [:]
+        lastMouseSent = CGPoint(x: -1, y: -1)
+        mouseWasMoving = false
+        sendHello()
+    }
 
+    private var isConnected: Bool { client?.isConnected == true }
+    private var isSending: Bool { isConnected && !isPaused }
+
+    /// Our profile, or only "hide" while sharing is paused (on connect, every 10 s, and to a new friend).
     private func sendHello() {
-        guard isSending else { return }
-        queue(profile())
+        guard isConnected else { return }
+        queue(isPaused ? CatLinkEvent(k: "hide") : profile())
         flush()
     }
 
@@ -484,7 +507,10 @@ final class CatLinkSession {
             if isNew { sendHello() }   // let a newly arrived friend see our cat right away
         }
         lastHeard = now
-        if status != .linked { status = .linked }
+        // The friend paused sharing: hide their cat and drop the rest of the batch.
+        friendPaused = batch.e.contains { $0.k == "hide" }
+        if status != friendStatus { status = friendStatus }
+        if friendPaused { return }
         // A small buffer keeps the friend's rhythm even if batches arrive unevenly.
         for event in batch.e {
             if event.k == "hello" { friendName = event.n }
@@ -492,8 +518,10 @@ final class CatLinkSession {
         }
     }
 
+    private var friendStatus: Status { friendPaused ? .friendPaused : .linked }
+
     private func checkFriend() {
-        guard status == .linked else { return }
+        guard status == .linked || status == .friendPaused else { return }
         if CACurrentMediaTime() - lastHeard > 25 {
             NSLog("[CatLink] friend went offline")
             status = .friendOffline

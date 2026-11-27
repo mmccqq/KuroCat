@@ -13,7 +13,9 @@ final class CatLinkController: NSObject {
     var menuProvider: (() -> NSMenu)?
     /// True while linked with an online friend (for the menu bar indicator).
     var onIndicatorChange: ((Bool) -> Void)?
-    var isLinkIndicatorOn: Bool { link.status == .linked }
+    var isLinkIndicatorOn: Bool { link.status == .linked || link.status == .friendPaused }
+    /// Our sharing is paused (saved, so it survives a restart).
+    var isSharingPaused: Bool { link.isPaused }
 
     private let defaults = UserDefaults.standard
     private var savedCode: CatLinkCode? { defaults.string(forKey: "KuroCat.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
@@ -41,6 +43,19 @@ final class CatLinkController: NSObject {
         """)
     }
 
+    /// What pausing and disconnecting do (shown in "What does my friend see?").
+    static var pauseAndDisconnect: String {
+        tr("""
+
+
+        勾选本菜单里的「⏸ 暂停分享我的猫」后，你的猫会从朋友的屏幕上消失，你的任何动作都不再发送，只发一个“已暂停”的信号，让对方知道你们还连着；你仍然能看到朋友的猫。断开连线后就不再发送任何内容。
+        """, """
+
+
+        With ⏸ Pause sharing my cat (in this menu) on, your cat disappears from your friend's screen and none of your activity is sent, only a "paused" signal so their app knows you're still linked. You still see their cat. Nothing is sent after you disconnect.
+        """)
+    }
+
     // MARK: Setup & per-frame
 
     func setup(mainWindow: OverlayWindow) {
@@ -52,6 +67,7 @@ final class CatLinkController: NSObject {
                 self?.applyFriend(event)
             }
         }
+        link.setPaused(defaults.bool(forKey: "KuroCat.LinkPaused"))
         if defaults.bool(forKey: "KuroCat.LinkEnabled"), let code = savedCode {
             link.start(code: code)
         }
@@ -91,6 +107,8 @@ final class CatLinkController: NSObject {
     // MARK: Friend → our screen
 
     private func applyFriend(_ event: CatLinkEvent) {
+        // Events that were still on their way when the friend paused sharing.
+        if link.status == .friendPaused && !isDemo { return }
         if event.k == "pet" {
             // The friend is petting OUR cat from their screen.
             guard let physics = mainWindow?.catView.physics else { return }
@@ -106,7 +124,7 @@ final class CatLinkController: NSObject {
     }
 
     private var shouldShowRemote: Bool {
-        showFriendCat && (isDemo || link.status != .off) && driver?.hasProfile == true
+        showFriendCat && (isDemo || (link.status != .off && link.status != .friendPaused)) && driver?.hasProfile == true
     }
 
     private func ensureRemoteWindow() {
@@ -144,22 +162,26 @@ final class CatLinkController: NSObject {
         case .linked: view.nameLabel = name + tr(" · 在线", " · online"); view.nameLabelDimmed = false
         case .friendOffline: view.nameLabel = name + tr(" · 离线", " · offline"); view.nameLabelDimmed = true
         case .connecting, .reconnecting: view.nameLabel = name + tr(" · 正在重新连接…", " · reconnecting…"); view.nameLabelDimmed = true
-        case .waitingForFriend, .off: view.nameLabel = name; view.nameLabelDimmed = true
+        case .waitingForFriend, .off, .friendPaused: view.nameLabel = name; view.nameLabelDimmed = true
         }
         view.needsDisplay = true
     }
 
     private func statusChanged() {
-        if link.status == .friendOffline || link.status == .off { driver?.releaseAll() }
-        if link.status == .off && !isDemo { remoteWindow?.orderOut(nil) }
+        if [.friendOffline, .off, .friendPaused].contains(link.status) { driver?.releaseAll() }
+        if (link.status == .off || link.status == .friendPaused) && !isDemo { remoteWindow?.orderOut(nil) }
         updateLabel()
-        onIndicatorChange?(link.status == .linked)
+        onIndicatorChange?(isLinkIndicatorOn)
     }
 
     // MARK: Menu
 
     func menuItem() -> NSMenuItem {
-        let parent = NSMenuItem(title: link.status == .linked ? tr("🔗 猫咪连线（已连线）", "🔗 Cat Link (linked)") : tr("🔗 猫咪连线", "🔗 Cat Link"), action: nil, keyEquivalent: "")
+        let title: String
+        if link.isPaused && link.status != .off { title = tr("🔗 猫咪连线（暂停分享中）", "🔗 Cat Link (sharing paused)") }
+        else if isLinkIndicatorOn { title = tr("🔗 猫咪连线（已连线）", "🔗 Cat Link (linked)") }
+        else { title = tr("🔗 猫咪连线", "🔗 Cat Link") }
+        let parent = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let sub = NSMenu()
         let friend = link.friendName ?? tr("朋友", "your friend")
         let status: String
@@ -169,6 +191,7 @@ final class CatLinkController: NSObject {
         case .waitingForFriend: status = tr("已连接，等待朋友输入配对码", "connected, waiting for your friend to enter the code")
         case .linked: status = tr("已和 \(friend) 连线 🟢", "linked with \(friend) 🟢")
         case .friendOffline: status = tr("\(friend) 已离线，等待对方回来", "\(friend) is offline, waiting for them to come back")
+        case .friendPaused: status = tr("\(friend) 暂停了分享，暂时看不到 TA 的猫", "\(friend) paused sharing, so their cat is hidden")
         case .reconnecting: status = tr("网络中断，正在重新连接…", "network lost, reconnecting…")
         }
         sub.addItem(disabled(tr("状态：\(status)", "Status: \(status)")))
@@ -182,6 +205,12 @@ final class CatLinkController: NSObject {
         } else if let code = link.code {
             sub.addItem(item(tr("复制配对码 \(code.display)", "Copy pairing code \(code.display)"), #selector(copyCode)))
             sub.addItem(item(tr("断开连线", "Disconnect"), #selector(disconnect)))
+        }
+        let pause = item(tr("⏸ 暂停分享我的猫", "⏸ Pause sharing my cat"), #selector(togglePause))
+        pause.state = link.isPaused ? .on : .off
+        sub.addItem(pause)
+        if link.isPaused {
+            sub.addItem(disabled(tr("    朋友看不到你的猫，也收不到你的任何动作", "    Your friend can't see your cat or any of your activity")))
         }
         sub.addItem(.separator())
 
@@ -273,6 +302,13 @@ final class CatLinkController: NSObject {
         link.stop()
     }
 
+    @objc private func togglePause() {
+        let paused = !link.isPaused
+        defaults.set(paused, forKey: "KuroCat.LinkPaused")
+        link.setPaused(paused)
+        onIndicatorChange?(isLinkIndicatorOn)
+    }
+
     @objc private func selectServer(_ sender: NSMenuItem) {
         defaults.set(sender.representedObject as? String, forKey: "KuroCat.LinkServer")
     }
@@ -297,7 +333,7 @@ final class CatLinkController: NSObject {
     @objc private func explain() {
         let alert = NSAlert()
         alert.messageText = tr("猫咪连线会分享什么？", "What does Cat Link share?")
-        alert.informativeText = Self.whatIsShared + tr("\n\n断开连线后就不再发送任何内容。", "\n\nNothing is sent after you disconnect.")
+        alert.informativeText = Self.whatIsShared + Self.pauseAndDisconnect
         NSApp.activate(ignoringOtherApps: true)
         alert.runModal()
     }
@@ -355,7 +391,7 @@ final class CatLinkController: NSObject {
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.1) { [weak self] in
             guard let self else { return }
-            if self.link.status == .off { self.remoteWindow?.orderOut(nil) }
+            if self.link.status == .off || self.link.status == .friendPaused { self.remoteWindow?.orderOut(nil) }
             self.updateLabel()
         }
     }

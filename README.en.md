@@ -33,7 +33,7 @@ What's new:
 
 ### How to use
 
-- **Cat Link**: in the menu, choose **🔗 Cat Link → Create a pairing code to invite a friend…** and send the code to your friend, who picks **Enter a friend's pairing code…** in the same menu (on Windows: copy it, then click **Paste a friend's pairing code and link**). **🎬 Demo: pretend friend** previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
+- **Cat Link**: in the menu, choose **🔗 Cat Link → Create a pairing code to invite a friend…** and send the code to your friend, who picks **Enter a friend's pairing code…** in the same menu (on Windows: copy it, then click **Paste a friend's pairing code and link**). **⏸ Pause sharing my cat** in the same menu hides your cat from your friend without disconnecting. **🎬 Demo: pretend friend** previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
 - **Claude Code alerts**: **Claude Code alerts 🤖 → Copy Claude Code hook settings**, merge it into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code.
 - **Mosquito**: **🎬 Demo: here comes a mosquito** shows it right away; untick **Mosquito visits while asleep 🦟** to turn it off.
 - **Updates**: checked at launch and every 6 hours, or any time with **Check for updates** in the menu.

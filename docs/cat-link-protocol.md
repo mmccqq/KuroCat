@@ -56,7 +56,7 @@ Both are derived with HKDF-SHA256 (RFC 5869):
 | `q` | Sequence number, +1 per batch |
 | `e` | Events in time order |
 
-Senders flush every 100 ms, or at 40 events, and send nothing while the user is idle except `hello` every 10 s. Receivers apply each event at `arrival + 120 ms + o`, which keeps the sender's rhythm even when batches arrive unevenly.
+Senders flush every 100 ms, or at 40 events, and send nothing while the user is idle except `hello` every 10 s (`hide` instead, while sharing is paused). Receivers apply each event at `arrival + 120 ms + o`, which keeps the sender's rhythm even when batches arrive unevenly.
 
 ## Events
 
@@ -71,6 +71,7 @@ Every event has `k` (its kind) and `o` (milliseconds after the batch's first eve
 | `c` | `b` button (0 left, 1 right, 2 other), `d` 1 down / 0 up | Mouse click |
 | `w` | `d` scroll delta in points | Scrolling, merged to one event per 50 ms |
 | `pet` | `x`, `y` point on the **receiver's** cat canvas (360×320, y down), `d` stroke length, `h` true = head | I am petting *your* cat on my screen; apply it to your own cat |
+| `hide` | | I paused sharing: hide my cat. While paused, this is the **only** event sent: when pausing, on connect, to a newly arrived friend, and every 10 s in place of `hello` (no activity, no profile, no nickname). Resuming sends `hello` again |
 | `bye` | | I'm disconnecting (the receiver shows the friend as offline) |
 
 ### Theme names
@@ -86,10 +87,12 @@ These are the Swift case names; the Windows enums use the same names in PascalCa
 - **Keys:** each `kd` picks a random typing key on that paw's side that isn't already held, and holds it until the matching `ku`. Key bubbles, if shown, display that random stand-in key, never the real one. If a `ku` never arrives, release the key after 20 s.
 - **Mouse:** map `x`/`y` onto your own main screen. Multiply velocity by your screen height.
 - **Presence:** the friend is online while any batch has arrived in the last 25 s. When they go offline, release everything.
+- **Paused:** a batch containing `hide` means the friend paused sharing. Release everything, hide their cat, and drop the rest of that batch and any of their events still waiting to be applied. They still count as online (the `hide` heartbeat keeps them so), and the menu says they paused. The next batch without `hide` means they resumed: show the cat again. Versions before v1.3.3-mmccqq.6 don't know `hide` and keep showing a paused friend's cat as online but motionless.
 
 ## Privacy rules (must hold in every version)
 
 - No key identities and no text are ever sent.
 - No keyboard events are sent while secure input (a password field) is active.
 - Sharing is opt-in, the app clearly shows that it's linked, and disconnecting stops all sending.
+- Sharing can be paused without disconnecting. While paused, only `hide` is sent: no activity, profile or nickname.
 - Everything is encrypted with the pairing code, so the public server only sees random bytes on a random topic.

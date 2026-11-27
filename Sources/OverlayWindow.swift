@@ -42,6 +42,9 @@ final class CatCanvasView: NSView {
         ctx.restoreGState()
     }
 
+    /// Top of the friend's name tag on the 360×320 canvas: just above the ear tips (y ≈ 74 at rest).
+    static let nameLabelTop: CGFloat = 46
+
     private func drawNameLabel(_ label: String, in ctx: CGContext) {
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.systemFont(ofSize: 11, weight: .semibold),
@@ -49,7 +52,7 @@ final class CatCanvasView: NSView {
         ]
         let text = NSAttributedString(string: label, attributes: attrs)
         let size = text.size()
-        let pill = CGRect(x: CatPhysics.seatAnchor.x - size.width / 2 - 9, y: 22, width: size.width + 18, height: size.height + 6)
+        let pill = CGRect(x: CatPhysics.seatAnchor.x - size.width / 2 - 9, y: Self.nameLabelTop, width: size.width + 18, height: size.height + 6)
         ctx.setFillColor(NSColor.black.withAlphaComponent(nameLabelDimmed ? 0.35 : 0.62).cgColor)
         ctx.addPath(CGPath(roundedRect: pill, cornerWidth: pill.height / 2, cornerHeight: pill.height / 2, transform: nil))
         ctx.fillPath()

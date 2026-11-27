@@ -33,7 +33,7 @@
 
 ### 怎么用
 
-- **猫咪连线**：菜单「🔗 猫咪连线」→「创建配对码，邀请朋友…」，把配对码发给朋友；朋友在同一个菜单里选「输入朋友的配对码…」（Windows：复制后点「粘贴朋友的配对码并连线」）。「🎬 演示：模拟一位朋友」可以先在本机看效果。协议见 [docs/cat-link-protocol.md](docs/cat-link-protocol.md)。
+- **猫咪连线**：菜单「🔗 猫咪连线」→「创建配对码，邀请朋友…」，把配对码发给朋友；朋友在同一个菜单里选「输入朋友的配对码…」（Windows：复制后点「粘贴朋友的配对码并连线」）。同一个菜单里的「⏸ 暂停分享我的猫」可以不断开连线，只让朋友看不到你的猫。「🎬 演示：模拟一位朋友」可以先在本机看效果。协议见 [docs/cat-link-protocol.md](docs/cat-link-protocol.md)。
 - **Claude Code 提醒**：菜单「Claude Code 提醒 🤖」→「复制 Claude Code 钩子设置」，合并到 `~/.claude/settings.json`（Windows：`%USERPROFILE%\.claude\settings.json`），然后重新打开 Claude Code。
 - **蚊子**：「🎬 演示：蚊子来了」可以立刻看；取消勾选「睡着时会有蚊子来捣乱 🦟」就关掉了。
 - **更新**：启动时和之后每 6 小时检查一次，也可以在菜单里点「检查更新」。

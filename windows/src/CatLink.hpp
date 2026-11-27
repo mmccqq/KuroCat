@@ -515,7 +515,8 @@ inline Bytes mqttPublish(const std::string& topic, const Bytes& payload) {
 
 // MARK: - Session
 
-enum class Status { Off, Connecting, WaitingForFriend, Linked, FriendOffline, Reconnecting };
+// FriendPaused: connected to the friend, but they paused sharing, so their cat is hidden.
+enum class Status { Off, Connecting, WaitingForFriend, Linked, FriendOffline, Reconnecting, FriendPaused };
 
 class Session {
 public:
@@ -594,9 +595,25 @@ public:
 
     bool connected() const { return sh_->connected.load(); }
 
+    /// Sharing paused: we stay linked and still see the friend's cat, but send none of our activity,
+    /// only a "hide" heartbeat, so the friend's app hides our cat (and knows we're still linked).
+    bool paused() const { return paused_; }
+
+    /// Pausing drops anything not sent yet and tells the friend to hide our cat; resuming sends our
+    /// profile, which brings it back (UI thread).
+    void setPaused(bool on) {
+        if (on == paused_) return;
+        paused_ = on;
+        pending_.clear();
+        pressIds_.clear();
+        lastMouseSent_ = {-1, -1};
+        mouseWasMoving_ = false;
+        helloDue_ = 0;
+    }
+
     // Called on the UI thread.
     void noteKeyDown(PhysicalKey key, bool viewerLeftPaw, bool passwordFocused) {
-        if (!connected() || passwordFocused) return;
+        if (!sending() || passwordFocused) return;
         int id = nextPressId_;
         nextPressId_ = nextPressId_ % 9999 + 1;
         pressIds_[(int)key] = id;
@@ -609,14 +626,14 @@ public:
         if (it == pressIds_.end()) return;
         int id = it->second;
         pressIds_.erase(it);
-        if (!connected()) return;
+        if (!sending()) return;
         Event e; e.k = "ku"; e.id = id;
         queue(e);
     }
 
     /// Scrolling, merged to one event per 50 ms (touchpads send many small steps).
     void noteScroll(float delta) {
-        if (!connected()) return;
+        if (!sending()) return;
         double now = nowSeconds();
         if (!pending_.empty() && pending_.back().k == "w" && pending_.back().o >= (now - batchStart_) * 1000.0 - 50.0) {
             pending_.back().d = pending_.back().d.value_or(0.0) + delta;
@@ -627,14 +644,14 @@ public:
     }
 
     void noteClick(int button, bool down) {
-        if (!connected()) return;
+        if (!sending()) return;
         Event e; e.k = "c"; e.b = button; e.d = down ? 1.0 : 0.0;
         queue(e);
     }
 
     /// We petted the friend's cat on our screen: their own cat feels it too.
     void notePet(Pt canvasPoint, float delta, bool isHead) {
-        if (!connected()) return;
+        if (!sending()) return;
         Event e; e.k = "pet";
         e.x = std::round(canvasPoint.x * 10.0) / 10.0;
         e.y = std::round(canvasPoint.y * 10.0) / 10.0;
@@ -643,7 +660,7 @@ public:
         queue(e);
     }
 
-    void profileChanged() { helloDue_ = 0; }
+    void profileChanged() { if (!paused_) helloDue_ = 0; }
 
     /// Once per frame on the UI thread: mouse samples, batching, hello, keep-alive, presence.
     void update(double now, const InputEngine& input) {
@@ -656,8 +673,13 @@ public:
         }
         if (isConnected && sh->friendJustArrived.exchange(false)) helloDue_ = 0;
         if (isConnected) {
-            if (now >= nextMouse_) { nextMouse_ = now + 0.1; sampleMouse(input); }
-            if (now >= helloDue_) { helloDue_ = now + 10; queue(profile()); flush(); }
+            if (now >= nextMouse_) { nextMouse_ = now + 0.1; if (!paused_) sampleMouse(input); }
+            if (now >= helloDue_) {   // our profile, or only "hide" while sharing is paused
+                helloDue_ = now + 10;
+                Event hide; hide.k = "hide";
+                queue(paused_ ? hide : profile());
+                flush();
+            }
             if (now >= nextFlush_) { nextFlush_ = now + 0.1; flush(); }
             if (now >= nextPing_) { nextPing_ = now + 25; enqueueRaw(Bytes{0xC0, 0x00}); }
             if (now - sh->lastReceive.load() > 90) {   // server stopped answering: force a reconnect
@@ -666,7 +688,7 @@ public:
             }
         }
         std::lock_guard<std::mutex> lock(sh->m);
-        if (sh->status == Status::Linked && now - sh->lastHeard > 25) sh->status = Status::FriendOffline;
+        if ((sh->status == Status::Linked || sh->status == Status::FriendPaused) && now - sh->lastHeard > 25) sh->status = Status::FriendOffline;
     }
 
     /// Friend events whose time has come (UI thread).
@@ -706,6 +728,7 @@ private:
         std::wstring lastError;
         std::string friendPeer, friendName;
         double lastHeard = 0;
+        bool friendPaused = false;
         bool stopping = false;
 
         std::mutex sendMutex;
@@ -731,6 +754,9 @@ private:
     double helloDue_ = 0, nextFlush_ = 0, nextMouse_ = 0, nextPing_ = 0;
     POINT lastMouseSent_ = {-1, -1};
     bool mouseWasMoving_ = false;
+    bool paused_ = false;
+
+    bool sending() const { return connected() && !paused_; }
 
     void queue(Event e) {
         double now = nowSeconds();
@@ -911,7 +937,8 @@ private:
                     if (!sh->stopping) {
                         sh->lastError.clear();
                         if (sh->friendPeer.empty()) sh->status = Status::WaitingForFriend;
-                        else sh->status = nowSeconds() - sh->lastHeard < 25 ? Status::Linked : Status::FriendOffline;
+                        else if (nowSeconds() - sh->lastHeard >= 25) sh->status = Status::FriendOffline;
+                        else sh->status = sh->friendPaused ? Status::FriendPaused : Status::Linked;
                     }
                 } else if (type4 == 3) {   // PUBLISH
                     handlePublish(sh, body, flags);
@@ -944,17 +971,25 @@ private:
         double now = nowSeconds();
         std::lock_guard<std::mutex> lock(sh->m);
         if (sh->stopping) return;
+        bool hide = false;
         for (const Event& e : batch->e) {
             if (e.k == "bye") {
                 if (batch->f == sh->friendPeer) { sh->lastHeard = 0; sh->status = Status::FriendOffline; }
                 return;
             }
+            if (e.k == "hide") hide = true;
         }
         if (sh->friendPeer != batch->f) {
             if (sh->friendPeer.empty()) sh->friendJustArrived = true;
             sh->friendPeer = batch->f;
         }
         sh->lastHeard = now;
+        sh->friendPaused = hide;
+        if (hide) {   // the friend paused sharing: hide their cat, drop what hasn't played yet
+            sh->status = Status::FriendPaused;
+            sh->incoming.clear();
+            return;
+        }
         sh->status = Status::Linked;
         for (const Event& e : batch->e) {
             if (e.k == "hello") sh->friendName = e.n.value_or("");

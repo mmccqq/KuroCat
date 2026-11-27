@@ -4,6 +4,12 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
 
+## v1.3.3-mmccqq.6 — unreleased
+
+macOS and Windows.
+
+- **⏸ Pause sharing in Cat Link**: **🔗 Cat Link → ⏸ Pause sharing my cat** keeps you linked but stops sending your activity. Your cat disappears from your friend's screen at once, and you still see theirs. Their menu says you paused sharing (not that you went offline): while paused, the only thing sent is a tiny "paused" signal every 10 seconds, with no keys, mouse movement, clicks, scrolling, petting, headphones or nickname. Uncheck it and your cat comes back. The switch stays on after a restart. Both of you need this version: an older version keeps showing a paused friend's cat, standing still.
+
 ## v1.3.3-mmccqq.5 — 2026-11-26
 
 macOS and Windows. From this version on, both platforms have the same version number and features. It's also the first fork version for Windows: the changes in v1.3.3-mmccqq.1 to .4 below were Mac-only, and Windows gets all of them here (see "Windows catches up" at the end of this section).

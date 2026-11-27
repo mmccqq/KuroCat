@@ -225,7 +225,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.length = linked ? NSStatusItem.variableLength : NSStatusItem.squareLength
         button.title = linked ? "🔗" : ""
         button.imagePosition = linked ? .imageLeft : .imageOnly
-        button.toolTip = linked ? tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中", "KuroCat keyboard cat · Cat Link on") : tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
+        button.toolTip = !linked ? tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
+            : catLink.isSharingPaused ? tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中（暂停分享）", "KuroCat keyboard cat · Cat Link on (sharing paused)")
+            : tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中", "KuroCat keyboard cat · Cat Link on")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
