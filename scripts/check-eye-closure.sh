@@ -20,7 +20,7 @@ for name, source in [('OriginalRenderer',original),('FixedRenderer',(root/'Sourc
     (out/(name+'.swift')).write_text(source)
 PY
 swiftc -module-cache-path "$CHECK_DIR/cache" \
-    "$ROOT/Sources/KeyMap.swift" "$ROOT/Sources/InputEngine.swift" \
+    "$ROOT/Sources/Localization.swift" "$ROOT/Sources/KeyMap.swift" "$ROOT/Sources/InputEngine.swift" \
     "$ROOT/Sources/CoatPatterns.swift" "$CHECK_DIR/CatPhysics.swift" "$CHECK_DIR/OriginalRenderer.swift" "$CHECK_DIR/FixedRenderer.swift" \
     "$ROOT/tests/eye-closure/main.swift" -o "$CHECK_DIR/check" \
     -framework AppKit -framework CoreGraphics -framework QuartzCore -framework IOKit -framework ApplicationServices

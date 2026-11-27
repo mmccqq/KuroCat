@@ -1,29 +1,33 @@
 #!/usr/bin/env bash
-# Publish a KuroCat release that the apps' auto-update picks up (macOS + Windows).
+# Publish a Whiskerkey release that the apps' auto-update picks up (macOS + Windows).
 #
 #   scripts/release.sh             publish
 #   scripts/release.sh --dry-run   run every check and the macOS build, but don't tag or publish
 #
-# Publishes the version in Resources/Info.plist (KuroCatForkVersion), which must equal APP_VERSION
+# Publishes the version in Resources/Info.plist (CFBundleShortVersionString), which must equal APP_VERSION
 # in windows/src/main.cpp and have a "## v<version>" section in CHANGELOG.md and CHANGELOG.en.md
 # (used as the release notes). Run it on main, with everything committed and pushed. It:
-#   1. builds KuroCat.app here, signed with "KuroCat Code Signing" (the certificate never leaves this
-#      Mac; it is what lets updates keep macOS's Input Monitoring permission),
-#   2. checks that the installed KuroCat would accept this build as an update,
+#   1. builds Whiskerkey.app here, signed with "Whiskerkey Code Signing" (the certificate never leaves
+#      this Mac; it is what lets updates keep macOS's Input Monitoring permission),
+#   2. checks that the installed Whiskerkey would accept this build as an update,
 #   3. tags and pushes v<version>; .github/workflows/release.yml then builds and tests the Windows .exe,
-#   4. downloads that .exe and publishes the release with both files (only this script creates releases).
+#   4. downloads that .exe and publishes the release with both files (only this script creates releases),
+#   5. moves the Whiskerkey.app it built to the Trash: a newer copy left here would make the installed
+#      app offer "switch to the copy you already downloaded" instead of downloading the update.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 REPO="whiskerkey/whiskerkey"
-MAC_ZIP="dist/KuroCat-macOS-universal.zip"
+APP="Whiskerkey.app"
+MAC_ZIP="dist/Whiskerkey-macOS-universal.zip"
+WIN_ASSET="Whiskerkey-Windows-x64.exe"
 die() { echo "release: $*" >&2; exit 1; }
 # A dry run reports these problems instead of stopping, so it can still check the rest.
 must() { if [ "$DRY_RUN" = 1 ]; then echo "release (dry run would stop here): $*" >&2; else die "$@"; fi; }
 
-VERSION="$(/usr/libexec/PlistBuddy -c 'Print :KuroCatForkVersion' Resources/Info.plist)"
+VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
 WIN_VERSION="$(sed -n 's/.*APP_VERSION = L"\([^"]*\)".*/\1/p' windows/src/main.cpp)"
 TAG="v$VERSION"
 [ "$WIN_VERSION" = "$VERSION" ] || die "windows/src/main.cpp APP_VERSION ($WIN_VERSION) differs from Info.plist ($VERSION)"
@@ -37,22 +41,22 @@ echo "==> Building $TAG for macOS"
 ./build.sh
 # Read codesign's output first, then search it: piping into `grep -q` makes codesign die of a broken
 # pipe once grep has its match, which `set -o pipefail` reports as a failure.
-SIGN_INFO="$(codesign -dvv KuroCat.app 2>&1 || true)"
+SIGN_INFO="$(codesign -dvv "$APP" 2>&1 || true)"
 case "$SIGN_INFO" in
-    *"Authority=KuroCat Code Signing"*) ;;
-    *) die "KuroCat.app is not signed with \"KuroCat Code Signing\" (updates would lose Input Monitoring)" ;;
+    *"Authority=Whiskerkey Code Signing"*) ;;
+    *) die "$APP is not signed with \"Whiskerkey Code Signing\" (updates would lose Input Monitoring)" ;;
 esac
 # The installed app accepts an update only if it meets the installed app's designated requirement
 # (same identifier and certificate). Check that with codesign, which works for any installed version.
-if [ -d /Applications/KuroCat.app ]; then
-    REQ="$(codesign -d -r- /Applications/KuroCat.app 2>/dev/null | sed -n 's/^designated => //p')"
-    [ -n "$REQ" ] || die "could not read the installed KuroCat's signature requirement"
-    codesign --verify --deep --strict -R="$REQ" KuroCat.app \
-        || die "the installed KuroCat would refuse this build as an update"
+if [ -d "/Applications/$APP" ]; then
+    REQ="$(codesign -d -r- "/Applications/$APP" 2>/dev/null | sed -n 's/^designated => //p')"
+    [ -n "$REQ" ] || die "could not read the installed Whiskerkey's signature requirement"
+    codesign --verify --deep --strict -R="$REQ" "$APP" \
+        || die "the installed Whiskerkey would refuse this build as an update"
 fi
 mkdir -p dist
 rm -f "$MAC_ZIP"
-ditto -c -k --keepParent KuroCat.app "$MAC_ZIP"
+ditto -c -k --keepParent "$APP" "$MAC_ZIP"
 
 # Release notes: this version's section of CHANGELOG.md (中文) and CHANGELOG.en.md (English).
 section() {   # print the body of "## <tag>..." up to the next "## " heading
@@ -71,7 +75,7 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 echo "==> Tagging $TAG"
-git tag -a "$TAG" -m "KuroCat $TAG"
+git tag -a "$TAG" -m "Whiskerkey $TAG"
 git push -q origin "$TAG"
 
 echo "==> Waiting for the Windows build"
@@ -88,16 +92,17 @@ gh run watch "$RUN" -R "$REPO" --exit-status --interval 20 >/dev/null || die "th
 
 WIN_DIR="dist/windows"
 rm -rf "$WIN_DIR"
-gh run download "$RUN" -R "$REPO" -n KuroCat-Windows-x64 -D "$WIN_DIR"
-WIN_EXE="$WIN_DIR/KuroCat-Windows-x64.exe"
+gh run download "$RUN" -R "$REPO" -n Whiskerkey-Windows-x64 -D "$WIN_DIR"
+WIN_EXE="$WIN_DIR/$WIN_ASSET"
 [ "$(head -c 2 "$WIN_EXE")" = "MZ" ] || die "the downloaded Windows build is not a Windows program"
 python3 -I -c 'import sys; sys.exit(0 if sys.argv[2].encode("utf-16-le") in open(sys.argv[1], "rb").read() else 1)' "$WIN_EXE" "$VERSION" \
     || die "the Windows build does not contain version $VERSION"
 
 echo "==> Publishing the release"
 if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then die "a release for $TAG already exists"; fi
-gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "KuroCat $TAG" --notes "$NOTES" "$MAC_ZIP" "$WIN_EXE"
+gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "Whiskerkey $TAG" --notes "$NOTES" "$MAC_ZIP" "$WIN_EXE"
 ASSETS="$(gh release view "$TAG" -R "$REPO" --json assets -q '.assets[].name')"
-grep -qx "KuroCat-macOS-universal.zip" <<<"$ASSETS" || die "the release has no macOS zip"
-grep -qx "KuroCat-Windows-x64.exe" <<<"$ASSETS" || die "the release has no Windows exe"
+grep -qx "$(basename "$MAC_ZIP")" <<<"$ASSETS" || die "the release has no macOS zip"
+grep -qx "$WIN_ASSET" <<<"$ASSETS" || die "the release has no Windows exe"
 echo "==> Published $TAG: https://github.com/$REPO/releases/tag/$TAG"
+mv "$APP" "$HOME/.Trash/Whiskerkey-$VERSION-build-$(date +%H%M%S).app" && echo "==> Moved the local $APP build to the Trash"

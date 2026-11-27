@@ -145,7 +145,7 @@ final class BreakReminderCenter {
     static func clock() -> Double { Double(clock_gettime_nsec_np(CLOCK_MONOTONIC)) / 1_000_000_000 }
 
     static let choices = [0, 30, 60, 120, 180]
-    private let minutesKey = "KuroCat.BreakReminderMinutes"
+    private let minutesKey = "Whiskerkey.BreakReminderMinutes"
     var minutes: Int {
         get { UserDefaults.standard.object(forKey: minutesKey) as? Int ?? 60 }
         set { UserDefaults.standard.set(newValue, forKey: minutesKey); logic.setInterval(Double(newValue) * 60, now: Self.clock()) }
@@ -169,7 +169,7 @@ final class BreakReminderCenter {
     static let ackLife: Double = 4
 
     private init() {
-        let stored = UserDefaults.standard.object(forKey: "KuroCat.BreakReminderMinutes") as? Int ?? 60
+        let stored = UserDefaults.standard.object(forKey: "Whiskerkey.BreakReminderMinutes") as? Int ?? 60
         logic = BreakReminderLogic(interval: Double(stored) * 60, now: Self.clock())
     }
 

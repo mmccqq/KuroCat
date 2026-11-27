@@ -1,15 +1,15 @@
-name: Build KuroCat (macOS, Windows & Linux/UOS)
+name: Build Whiskerkey (macOS, Windows & Linux/UOS)
 
 on:
   push:
     branches: [ main ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
 
+# Releases are published only by scripts/release.sh (see docs/releasing.md).
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build-windows:
@@ -23,18 +23,18 @@ jobs:
         with:
           arch: x64
 
-      - name: Build standalone KuroCat.exe
+      - name: Build standalone Whiskerkey.exe
         shell: cmd
         run: |
           cd windows
           call build.bat
-          dir KuroCat.exe
+          dir Whiskerkey.exe
 
       - name: Upload Windows binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KuroCat-Windows-x64
-          path: windows/KuroCat.exe
+          name: Whiskerkey-Windows-x64
+          path: windows/Whiskerkey.exe
 
   build-macos:
     runs-on: macos-latest
@@ -50,18 +50,18 @@ jobs:
       - name: Check covered eye pixels
         run: bash scripts/check-eye-closure.sh
 
-      - name: Build Universal KuroCat.app (Apple Silicon + Intel)
+      - name: Build Universal Whiskerkey.app (Apple Silicon + Intel)
         run: |
           chmod +x build.sh
           ./build.sh
-          ditto -c -k --sequesterRsrc --keepParent KuroCat.app KuroCat-macOS-universal.zip
-          ls -lh KuroCat-macOS-universal.zip
+          ditto -c -k --sequesterRsrc --keepParent Whiskerkey.app Whiskerkey-macOS-universal.zip
+          ls -lh Whiskerkey-macOS-universal.zip
 
       - name: Upload macOS universal app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KuroCat-macOS-universal
-          path: KuroCat-macOS-universal.zip
+          name: Whiskerkey-macOS-universal
+          path: Whiskerkey-macOS-universal.zip
 
   build-linux:
     strategy:
@@ -115,29 +115,3 @@ jobs:
           path: |
             linux/KuroCat-Linux-${{ matrix.arch }}.deb
             linux/KuroCat-Linux-${{ matrix.tar_arch }}.tar.gz
-
-  release:
-    needs: [ build-windows, build-macos, build-linux ]
-    if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
-    steps:
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: dist
-          merge-multiple: true
-
-      - name: Rename Windows binary
-        run: mv dist/KuroCat.exe dist/KuroCat-Windows-x64.exe
-
-      - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          generate_release_notes: true
-          files: |
-            dist/KuroCat-macOS-universal.zip
-            dist/KuroCat-Windows-x64.exe
-            dist/KuroCat-Linux-amd64.deb
-            dist/KuroCat-Linux-x86_64.tar.gz
-            dist/KuroCat-Linux-arm64.deb
-            dist/KuroCat-Linux-arm64.tar.gz

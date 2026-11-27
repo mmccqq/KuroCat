@@ -1,22 +1,24 @@
 #!/usr/bin/env bash
-# 一次性创建 KuroCat 的「固定签名证书」（自签名，免费，不需要苹果开发者账号）。
+# Creates Whiskerkey's stable signing certificate once (self-signed, free, no Apple developer account).
+# 一次性创建 Whiskerkey 的「固定签名证书」（自签名，免费，不需要苹果开发者账号）。
 #
 # 为什么需要：macOS 按「代码签名」记住输入监控 / 辅助功能权限。之前 Mac 版用临时（ad-hoc）签名，
 # 每编译一次签名就变，系统把每个新版本当成新 App —— 用户每次更新都要重新开一次「输入监控」，
 # 系统设置里还会残留一个旧的 KuroCat 开关。用同一张证书签名后，更新后权限会一直保留。
 #
 # 用法（在 Mac 上执行一次即可）：
-#   bash scripts/create-macos-signing-cert.sh [备份目录，默认 ~/KuroCat-signing]
+#   bash scripts/create-macos-signing-cert.sh [备份目录，默认 ~/Whiskerkey-signing]
 #
 # 执行后：
 #   - 证书导入「登录」钥匙串，本机 ./build.sh 会自动使用它签名
-#   - 备份目录里有 kurocat-signing.p12 和密码：务必备份！丢了就只能换新证书，
+#   - 备份目录里有 whiskerkey-signing.p12 和密码：务必备份！丢了就只能换新证书，
 #     用户更新到换证书后的版本时还得再授权一次
 #   - 如果用 GitHub Actions 打包，把脚本最后打印的两项填进仓库 Secrets
 set -euo pipefail
 
-NAME="KuroCat Code Signing"
-OUT_DIR="${1:-$HOME/KuroCat-signing}"
+NAME="Whiskerkey Code Signing"
+OUT_DIR="${1:-$HOME/Whiskerkey-signing}"
+P12="$OUT_DIR/whiskerkey-signing.p12"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 OPENSSL=/usr/bin/openssl   # macOS 自带的 LibreSSL，导出的 .p12 能被 security 直接导入
 
@@ -57,12 +59,12 @@ P12_PASSWORD="$("$OPENSSL" rand -hex 16)"
 LEGACY=""
 if "$OPENSSL" version | grep -q "^OpenSSL 3"; then LEGACY="-legacy"; fi
 "$OPENSSL" pkcs12 -export $LEGACY -inkey "$WORK/key.pem" -in "$WORK/cert.pem" \
-    -name "$NAME" -out "$OUT_DIR/kurocat-signing.p12" -passout "pass:$P12_PASSWORD"
+    -name "$NAME" -out "$P12" -passout "pass:$P12_PASSWORD"
 
-security import "$OUT_DIR/kurocat-signing.p12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
+security import "$P12" -k "$KEYCHAIN" -P "$P12_PASSWORD" -T /usr/bin/codesign
 
 printf '%s\n' "$P12_PASSWORD" > "$OUT_DIR/p12-password.txt"
-base64 < "$OUT_DIR/kurocat-signing.p12" > "$OUT_DIR/kurocat-signing.p12.base64.txt"
+base64 < "$P12" > "$P12.base64.txt"
 chmod 600 "$OUT_DIR"/*
 
 echo ""
@@ -72,5 +74,5 @@ echo ""
 echo "📦 备份文件（请妥善保存，不要上传到公开仓库）：$OUT_DIR"
 echo ""
 echo "🔧 如果用 GitHub Actions 打包 Mac 版，在仓库 Settings → Secrets and variables → Actions 新建："
-echo "   MACOS_SIGN_P12_BASE64   = $OUT_DIR/kurocat-signing.p12.base64.txt 的全部内容"
+echo "   MACOS_SIGN_P12_BASE64   = $P12.base64.txt 的全部内容"
 echo "   MACOS_SIGN_P12_PASSWORD = $OUT_DIR/p12-password.txt 的内容"

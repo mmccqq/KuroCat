@@ -11,7 +11,7 @@ final class CatCanvasView: NSView {
     /// Small name tag above the cat, e.g. "小明 · 在线"; dimmed while the friend is offline.
     var nameLabel: String? { didSet { if nameLabel != oldValue { needsDisplay = true } } }
     var nameLabelDimmed = false
-    var positionKey = "KuroCat.Pos"
+    var positionKey = "Whiskerkey.Pos"
     /// Our own cat shows Claude Code bubbles above its head (never the friend's cat).
     var showsClaudeAlerts = false
     /// Our own cat also shows the break reminder; while it is up, it takes the Claude bubbles' place.
@@ -224,7 +224,7 @@ final class OverlayWindow: NSPanel {
 
     /// `positionKey` keeps each cat's saved position separate; `defaultShiftX` moves the default
     /// spot (a friend's cat sits to the left of yours).
-    init(positionKey: String = "KuroCat.Pos", defaultShiftX: CGFloat = 0) {
+    init(positionKey: String = "Whiskerkey.Pos", defaultShiftX: CGFloat = 0) {
         self.positionKey = positionKey
         self.defaultShiftX = defaultShiftX
         let scale = CatSettings.shared.scale

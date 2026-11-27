@@ -2,27 +2,27 @@
 setlocal
 cd /d "%~dp0"
 
-echo ==> Building KuroCat.exe (Windows native C++17 / Win32 + GDI+ + Raw Input)...
+echo ==> Building Whiskerkey.exe (Windows native C++17 / Win32 + GDI+ + Raw Input)...
 
 where cl >nul 2>nul
 if %ERRORLEVEL%==0 (
     cl /nologo /std:c++17 /O2 /MT /EHsc /utf-8 /DUNICODE /D_UNICODE ^
-       /W3 src\main.cpp /Fe:KuroCat.exe ^
+       /W3 src\main.cpp /Fe:Whiskerkey.exe ^
        /link /SUBSYSTEM:WINDOWS /MANIFEST:EMBED /MANIFESTINPUT:app.manifest ^
        user32.lib gdi32.lib gdiplus.lib shell32.lib advapi32.lib winhttp.lib wtsapi32.lib bcrypt.lib ole32.lib oleaut32.lib
     if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
     del /q main.obj 2>nul
-    echo ==> Built successfully with MSVC: %~dp0KuroCat.exe
+    echo ==> Built successfully with MSVC: %~dp0Whiskerkey.exe
     exit /b 0
 )
 
 where g++ >nul 2>nul
 if %ERRORLEVEL%==0 (
     g++ -std=c++17 -O2 -mwindows -municode -DUNICODE -D_UNICODE -static ^
-        src\main.cpp -o KuroCat.exe ^
+        src\main.cpp -o Whiskerkey.exe ^
         -luser32 -lgdi32 -lgdiplus -lshell32 -ladvapi32 -lwinhttp -lwtsapi32 -lbcrypt -lole32 -loleaut32 -luuid
     if %ERRORLEVEL% neq 0 exit /b %ERRORLEVEL%
-    echo ==> Built successfully with MinGW: %~dp0KuroCat.exe
+    echo ==> Built successfully with MinGW: %~dp0Whiskerkey.exe
     exit /b 0
 )
 

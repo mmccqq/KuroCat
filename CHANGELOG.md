@@ -2,7 +2,17 @@
 
 [English](CHANGELOG.en.md) | 中文
 
-本分支（基于上游 [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3）每个版本的改动，最新的在最上面。版本号形如 `v1.3.3-mmccqq.5`：前面是上游版本，最后的数字是本分支的第几个版本。
+Whiskerkey 每个版本的改动，最新的在最上面。Whiskerkey 基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3，v1.3.3-mmccqq.8 之前叫 KuroCat：那些版本列在 Whiskerkey 1.0 下面，版本号形如 `v1.3.3-mmccqq.5`（前面是上游版本，最后的数字是本项目的第几个版本）。
+
+## v1.0.0 — 未发布
+
+macOS 和 Windows。**KuroCat 现在叫 Whiskerkey**，小猫叫 **Whisku**（读作 WHIS-koo）。
+
+- **手动安装一次**：从[下载页](https://github.com/whiskerkey/whiskerkey/releases/latest)下载 Whiskerkey。KuroCat 不会把它当成更新，因为版本号从 1.0 重新开始。以后 Whiskerkey 会自动更新。
+- **全部带过来**：第一次打开时，Whiskerkey 会复制 KuroCat 的设置（小猫、猫咪连线配对码、昵称、位置和各项选项），关掉还在运行的 KuroCat，并接管「开机自启」。
+- **猫咪连线换成了 Whiskerkey 自己的协议**，所以双方都需要 Whiskerkey，它不能和 KuroCat 连线。配对码不变，朋友也装好 Whiskerkey 后会自动重新连上。配对码现在显示为 `WK-…`，旧的 `KC-…` 也还能用。
+- **Mac**：Whiskerkey 会询问是否把旧的 KuroCat 移到废纸篓，并把 Claude Code 的提醒钩子改为启动 Whiskerkey（原设置文件保留为 `~/.claude/settings.json.before-whiskerkey`）。对 macOS 来说这是一个新程序，所以需要再允许一次「输入监控」。它用自己的「Whiskerkey Code Signing」证书签名。
+- **Windows**：程序现在是 `Whiskerkey.exe`，`KuroCat.exe` 可以删掉了。
 
 ## v1.3.3-mmccqq.8 — 2026-11-27
 

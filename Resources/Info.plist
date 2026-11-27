@@ -5,25 +5,23 @@
     <key>CFBundleDevelopmentRegion</key>
     <string>zh_CN</string>
     <key>CFBundleDisplayName</key>
-    <string>KuroCat</string>
+    <string>Whiskerkey</string>
     <key>CFBundleExecutable</key>
-    <string>KuroCat</string>
+    <string>Whiskerkey</string>
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleIdentifier</key>
-    <string>com.chanke.kurocat</string>
+    <string>com.whiskerkey.app</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleName</key>
-    <string>KuroCat</string>
+    <string>Whiskerkey</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleShortVersionString</key>
-    <string>1.3.3</string>
-    <key>KuroCatForkVersion</key>
-    <string>1.3.3-mmccqq.8</string>
+    <string>1.0.0</string>
     <key>CFBundleVersion</key>
-    <string>133</string>
+    <string>100</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
     <key>LSUIElement</key>
@@ -31,6 +29,6 @@
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSInputMonitoringUsageDescription</key>
-    <string>KuroCat 需要「输入监控」权限以在打字和玩游戏时实时接收全状态键盘与鼠标按键，所有输入仅用于本地驱动桌宠动画，绝不记录或上传任何内容。</string>
+    <string>Whiskerkey 需要「输入监控」权限以在打字和玩游戏时实时接收全状态键盘与鼠标按键，所有输入仅用于本地驱动桌宠动画，绝不记录或上传任何内容。</string>
 </dict>
 </plist>

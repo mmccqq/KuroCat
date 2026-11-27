@@ -16,15 +16,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var isHandingOverToNewerCopy = false
     private let catLink = CatLinkController()
 
-    /// This fork's version, e.g. "1.3.3-mmccqq.5" (Info.plist KuroCatForkVersion); release tags are "v" + it.
+    /// Whiskerkey's version, e.g. "1.0.0" (Info.plist CFBundleShortVersionString); release tags are "v" + it.
     private var currentAppVersion: String {
-        Bundle.main.infoDictionary?["KuroCatForkVersion"] as? String
-            ?? Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.3.3"
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         if resolveDuplicateRunningCopies() { return }
+        // Whiskerkey replaces KuroCat: two cats would both react to the keyboard.
+        KuroCatMigration.quitRunningKuroCat()
 
         overlayWindow = OverlayWindow()
         overlayWindow.orderFrontRegardless()
@@ -100,14 +101,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         catLink.setup(mainWindow: overlayWindow)
 
         setupStatusItem()
+        if KuroCatMigration.removeKuroCatLoginItem() {
+            // KuroCat started at login: Whiskerkey does now.
+            _ = setAutoStartEnabled(true)
+        }
         if isAutoStartEnabled() {
-            // Keep LaunchAgent path updated if user moved KuroCat.app into /Applications
+            // Keep LaunchAgent path updated if user moved Whiskerkey.app into /Applications
             _ = setAutoStartEnabled(true)
         }
         startRenderLoop()
 
         // Check this fork's GitHub Releases shortly after launch, then every few hours
         startUpdateChecks()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 4) { KuroCatMigration.offerCleanup() }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -119,9 +125,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         InputEngine.shared.stop()
     }
 
-    // MARK: - One KuroCat at a time (newest copy wins)
+    // MARK: - One Whiskerkey at a time (newest copy wins)
 
-    /// Users often download a new KuroCat.app while an older copy is still running (or is started
+    /// Users often download a new Whiskerkey.app while an older copy is still running (or is started
     /// by the login item from another folder). That old process kept running and kept announcing
     /// "new version available" even though they had already updated. Keep only the newest copy:
     /// quit older ones, or hand over to an already-running newer one. Returns true if THIS process quits.
@@ -157,10 +163,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static func shortVersion(ofAppAt url: URL) -> String? {
         let plistURL = url.appendingPathComponent("Contents/Info.plist")
         guard let dict = NSDictionary(contentsOf: plistURL) as? [String: Any] else { return nil }
-        return dict["KuroCatForkVersion"] as? String ?? dict["CFBundleShortVersionString"] as? String
+        return dict["CFBundleShortVersionString"] as? String
     }
 
-    /// A newer KuroCat.app that is already on disk (e.g. downloaded to ~/Downloads but never
+    /// A newer Whiskerkey.app that is already on disk (e.g. downloaded to ~/Downloads but never
     /// launched because LaunchServices just re-activated this running copy).
     private func newestDownloadedCopy() -> (url: URL, version: String)? {
         guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
@@ -222,7 +228,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.image = makeMenuBarCatIcon()
-            button.toolTip = tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
+            button.toolTip = tr("Whiskerkey 黑猫键盘桌宠", "Whiskerkey keyboard cat")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -235,9 +241,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.length = linked ? NSStatusItem.variableLength : NSStatusItem.squareLength
         button.title = linked ? "🔗" : ""
         button.imagePosition = linked ? .imageLeft : .imageOnly
-        button.toolTip = !linked ? tr("KuroCat 黑猫键盘桌宠", "KuroCat keyboard cat")
-            : catLink.isSharingPaused ? tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中（暂停分享）", "KuroCat keyboard cat · Cat Link on (sharing paused)")
-            : tr("KuroCat 黑猫键盘桌宠 · 猫咪连线中", "KuroCat keyboard cat · Cat Link on")
+        button.toolTip = !linked ? tr("Whiskerkey 黑猫键盘桌宠", "Whiskerkey keyboard cat")
+            : catLink.isSharingPaused ? tr("Whiskerkey 黑猫键盘桌宠 · 猫咪连线中（暂停分享）", "Whiskerkey keyboard cat · Cat Link on (sharing paused)")
+            : tr("Whiskerkey 黑猫键盘桌宠 · 猫咪连线中", "Whiskerkey keyboard cat · Cat Link on")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -428,7 +434,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         resetPosItem.target = self
         menu.addItem(resetPosItem)
 
-        let relaunchItem = NSMenuItem(title: tr("重启 KuroCat (授权后刷新)", "Restart KuroCat (after granting permission)"), action: #selector(relaunchApp), keyEquivalent: "")
+        let relaunchItem = NSMenuItem(title: tr("重启 Whiskerkey (授权后刷新)", "Restart Whiskerkey (after granting permission)"), action: #selector(relaunchApp), keyEquivalent: "")
         relaunchItem.target = self
         menu.addItem(relaunchItem)
 
@@ -463,7 +469,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: tr("退出 KuroCat", "Quit KuroCat"), action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: tr("退出 Whiskerkey", "Quit Whiskerkey"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -514,8 +520,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var launchAgentURL: URL {
         let dir = FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/LaunchAgents", isDirectory: true)
-        return dir.appendingPathComponent("com.chanke.kurocat.plist")
+        return dir.appendingPathComponent("\(Self.launchAgentLabel).plist")
     }
+
+    static let launchAgentLabel = "com.whiskerkey.app"
 
     private func isAutoStartEnabled() -> Bool {
         FileManager.default.fileExists(atPath: launchAgentURL.path)
@@ -530,7 +538,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 let appPath = Bundle.main.bundlePath
                 let plist: [String: Any] = [
-                    "Label": "com.chanke.kurocat",
+                    "Label": Self.launchAgentLabel,
                     "ProgramArguments": ["/usr/bin/open", "-a", appPath],
                     "RunAtLoad": true,
                     "KeepAlive": false
@@ -673,14 +681,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let updateRepo = "whiskerkey/whiskerkey"
     private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
     private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
-    /// KuroCat is becoming Whiskerkey (with its own app ID). While it moves, updates may use either name;
-    /// the new name is preferred. The download must still be signed with this app's own certificate.
-    static let macAssetNames = ["Whiskerkey-macOS-universal.zip", "KuroCat-macOS-universal.zip"]
-    static let updateAppNames = ["Whiskerkey", "KuroCat"]
-    static let updateIdentifiers = ["com.whiskerkey.app", "com.chanke.kurocat"]
+    /// The update's file, the app inside it, and the app ID it must be signed with (by this app's certificate).
+    static let macAssetNames = ["Whiskerkey-macOS-universal.zip"]
+    static let updateAppNames = ["Whiskerkey"]
+    static let updateIdentifiers = ["com.whiskerkey.app"]
+
+    /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whiskerkey, even though their numbers
+    /// are higher than 1.x.
+    static func isWhiskerkeyRelease(_ tag: String) -> Bool { !tag.contains("mmccqq") }
     private static let updateCheckInterval: TimeInterval = 6 * 3600
     /// The newest version we already showed the "new version" prompt for (later checks only update the menu).
-    private static let promptedTagKey = "KuroCat.UpdatePromptedTag"
+    private static let promptedTagKey = "Whiskerkey.UpdatePromptedTag"
     private var availableAssetSize: Int?
     private var updateTimer: Timer?
 
@@ -724,7 +735,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func fetchLatestRelease(completion: @escaping (UpdateCheckOutcome) -> Void) {
         var req = URLRequest(url: URL(string: Self.latestReleaseAPI)!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
-        req.setValue("KuroCat/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("Whiskerkey/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         URLSession.shared.dataTask(with: req) { data, response, error in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -756,6 +767,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     private func handleUpdateResult(_ info: UpdateInfo, manual: Bool) {
+        guard Self.isWhiskerkeyRelease(info.tag) else {
+            availableUpdateVersion = nil
+            if manual {
+                showInfoAlert(title: tr("已是最新版本", "Up to date"), message: tr("当前版本 v\(currentAppVersion) 已是最新版本。", "v\(currentAppVersion) is the latest version."))
+            }
+            return
+        }
         if isVersion(info.tag, newerThan: currentAppVersion),
            let local = newestDownloadedCopy(), !isVersion(info.tag, newerThan: local.version) {
             // The user already downloaded the latest version; they are just still running the old copy.
@@ -802,7 +820,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// True if `url` is a valid app signed with the same certificate as `reference`, under one of
-    /// `updateIdentifiers` (KuroCat or Whiskerkey). An ad-hoc signed reference accepts nothing.
+    /// `updateIdentifiers`. An ad-hoc signed reference accepts nothing.
     static func isSigned(_ url: URL, likeApp reference: SecStaticCode) -> Bool {
         guard let requirement = updateRequirement(likeApp: reference) else { return false }
         var newCode: SecStaticCode?
@@ -825,7 +843,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return requirement
     }
 
-    /// The app inside an extracted update: Whiskerkey.app, or KuroCat.app from before the rename.
+    /// The app inside an extracted update (Whiskerkey.app).
     static func updatedApp(in folder: URL) -> URL? {
         for name in updateAppNames {
             let app = folder.appendingPathComponent("\(name).app")
@@ -835,7 +853,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     /// The shell script that replaces the running app once it has quit. The update keeps its own name
-    /// (Whiskerkey.app replaces KuroCat.app in the same folder). On failure the old app is put back.
+    /// (if it differs, the new app goes next to the old one, which is removed). On failure the old app is put back.
     /// `open` is the command that starts an app (tests pass `true`).
     static func installScript(pid: Int32, currentApp: URL, newApp: URL, workDir: URL, open: String = "open -n") -> String {
         func q(_ s: String) -> String { "'" + s.replacingOccurrences(of: "'", with: "'\\''") + "'" }
@@ -879,8 +897,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = tr("发现 KuroCat 新版本 \(latestTag)", "KuroCat \(latestTag) is available")
-        alert.informativeText = tr("当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。", "Current version: v\(currentAppVersion)\nLatest version: \(latestTag)\nRunning from: \(Bundle.main.bundlePath)\n\n“Update now” downloads it in the background and restarts KuroCat.")
+        alert.messageText = tr("发现 Whiskerkey 新版本 \(latestTag)", "Whiskerkey \(latestTag) is available")
+        alert.informativeText = tr("当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。", "Current version: v\(currentAppVersion)\nLatest version: \(latestTag)\nRunning from: \(Bundle.main.bundlePath)\n\n“Update now” downloads it in the background and restarts Whiskerkey.")
         alert.addButton(withTitle: tr("立即更新", "Update now"))
         alert.addButton(withTitle: tr("打开下载页", "Open download page"))
         alert.addButton(withTitle: tr("稍后再说", "Later"))
@@ -898,7 +916,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = tr("没有安装这个更新", "This update wasn't installed")
-        alert.informativeText = tr("下载的新版本和当前 KuroCat 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。", "The downloaded version isn't signed with the same certificate as this KuroCat, so for safety it wasn't installed. You can download it from the download page instead.")
+        alert.informativeText = tr("下载的新版本和当前 Whiskerkey 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。", "The downloaded version isn't signed with the same certificate as this Whiskerkey, so for safety it wasn't installed. You can download it from the download page instead.")
         alert.addButton(withTitle: tr("打开下载页", "Open download page"))
         alert.addButton(withTitle: tr("取消", "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
@@ -917,7 +935,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isUpdating = true
 
         var req = URLRequest(url: assetURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60)
-        req.setValue("KuroCat/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("Whiskerkey/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.downloadTask(with: req) { [weak self] tempURL, response, error in
             guard let self else { return }
@@ -931,7 +949,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
 
             let fm = FileManager.default
-            let workDir = fm.temporaryDirectory.appendingPathComponent("KuroCatUpdate-\(UUID().uuidString)")
+            let workDir = fm.temporaryDirectory.appendingPathComponent("WhiskerkeyUpdate-\(UUID().uuidString)")
             let zipURL = workDir.appendingPathComponent("update.zip")
             let extractDir = workDir.appendingPathComponent("extracted")
             do {
@@ -941,7 +959,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let fileSize = (attrs[.size] as? NSNumber)?.intValue ?? 0
                 // Must be complete: exactly the size GitHub lists for this file.
                 guard fileSize > 50_000, expectedSize == nil || fileSize == expectedSize else {
-                    throw NSError(domain: "KuroCatUpdate", code: 1)
+                    throw NSError(domain: "WhiskerkeyUpdate", code: 1)
                 }
 
                 let unzip = Process()
@@ -950,14 +968,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try unzip.run()
                 unzip.waitUntilExit()
                 guard unzip.terminationStatus == 0 else {
-                    throw NSError(domain: "KuroCatUpdate", code: 2)
+                    throw NSError(domain: "WhiskerkeyUpdate", code: 2)
                 }
 
                 guard let newAppURL = Self.updatedApp(in: extractDir) else {
-                    throw NSError(domain: "KuroCatUpdate", code: 3)
+                    throw NSError(domain: "WhiskerkeyUpdate", code: 3)
                 }
                 guard Self.isSignedLikeThisApp(newAppURL) else {
-                    throw NSError(domain: "KuroCatUpdate", code: 4)
+                    throw NSError(domain: "WhiskerkeyUpdate", code: 4)
                 }
 
                 let currentAppURL = Bundle.main.bundleURL
@@ -988,7 +1006,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         let installed = currentAppURL.deletingLastPathComponent().appendingPathComponent(newAppURL.lastPathComponent)
         if needsAdmin {
-            // Whiskerkey.app replaces KuroCat.app: the old one is moved aside, then removed.
+            // An update with another name goes next to this app, which is moved aside, then removed.
             let newDst = shQuote(installed.path)
             let clearNew = installed.standardizedFileURL == currentAppURL.standardizedFileURL ? "" : "rm -rf \(newDst) && "
             let cmd = "rm -rf \(dst).bak && mv \(dst) \(dst).bak && \(clearNew)/usr/bin/ditto \(src) \(newDst) && rm -rf \(dst).bak \(tmp)"

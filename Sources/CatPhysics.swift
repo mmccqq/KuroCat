@@ -85,61 +85,61 @@ final class CatSettings {
     static let shared = CatSettings()
 
     var showKeyBadges: Bool {
-        didSet { UserDefaults.standard.set(showKeyBadges, forKey: "KuroCat.ShowKeyBadges") }
+        didSet { UserDefaults.standard.set(showKeyBadges, forKey: "Whiskerkey.ShowKeyBadges") }
     }
     var showMouseBadges: Bool {
-        didSet { UserDefaults.standard.set(showMouseBadges, forKey: "KuroCat.ShowMouseBadges") }
+        didSet { UserDefaults.standard.set(showMouseBadges, forKey: "Whiskerkey.ShowMouseBadges") }
     }
     var showKeyLegends: Bool {
-        didSet { UserDefaults.standard.set(showKeyLegends, forKey: "KuroCat.ShowKeyLegends") }
+        didSet { UserDefaults.standard.set(showKeyLegends, forKey: "Whiskerkey.ShowKeyLegends") }
     }
     var footEasterEgg: Bool {
-        didSet { UserDefaults.standard.set(footEasterEgg, forKey: "KuroCat.FootEasterEgg") }
+        didSet { UserDefaults.standard.set(footEasterEgg, forKey: "Whiskerkey.FootEasterEgg") }
     }
     var petInteraction: Bool {
-        didSet { UserDefaults.standard.set(petInteraction, forKey: "KuroCat.PetInteraction") }
+        didSet { UserDefaults.standard.set(petInteraction, forKey: "Whiskerkey.PetInteraction") }
     }
     var earbudAnimation: Bool {
-        didSet { UserDefaults.standard.set(earbudAnimation, forKey: "KuroCat.EarbudAnimation") }
+        didSet { UserDefaults.standard.set(earbudAnimation, forKey: "Whiskerkey.EarbudAnimation") }
     }
     var mosquitoVisits: Bool {
-        didSet { UserDefaults.standard.set(mosquitoVisits, forKey: "KuroCat.MosquitoVisits") }
+        didSet { UserDefaults.standard.set(mosquitoVisits, forKey: "Whiskerkey.MosquitoVisits") }
     }
     var fullClickThrough: Bool {
-        didSet { UserDefaults.standard.set(fullClickThrough, forKey: "KuroCat.FullClickThrough") }
+        didSet { UserDefaults.standard.set(fullClickThrough, forKey: "Whiskerkey.FullClickThrough") }
     }
     var fullScreenOverlay: Bool {
-        didSet { UserDefaults.standard.set(fullScreenOverlay, forKey: "KuroCat.FullScreenOverlay") }
+        didSet { UserDefaults.standard.set(fullScreenOverlay, forKey: "Whiskerkey.FullScreenOverlay") }
     }
     var scale: CGFloat {
-        didSet { UserDefaults.standard.set(Double(scale), forKey: "KuroCat.Scale") }
+        didSet { UserDefaults.standard.set(Double(scale), forKey: "Whiskerkey.Scale") }
     }
     var coatTheme: CatCoatTheme {
-        didSet { UserDefaults.standard.set(coatTheme.rawValue, forKey: "KuroCat.CoatTheme") }
+        didSet { UserDefaults.standard.set(coatTheme.rawValue, forKey: "Whiskerkey.CoatTheme") }
     }
     var keyboardTheme: KeyboardTheme {
-        didSet { UserDefaults.standard.set(keyboardTheme.rawValue, forKey: "KuroCat.KeyboardTheme") }
+        didSet { UserDefaults.standard.set(keyboardTheme.rawValue, forKey: "Whiskerkey.KeyboardTheme") }
     }
     var eyeTheme: EyeColorTheme {
-        didSet { UserDefaults.standard.set(eyeTheme.rawValue, forKey: "KuroCat.EyeTheme") }
+        didSet { UserDefaults.standard.set(eyeTheme.rawValue, forKey: "Whiskerkey.EyeTheme") }
     }
 
     private init() {
         let d = UserDefaults.standard
-        showKeyBadges = d.object(forKey: "KuroCat.ShowKeyBadges") as? Bool ?? true
-        showMouseBadges = d.object(forKey: "KuroCat.ShowMouseBadges") as? Bool ?? true
-        showKeyLegends = d.object(forKey: "KuroCat.ShowKeyLegends") as? Bool ?? true
-        footEasterEgg = d.object(forKey: "KuroCat.FootEasterEgg") as? Bool ?? true
-        petInteraction = d.object(forKey: "KuroCat.PetInteraction") as? Bool ?? true
-        earbudAnimation = d.object(forKey: "KuroCat.EarbudAnimation") as? Bool ?? true
-        mosquitoVisits = d.object(forKey: "KuroCat.MosquitoVisits") as? Bool ?? true
-        fullClickThrough = d.object(forKey: "KuroCat.FullClickThrough") as? Bool ?? false
-        fullScreenOverlay = d.object(forKey: "KuroCat.FullScreenOverlay") as? Bool ?? true
-        let savedScale = d.double(forKey: "KuroCat.Scale")
+        showKeyBadges = d.object(forKey: "Whiskerkey.ShowKeyBadges") as? Bool ?? true
+        showMouseBadges = d.object(forKey: "Whiskerkey.ShowMouseBadges") as? Bool ?? true
+        showKeyLegends = d.object(forKey: "Whiskerkey.ShowKeyLegends") as? Bool ?? true
+        footEasterEgg = d.object(forKey: "Whiskerkey.FootEasterEgg") as? Bool ?? true
+        petInteraction = d.object(forKey: "Whiskerkey.PetInteraction") as? Bool ?? true
+        earbudAnimation = d.object(forKey: "Whiskerkey.EarbudAnimation") as? Bool ?? true
+        mosquitoVisits = d.object(forKey: "Whiskerkey.MosquitoVisits") as? Bool ?? true
+        fullClickThrough = d.object(forKey: "Whiskerkey.FullClickThrough") as? Bool ?? false
+        fullScreenOverlay = d.object(forKey: "Whiskerkey.FullScreenOverlay") as? Bool ?? true
+        let savedScale = d.double(forKey: "Whiskerkey.Scale")
         scale = savedScale > 0.3 ? CGFloat(savedScale) : 1.0
-        coatTheme = CatCoatTheme(rawValue: d.string(forKey: "KuroCat.CoatTheme") ?? "") ?? .classicBlack
-        keyboardTheme = KeyboardTheme(rawValue: d.string(forKey: "KuroCat.KeyboardTheme") ?? "") ?? .classicMilk
-        let savedEye = d.string(forKey: "KuroCat.EyeTheme") ?? ""
+        coatTheme = CatCoatTheme(rawValue: d.string(forKey: "Whiskerkey.CoatTheme") ?? "") ?? .classicBlack
+        keyboardTheme = KeyboardTheme(rawValue: d.string(forKey: "Whiskerkey.KeyboardTheme") ?? "") ?? .classicMilk
+        let savedEye = d.string(forKey: "Whiskerkey.EyeTheme") ?? ""
         eyeTheme = EyeColorTheme.saved(savedEye)
     }
 }
@@ -316,7 +316,7 @@ final class CatPhysics {
     // Petting state
     private(set) var petHeadIntensity: CGFloat = 0  // 0..1 -> happy closed lime lines
     private(set) var petBodyIntensity: CGFloat = 0  // 0..1 -> blissful half-squint
-    private(set) var totalPetSessions: Int = UserDefaults.standard.integer(forKey: "KuroCat.PetCount")
+    private(set) var totalPetSessions: Int = UserDefaults.standard.integer(forKey: "Whiskerkey.PetCount")
     private var petStrokeAccumulator: CGFloat = 0
     private var lastPetTime: CFTimeInterval = 0
     private var lastStrokeTime: CFTimeInterval = 0
@@ -827,7 +827,7 @@ final class CatPhysics {
                   petStrokeAccumulator >= CatPhysics.petEngageDistance else { return }
             isCurrentlyPetting = true
             totalPetSessions += 1
-            UserDefaults.standard.set(totalPetSessions, forKey: "KuroCat.PetCount")
+            UserDefaults.standard.set(totalPetSessions, forKey: "Whiskerkey.PetCount")
         }
 
         lastPetTime = now

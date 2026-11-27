@@ -18,7 +18,7 @@ for name,source in [('LegacyRenderer',subprocess.check_output(['git','-C',str(ro
  (out/(name+'.swift')).write_text(source)
 PY
 swiftc -module-cache-path "$CHECK_DIR/cache" \
- "$ROOT/Sources/KeyMap.swift" "$ROOT/Sources/InputEngine.swift" "$ROOT/Sources/CoatPatterns.swift" \
+ "$ROOT/Sources/Localization.swift" "$ROOT/Sources/KeyMap.swift" "$ROOT/Sources/InputEngine.swift" "$ROOT/Sources/CoatPatterns.swift" \
  "$CHECK_DIR/CatPhysics.swift" "$CHECK_DIR/LegacyRenderer.swift" "$CHECK_DIR/CurrentRenderer.swift" \
  "$ROOT/tests/skins/main.swift" -o "$CHECK_DIR/check" \
  -framework AppKit -framework CoreGraphics -framework QuartzCore -framework IOKit -framework ApplicationServices

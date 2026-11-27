@@ -1,8 +1,10 @@
-# 🐱 KuroCat — 全状态键盘鼠标桌面萌猫 (macOS / Windows / Linux / 统信 UOS)
+# 🐱 Whiskerkey — 跟着键盘和鼠标一起动的桌面小黑猫（macOS / Windows）
 
 <p align="center">
   <b>简体中文</b> | <a href="README.en.md">English</a>
 </p>
+
+<p align="center">这只小黑猫叫 <b>Whisku</b>（读作 WHIS-koo），陪你打字、滚动、打盹。</p>
 
 <p align="center">
   <img src="assets/demo_typing.gif" width="265" alt="敲键盘打字"/>
@@ -12,14 +14,14 @@
 
 <p align="center">
   <b>超轻量级原生桌面宠物 · 打字 & 玩游戏全状态硬件级监听 · 2.5D 球面转头 · 捕猎大圆眼 · 四款皮肤自由切换</b><br/>
-  Native macOS (Swift + CoreGraphics + IOHIDManager) · Windows (C++17 + GDI+ + Raw Input) · Linux / 统信 UOS (C++17 + GTK3/Cairo + XInput2/evdev)
+  Native macOS (Swift + CoreGraphics + IOHIDManager) · Windows (C++17 + GDI+ + Raw Input)
 </p>
 
 ---
 
-## 🍴 关于这个分支
+## 🍴 关于 Whiskerkey
 
-本仓库是 [chanke17/KuroCat](https://github.com/chanke17/KuroCat) 的分支（fork），基于上游 **v1.3.3**。**macOS 和 Windows 版功能一致**；Linux 版与上游相同。每个版本的详细改动见 **[更新记录（CHANGELOG）](CHANGELOG.md)**。
+Whiskerkey（v1.3.3-mmccqq.8 之前叫 KuroCat）基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) **v1.3.3**，之后独立开发。**macOS 和 Windows 版功能一致。** 每个版本的改动见 **[更新记录](CHANGELOG.md)**。
 
 主要新增：
 
@@ -49,7 +51,7 @@ macOS 按应用的代码签名记住「输入监控」权限。想让权限在�
 bash scripts/create-macos-signing-cert.sh
 ```
 
-它会在「登录」钥匙串里创建一张免费的自签名证书「KuroCat Code Signing」（备份在 `~/KuroCat-signing`，请妥善保存，不要上传），之后 `./build.sh` 每次都用它签名。如果没有这张证书，构建出来的是临时签名（ad-hoc），每次重新构建后都要在 **系统设置 → 隐私与安全性 → 输入监控** 中移除并重新添加 KuroCat，然后重启它。
+它会在「登录」钥匙串里创建一张免费的自签名证书「Whiskerkey Code Signing」（备份在 `~/Whiskerkey-signing`，请妥善保存，不要上传），之后 `./build.sh` 每次都用它签名。如果没有这张证书，构建出来的是临时签名（ad-hoc），每次重新构建后都要在 **系统设置 → 隐私与安全性 → 输入监控** 中移除并重新添加 Whiskerkey，然后重启它。
 
 ---
 
@@ -91,25 +93,25 @@ bash scripts/create-macos-signing-cert.sh
 前往右侧 **[Releases](../../releases)** 页面直接下载对应系统版本（由 GitHub Actions 自动编译）：
 
 ### 🍎 macOS (Apple Silicon & Intel 通用 · macOS 13+)
-1. 下载 `KuroCat-macOS-universal.zip` 解压，将 `KuroCat.app` 拖入「应用程序」打开（常驻顶部菜单栏，不占 Dock）。
-2. 首次使用点击小猫底部提示胶囊，前往 **系统设置 → 隐私与安全性 → 输入监控** 勾选 `KuroCat` 后在菜单栏点「重启 KuroCat」即可全局监听打字与游戏按键。
+1. 下载 `Whiskerkey-macOS-universal.zip` 解压，将 `Whiskerkey.app` 拖入「应用程序」打开（常驻顶部菜单栏，不占 Dock）。
+2. 首次使用点击小猫底部提示胶囊，前往 **系统设置 → 隐私与安全性 → 输入监控** 勾选 `Whiskerkey` 后在菜单栏点「重启 Whiskerkey」即可全局监听打字与游戏按键。
 3. 支持在菜单中一键开启 **开机自动启动**；开启「完全鼠标穿透」后，可通过顶部菜单栏小猫图标或 **按住 `⌥ Option` 键直接右键/拖动小猫**。
 
 **本地源码编译：**
 ```bash
 chmod +x build.sh
 ./build.sh
-open KuroCat.app
+open Whiskerkey.app
 ```
 
 ### 🪟 Windows (Windows 10 / 11 x64)
-1. 下载单文件 `KuroCat-Windows-x64.exe`（约 220 KB，**零外部运行时依赖**），双击即可运行，常驻右下角系统托盘。
+1. 下载单文件 `Whiskerkey-Windows-x64.exe`（约 750 KB，**零外部运行时依赖**），双击即可运行，常驻右下角系统托盘。
 2. 右键小猫或左键/右键托盘小猫图标即可切换皮肤、键盘配色、尺寸、**开机自动启动**、游戏防误触穿透模式等。
 3. **开启「完全鼠标穿透」后，以下 4 种方式均可随时取消或呼出菜单**：
    - 全局快捷键：**`Ctrl + Alt + Shift + P`** 一键切换/取消穿透；
    - 临时解锁：按住 **`Alt`** 键，再直接右键小猫取消勾选或左键拖动；
    - 系统托盘：点击任务栏右下角 **`^` 隐藏图标区** 中的黑猫图标（左键或右键均可弹出菜单）；
-   - 保底方式：**再次双击 `KuroCat.exe`**，会自动取消穿透并直接在鼠标处弹出设置菜单。
+   - 保底方式：**再次双击 `Whiskerkey.exe`**，会自动取消穿透并直接在鼠标处弹出设置菜单。
    > **游戏里小猫只跟鼠标、不跟键盘？** 这类游戏（及 WeGame 等启动器）以管理员权限运行，Windows 会拦截它的键盘输入。右键小猫 →「以管理员身份重新启动」即可；想一劳永逸可勾选「每次启动都以管理员身份运行」。小猫检测到这种游戏时也会在托盘弹出提示。
    >
    > **进游戏小猫消失？** 小猫会在全屏/无边框游戏切到前台后自动重新置顶，游戏切换分辨率后也会自动回到屏幕内。如果游戏用的是「独占全屏」，任何桌面窗口都无法盖在上面，请在游戏设置里改成「无边框窗口 / 窗口化全屏」。
@@ -127,38 +129,14 @@ cd windows
 cmake -B build && cmake --build build --config Release
 ```
 
-### 🐧 Linux & 统信 UOS / 银河麒麟 (x86_64 & ARM64)
-支持 **Ubuntu 20.04+ / Debian 11+ / Deepin / 统信 UOS（x86_64 & ARM64 飞腾/鲲鹏）/ 银河麒麟 / Arch / Fedora**：
+### 🐧 Linux
 
-1. **免密码安装（推荐统信 UOS / 银河麒麟，不需要开机密码）**：
-   - 下载 `KuroCat-Linux-x86_64.tar.gz`（Intel/AMD/兆芯/海光）或 `KuroCat-Linux-arm64.tar.gz`（飞腾/鲲鹏等 ARM64），解压。
-   - 在解压出的文件夹里右键「在终端中打开」，执行 `bash install.sh`。程序只装到当前用户的 `~/.local`，装完自动启动，开始菜单可搜到 **KuroCat**；卸载执行 `bash uninstall.sh`。
-   - 压缩包里的 `安装说明.txt` 有麒麟「应用执行控制」、统信「开发者模式」、CPU 架构不匹配等常见问题的处理方法。
-2. **`.deb` 安装包（统信 UOS / Deepin / Ubuntu / Debian / 麒麟）**：
-   - 双击 `KuroCat-Linux-amd64.deb` / `KuroCat-Linux-arm64.deb` 用软件包安装器安装（系统会要求输入开机密码），或终端执行：
-     ```bash
-     sudo apt install ./KuroCat-Linux-amd64.deb
-     ```
-   - 安装包在 Debian 10（glibc 2.28）环境中编译，统信 UOS 20、银河麒麟 V10 等较老的系统也能运行；之后在软件内「检查更新」会装到当前用户目录，**不再需要输入密码**。
-   - **麒麟安装失败**：「安全中心」→「应用保护 / 应用执行控制」改为「关闭」或「警告」后再装，或直接用上面的免密码安装。
-3. **其他 Linux 发行版（Arch / Fedora 等）**：
-   - 解压 tar.gz 后运行 `bash install.sh`，或直接运行 `./kurocat`。
-   - 若使用纯 **Wayland** 会话，执行一次 `sudo usermod -aG input $USER` 并重新登录即可启用 `evdev` 内核级全局监听。
-4. **电脑变卡？** 默认使用省电自适应帧率（打字/移动鼠标时 30fps、空闲 20fps、睡觉 10fps）；右键小猫可开启「高帧率 60fps」，低配电脑请保持关闭。
-5. **龙芯（LoongArch / MIPS）本地源码编译**：
-   ```bash
-   sudo apt install g++ pkg-config libgtk-3-dev libcairo2-dev libx11-dev libxi-dev
-   cd linux && chmod +x build.sh build_deb.sh
-   ./build.sh        # 编译可执行文件
-   ./build_deb.sh    # 一键打成 .deb 安装包
-   ```
-
----
+Whiskerkey 没有 Linux 版。上游 [KuroCat](https://github.com/chanke17/KuroCat) 有 Linux 版；这里的 `linux/` 文件夹是上游原样的代码。
 
 ## 📁 项目结构
 
 ```text
-KuroCat/
+Whiskerkey/
 ├── Sources/                   # macOS 原生 Swift 源码 (Apple Silicon + Intel 通用)
 ├── Resources/                 # macOS Info.plist & AppIcon.icns
 ├── build.sh                   # macOS 一键通用二进制编译脚本
@@ -174,7 +152,7 @@ KuroCat/
 
 ## 🔒 隐私说明
 
-KuroCat 的所有键盘与鼠标硬件信号**仅在本地内存实时驱动桌宠动画与计数**，**绝不记录按键内容、绝不写日志**。本分支只在两种情况下联网：检查更新时访问本仓库的 GitHub Releases；你主动开启「猫咪连线」后，经 EMQX 公共服务器中转用配对码加密的活动信息（只有左/右手在打字、鼠标移动等，不含按了哪个键）。Claude Code 提醒和休息提醒只在本机。全部源码完全开源可审计。
+Whiskerkey 的所有键盘与鼠标硬件信号**仅在本地内存实时驱动桌宠动画与计数**，**绝不记录按键内容、绝不写日志**。本分支只在两种情况下联网：检查更新时访问本仓库的 GitHub Releases；你主动开启「猫咪连线」后，经 EMQX 公共服务器中转用配对码加密的活动信息（只有左/右手在打字、鼠标移动等，不含按了哪个键）。Claude Code 提醒和休息提醒只在本机。全部源码完全开源可审计。
 
 ## 📄 License
 

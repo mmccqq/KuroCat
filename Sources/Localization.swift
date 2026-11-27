@@ -8,7 +8,7 @@ enum AppLanguage: String, CaseIterable {
 }
 
 enum L10n {
-    private static let key = "KuroCat.Language"
+    private static let key = "Whiskerkey.Language"
 
     static var setting: AppLanguage {
         get { AppLanguage(rawValue: UserDefaults.standard.string(forKey: key) ?? "") ?? .system }

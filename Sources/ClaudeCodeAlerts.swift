@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-// Claude Code alerts: Claude Code hooks run `KuroCat --claude-hook`, which reads the hook's JSON
-// from stdin and tells the running KuroCat through a local distributed notification. The cat then
+// Claude Code alerts: Claude Code hooks run `Whiskerkey --claude-hook`, which reads the hook's JSON
+// from stdin and tells the running Whiskerkey through a local distributed notification. The cat then
 // shows a bubble: "done" when a session finishes (Stop), "needs you" when Claude waits for an
 // approval (Notification / PermissionRequest). Nothing leaves this computer and nothing goes over
 // Cat Link; only the project folder name, the event kind and the app to bring back are passed.
@@ -10,11 +10,13 @@ import AppKit
 enum ClaudeAlertKind: String { case done, needsYou }
 
 enum ClaudeHook {
-    static let notificationName = Notification.Name("com.kurocat.ClaudeCodeEvent")
+    static let notificationName = Notification.Name("com.whiskerkey.ClaudeCodeEvent")
+    /// Sent by KuroCat's hook, in case Claude Code still starts the old app.
+    static let kuroCatNotificationName = Notification.Name("com.kurocat.ClaudeCodeEvent")
 
     /// The command Claude Code runs (shell form, works with every Claude Code version).
     static var hookCommand: String {
-        let exe = Bundle.main.executableURL?.path ?? "/Applications/KuroCat.app/Contents/MacOS/KuroCat"
+        let exe = Bundle.main.executableURL?.path ?? "/Applications/Whiskerkey.app/Contents/MacOS/Whiskerkey"
         return "'\(exe.replacingOccurrences(of: "'", with: "'\\''"))' --claude-hook"
     }
 
@@ -33,13 +35,13 @@ enum ClaudeHook {
         """
     }
 
-    /// Hook mode: read the hook input, post it to the running KuroCat, exit 0 (never block Claude Code).
+    /// Hook mode: read the hook input, post it to the running Whiskerkey, exit 0 (never block Claude Code).
     static func runFromCommandLine(arguments: [String]) -> Never {
         var input = Data()
         if isatty(STDIN_FILENO) == 0 {
             input = FileHandle.standardInput.readDataToEndOfFile()
         } else if let i = arguments.firstIndex(of: "--claude-hook"), i + 1 < arguments.count {
-            // Manual test from a terminal: `KuroCat --claude-hook done` or `--claude-hook needs`
+            // Manual test from a terminal: `Whiskerkey --claude-hook done` or `--claude-hook needs`
             let event = arguments[i + 1] == "needs" ? "PermissionRequest" : "Stop"
             input = (try? JSONSerialization.data(withJSONObject: ["hook_event_name": event,
                                                                  "cwd": FileManager.default.currentDirectoryPath,
@@ -120,8 +122,8 @@ final class ClaudeAlertCenter {
     /// Whether our cat is on screen (sounds play only then).
     var isCatVisible: () -> Bool = { true }
 
-    private let enabledKey = "KuroCat.ClaudeAlerts"
-    private let soundKey = "KuroCat.ClaudeAlertSound"
+    private let enabledKey = "Whiskerkey.ClaudeAlerts"
+    private let soundKey = "Whiskerkey.ClaudeAlertSound"
     var enabled: Bool {
         get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: enabledKey); if !newValue { alerts.removeAll() } }
@@ -134,9 +136,11 @@ final class ClaudeAlertCenter {
     var needsAttention: Bool { alerts.contains { $0.kind == .needsYou } }
 
     func start() {
-        DistributedNotificationCenter.default().addObserver(forName: ClaudeHook.notificationName, object: nil, queue: .main) { [weak self] note in
-            guard let info = note.userInfo as? [String: String] else { return }
-            self?.receive(info)
+        for name in [ClaudeHook.notificationName, ClaudeHook.kuroCatNotificationName] {
+            DistributedNotificationCenter.default().addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
+                guard let info = note.userInfo as? [String: String] else { return }
+                self?.receive(info)
+            }
         }
     }
 
@@ -294,8 +298,8 @@ final class ClaudeAlertCenter {
 
     @objc func toggleEnabled() { center.enabled.toggle() }
     @objc func toggleSound() { center.soundEnabled.toggle() }
-    @objc func testDone() { center.receive(["kind": "done", "project": "KuroCat", "session": "menu-test-done"]) }
-    @objc func testNeeds() { center.receive(["kind": "needsYou", "project": "KuroCat", "session": "menu-test-needs"]) }
+    @objc func testDone() { center.receive(["kind": "done", "project": "Whiskerkey", "session": "menu-test-done"]) }
+    @objc func testNeeds() { center.receive(["kind": "needsYou", "project": "Whiskerkey", "session": "menu-test-needs"]) }
     @objc func copySettings() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ClaudeHook.settingsSnippet, forType: .string)

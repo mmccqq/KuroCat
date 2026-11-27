@@ -1,8 +1,8 @@
 #pragma once
 // Claude Code alerts, same behaviour as macOS (Sources/ClaudeCodeAlerts.swift).
 //
-// Claude Code hooks run `KuroCat.exe --claude-hook`. That short-lived process reads the hook's JSON
-// from stdin and hands the running KuroCat a tiny WM_COPYDATA message; the cat then shows a bubble:
+// Claude Code hooks run `Whiskerkey.exe --claude-hook`. That short-lived process reads the hook's JSON
+// from stdin and hands the running Whiskerkey a tiny WM_COPYDATA message; the cat then shows a bubble:
 // "done" when a session finishes (Stop), "needs you" when Claude waits for an approval
 // (Notification / PermissionRequest). Everything stays on this computer: nothing is sent over Cat Link.
 
@@ -96,7 +96,7 @@ inline HWND findSessionWindow() {
     return nullptr;
 }
 
-/// `KuroCat.exe --claude-hook`: read the hook input, tell the running KuroCat, exit 0 (never block
+/// `Whiskerkey.exe --claude-hook`: read the hook input, tell the running Whiskerkey, exit 0 (never block
 /// Claude Code). From a terminal, `--claude-hook done` / `--claude-hook needs` sends a test event.
 inline int runHook(const wchar_t* ownerClass, const std::wstring& manualKind) {
     std::string json;

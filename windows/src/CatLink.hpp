@@ -1,7 +1,7 @@
 #pragma once
-// Cat Link (Windows): two KuroCats show each other's cat. Mirrors Sources/CatLink.swift; the wire
+// Cat Link (Windows): two Whiskerkeys show each other's cat. Mirrors Sources/CatLink.swift; the wire
 // format is docs/cat-link-protocol.md. Only built-in Windows APIs are used: BCrypt (HKDF via HMAC,
-// AES-GCM), WinHTTP (secure WebSocket) and a tiny JSON reader/writer, so KuroCat.exe stays one file.
+// AES-GCM), WinHTTP (secure WebSocket) and a tiny JSON reader/writer, so Whiskerkey.exe stays one file.
 #define NOMINMAX
 #include <windows.h>
 #include <winhttp.h>
@@ -183,7 +183,8 @@ struct Code {
             if (ch >= L'a' && ch <= L'z') ch = (wchar_t)(ch - 32);
             if ((ch >= L'A' && ch <= L'Z') || (ch >= L'0' && ch <= L'9')) s += (char)ch;
         }
-        if (s.size() != 23 || s.compare(0, 2, "KC") != 0 || (s[2] != 'C' && s[2] != 'G')) return std::nullopt;
+        // "KC-…" codes are from KuroCat: same secret, so they still work.
+        if (s.size() != 23 || (s.compare(0, 2, "WK") != 0 && s.compare(0, 2, "KC") != 0) || (s[2] != 'C' && s[2] != 'G')) return std::nullopt;
         Code c;
         c.server = s[2];
         c.secret = s.substr(3);
@@ -192,16 +193,16 @@ struct Code {
     }
 
     std::wstring display() const {
-        std::string s = std::string("KC-") + server;
+        std::string s = std::string("WK-") + server;
         for (size_t i = 0; i < 20; i += 4) s += "-" + secret.substr(i, 4);
         return widen(s);
     }
 
     const wchar_t* host() const { return server == 'G' ? L"broker.emqx.io" : L"broker-cn.emqx.io"; }
-    Bytes key() const { return hkdf32(secret, "kurocat-link-v1", "aes-gcm-key", 32); }
+    Bytes key() const { return hkdf32(secret, "whiskerkey-link-v1", "aes-gcm-key", 32); }
     std::string topic() const {
-        Bytes t = hkdf32(secret, "kurocat-link-v1", "mqtt-topic", 16);
-        return "kurocat/v1/" + toHex(t.data(), t.size());
+        Bytes t = hkdf32(secret, "whiskerkey-link-v1", "mqtt-topic", 16);
+        return "whiskerkey/v1/" + toHex(t.data(), t.size());
     }
 };
 
@@ -839,8 +840,8 @@ private:
     }
 
     static HINTERNET openWebSocket(const std::shared_ptr<Shared>& sh, HINTERNET& session, std::wstring& error) {
-        session = WinHttpOpen(L"KuroCat", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (!session) session = WinHttpOpen(L"KuroCat", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        session = WinHttpOpen(L"Whiskerkey", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!session) session = WinHttpOpen(L"Whiskerkey", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!session) { error = L"WinHttpOpen failed"; return nullptr; }
         WinHttpSetTimeouts(session, 10000, 10000, 10000, 10000);
         HINTERNET connect = WinHttpConnect(session, sh->host.c_str(), 8084, 0);
@@ -882,7 +883,7 @@ private:
                 sh->lastReceive = nowSeconds();
                 uint8_t id[2] = {};
                 randomBytes(id, 2);
-                sendNow(sh, mqttConnect("kurocat-" + sh->peerId + "-" + toHex(id, 2)));
+                sendNow(sh, mqttConnect("whiskerkey-" + sh->peerId + "-" + toHex(id, 2)));
                 error = receiveLoop(sh, ws, retry);
                 sh->connected = false;
                 std::lock_guard<std::mutex> lock(sh->sendMutex);

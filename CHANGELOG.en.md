@@ -2,7 +2,17 @@
 
 English | [中文](CHANGELOG.md)
 
-What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
+What changed in each version of Whiskerkey, newest first. Whiskerkey started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
+
+## v1.0.0 — unreleased
+
+macOS and Windows. **KuroCat is now Whiskerkey**, and its cat is called **Whisku** (WHIS-koo).
+
+- **Install it by hand once**: download Whiskerkey from the [release page](https://github.com/whiskerkey/whiskerkey/releases/latest). KuroCat won't offer it as an update, because the numbers start again at 1.0. From now on Whiskerkey updates itself.
+- **Everything comes along**: on its first launch Whiskerkey copies KuroCat's settings (your cats, Cat Link pairing code, nickname, positions and options), quits KuroCat if it's still running, and moves "start at login" over.
+- **Cat Link has its own Whiskerkey protocol**, so both of you need Whiskerkey: it doesn't link with KuroCat. Your pairing code stays the same and connects again by itself once your friend has Whiskerkey too. Codes are now shown as `WK-…`; old `KC-…` codes still work.
+- **Mac**: Whiskerkey offers to move the old KuroCat to the Trash and to point Claude Code's hooks at Whiskerkey (the old settings file is kept as `~/.claude/settings.json.before-whiskerkey`). It's a new app for macOS, so it asks once for Input Monitoring again. It's signed with its own "Whiskerkey Code Signing" certificate.
+- **Windows**: the program is now `Whiskerkey.exe`; you can delete `KuroCat.exe`.
 
 ## v1.3.3-mmccqq.8 — 2026-11-27
 

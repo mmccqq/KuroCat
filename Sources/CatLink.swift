@@ -3,7 +3,7 @@ import AppKit
 import CryptoKit
 import Carbon   // IsSecureEventInputEnabled
 
-// Cat Link: two KuroCats show each other's cat. Each app sends small, anonymized activity events
+// Cat Link: two Whiskerkeys show each other's cat (Whiskerkey has its own protocol: it doesn't link with KuroCat). Each app sends small, anonymized activity events
 // (which paw typed — never which key —, mouse movement, clicks, scrolls, headphones, petting) through
 // a public MQTT server over secure WebSocket. Every message is encrypted with a key derived from the
 // pairing code, so the server (and anyone else on it) only sees random bytes on a random topic.
@@ -11,7 +11,7 @@ import Carbon   // IsSecureEventInputEnabled
 
 // MARK: - Pairing code & encryption
 
-/// A pairing code like "KC-C-7KQ2-M9XA-P3TD-W8RF-Z5HN". The letter after "KC" picks the relay server;
+/// A pairing code like "WK-C-7KQ2-M9XA-P3TD-W8RF-Z5HN". The letter after "WK" picks the relay server;
 /// the 20 random characters (~99 bits) derive the encryption key and the private topic.
 struct CatLinkCode: Equatable {
     enum Server: String, CaseIterable {
@@ -34,7 +34,8 @@ struct CatLinkCode: Equatable {
     /// Accepts the code with or without dashes/spaces, in any case.
     init?(parsing text: String) {
         let s = text.uppercased().filter { $0.isLetter || $0.isNumber }
-        guard s.count == 23, s.hasPrefix("KC"), let server = Server(rawValue: String(s[s.index(s.startIndex, offsetBy: 2)])) else { return nil }
+        // "KC-…" codes are from KuroCat: same secret, so they still work.
+        guard s.count == 23, s.hasPrefix("WK") || s.hasPrefix("KC"), let server = Server(rawValue: String(s[s.index(s.startIndex, offsetBy: 2)])) else { return nil }
         let secret = String(s.suffix(20))
         guard secret.allSatisfy({ CatLinkCode.alphabet.contains($0) }) else { return nil }
         self.init(server: server, secret: secret)
@@ -50,17 +51,17 @@ struct CatLinkCode: Equatable {
             let a = secret.index(secret.startIndex, offsetBy: i)
             return String(secret[a..<secret.index(a, offsetBy: 4)])
         }
-        return "KC-\(server.rawValue)-" + groups.joined(separator: "-")
+        return "WK-\(server.rawValue)-" + groups.joined(separator: "-")
     }
 
     private func derive(_ info: String, _ count: Int) -> SymmetricKey {
         HKDF<SHA256>.deriveKey(inputKeyMaterial: SymmetricKey(data: Data(secret.utf8)),
-                               salt: Data("kurocat-link-v1".utf8), info: Data(info.utf8), outputByteCount: count)
+                               salt: Data("whiskerkey-link-v1".utf8), info: Data(info.utf8), outputByteCount: count)
     }
 
     var key: SymmetricKey { derive("aes-gcm-key", 32) }
     var topic: String {
-        "kurocat/v1/" + derive("mqtt-topic", 16).withUnsafeBytes { $0.map { String(format: "%02x", $0) }.joined() }
+        "whiskerkey/v1/" + derive("mqtt-topic", 16).withUnsafeBytes { $0.map { String(format: "%02x", $0) }.joined() }
     }
 
     /// nonce (12) | ciphertext | tag (16) — CryptoKit's "combined" AES-GCM layout.
@@ -347,7 +348,7 @@ final class CatLinkSession {
 
     private func openClient() {
         guard let code else { return }
-        let c = MQTTWebSocketClient(url: code.server.url, clientID: "kurocat-\(peerID)-\(Int.random(in: 1000...9999))")
+        let c = MQTTWebSocketClient(url: code.server.url, clientID: "whiskerkey-\(peerID)-\(Int.random(in: 1000...9999))")
         client = c
         c.onConnected = { [weak self] in
             guard let self else { return }

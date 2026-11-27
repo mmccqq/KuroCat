@@ -36,17 +36,16 @@
 
 namespace {
 
-// This fork's version; release tags are "v" + it (keep in step with Resources/Info.plist KuroCatForkVersion).
-constexpr const wchar_t* APP_VERSION = L"1.3.3-mmccqq.8";
-constexpr const wchar_t* VERSION_PROP = L"KuroCatVersion"; // set on the tray owner window so newer builds can take over older ones
-constexpr const wchar_t* TRAY_OWNER_CLASS = L"KuroCatTrayOwnerClass";
-constexpr const wchar_t* OVERLAY_CLASS = L"KuroCatOverlayWindowClass";
-constexpr const wchar_t* FRIEND_CLASS = L"KuroCatFriendWindowClass";
+// Whiskerkey's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
+constexpr const wchar_t* APP_VERSION = L"1.0.0";
+constexpr const wchar_t* VERSION_PROP = L"WhiskerkeyVersion"; // set on the tray owner window so newer builds can take over older ones
+constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskerkeyTrayOwnerClass";
+constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
+constexpr const wchar_t* FRIEND_CLASS = L"WhiskerkeyFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
 constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest";
-// KuroCat is becoming Whiskerkey. While it moves, updates may use either name; the new one is preferred.
-constexpr const char* UPDATE_WIN_ASSET_NAMES[] = { "Whiskerkey-Windows-x64.exe", "KuroCat-Windows-x64.exe" };
+constexpr const char* UPDATE_WIN_ASSET_NAME = "Whiskerkey-Windows-x64.exe";
 constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
 constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whiskerkey/whiskerkey/releases/latest";
@@ -161,7 +160,7 @@ struct AppState {
     std::wstring availableUpdateUrl;
     std::wstring availableAssetUrl;   // the .exe on the release
     long long availableAssetSize = 0; // its exact size, as GitHub lists it
-    std::wstring availableAssetName;  // Whiskerkey-Windows-x64.exe or (before the rename) KuroCat-Windows-x64.exe
+    std::wstring availableAssetName;  // Whiskerkey-Windows-x64.exe
     double nextUpdateCheckTime = 0.0;
     bool isUpdating = false;
 
@@ -289,7 +288,7 @@ bool isAutoStartEnabled() {
         return false;
     }
     DWORD type = 0, size = 0;
-    bool exists = (RegQueryValueExW(hKey, L"KuroCat", nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size > 0);
+    bool exists = (RegQueryValueExW(hKey, L"Whiskerkey", nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size > 0);
     RegCloseKey(hKey);
     return exists;
 }
@@ -303,10 +302,10 @@ bool setAutoStartEnabled(bool enable) {
     if (enable) {
         std::wstring cmd = getCurrentExeQuotedPath();
         if (!cmd.empty()) {
-            ok = (RegSetValueExW(hKey, L"KuroCat", 0, REG_SZ, (const BYTE*)cmd.c_str(), (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS);
+            ok = (RegSetValueExW(hKey, L"Whiskerkey", 0, REG_SZ, (const BYTE*)cmd.c_str(), (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS);
         }
     } else {
-        LSTATUS st = RegDeleteValueW(hKey, L"KuroCat");
+        LSTATUS st = RegDeleteValueW(hKey, L"Whiskerkey");
         ok = (st == ERROR_SUCCESS || st == ERROR_FILE_NOT_FOUND);
     }
     RegCloseKey(hKey);
@@ -328,7 +327,7 @@ void showTrayBalloon(AppState& app, const wchar_t* title, const wchar_t* body) {
 // User Interface Privilege Isolation then refuses to deliver that window's keystrokes to normal
 // programs — Raw Input, GetAsyncKeyState and low-level hooks all go silent — while mouse movement
 // is still visible. That is exactly the "cat only sees the mouse in games" report. The only fix
-// is for KuroCat to run at the same level, so we detect it and offer an admin relaunch.
+// is for Whiskerkey to run at the same level, so we detect it and offer an admin relaunch.
 
 bool isCurrentProcessElevated() {
     HANDLE tok = nullptr;
@@ -473,7 +472,7 @@ std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeou
     uc.lpszHostName = host; uc.dwHostNameLength = 255;
     uc.lpszUrlPath = path;  uc.dwUrlPathLength = 2047;
     if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc) || uc.nScheme != INTERNET_SCHEME_HTTPS) return body;
-    std::wstring ua = std::wstring(L"KuroCat/") + APP_VERSION;
+    std::wstring ua = std::wstring(L"Whiskerkey/") + APP_VERSION;
     HINTERNET hSession = WinHttpOpen(ua.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return body;
     WinHttpSetTimeouts(hSession, 10000, 10000, 15000, (int)receiveTimeoutMs);
@@ -502,8 +501,12 @@ std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeou
     return body;
 }
 
+/// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whiskerkey, even though their numbers are
+/// higher than 1.x.
+bool isWhiskerkeyRelease(const std::wstring& tag) { return tag.find(L"mmccqq") == std::wstring::npos; }
+
 /// GitHub's "latest release" JSON -> tag, release page and the Windows .exe (URL + exact size).
-bool parseLatestRelease(const std::string& json, UpdateCheckResult& out) {
+bool parseLatestRelease(const std::string& json, UpdateCheckResult& out, const char* assetName = UPDATE_WIN_ASSET_NAME) {
     auto v = catlink::JsonReader::parse(json);
     if (!v || v->type != catlink::JsonReader::Value::Object) return false;
     auto str = [](const catlink::JsonReader::Value* x) { return x && x->type == catlink::JsonReader::Value::String ? x->str : std::string(); };
@@ -513,14 +516,11 @@ bool parseLatestRelease(const std::string& json, UpdateCheckResult& out) {
     std::string page = str(v->get("html_url"));
     out.releaseUrl = page.empty() ? UPDATE_PAGE_URL : utf8ToWide(page);
     if (const auto* assets = v->get("assets"); assets && assets->type == catlink::JsonReader::Value::Array) {
-        for (const char* wanted : UPDATE_WIN_ASSET_NAMES) {
-            for (const auto& asset : assets->items) {
-                if (str(asset.get("name")) != wanted) continue;
-                out.assetName = utf8ToWide(wanted);
-                out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
-                if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
-            }
-            if (!out.assetUrl.empty()) break;
+        for (const auto& asset : assets->items) {
+            if (str(asset.get("name")) != assetName) continue;
+            out.assetName = utf8ToWide(assetName);
+            out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
+            if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
         }
     }
     return true;
@@ -537,7 +537,7 @@ void startAsyncUpdateCheck(HWND notifyHwnd, bool manual, int delayMs = 0) {
             res->noRelease = true;
         } else if (status == 200 && parseLatestRelease(body, *res)) {
             res->ok = true;
-            res->hasUpdate = isSemVerNewer(res->latestTag, APP_VERSION);
+            res->hasUpdate = isWhiskerkeyRelease(res->latestTag) && isSemVerNewer(res->latestTag, APP_VERSION);
         }
         if (!PostMessageW(notifyHwnd, WM_UPDATE_CHECK_DONE, 0, reinterpret_cast<LPARAM>(res))) {
             delete res;
@@ -550,9 +550,9 @@ struct UpdateDownloadResult {
     std::wstring batPath;
 };
 
-/// Where a downloaded update goes. A Whiskerkey exe goes next to the running exe as Whiskerkey.exe,
-/// and the old KuroCat.exe is removed afterwards; otherwise it replaces the running exe. If that folder
-/// can't be written, it goes to %LOCALAPPDATA%\Programs\<name> instead.
+/// Where a downloaded update goes: Whiskerkey.exe in the running exe's folder. If the running exe has
+/// another name (a browser's "Whiskerkey (1).exe"), that one is removed afterwards. If the folder can't
+/// be written, the update goes to %LOCALAPPDATA%\Programs\Whiskerkey instead.
 struct UpdateTarget { std::wstring exe; bool renamed = false; std::wstring fallbackDir; std::wstring fallbackExe; };
 UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetName, const std::wstring& localAppData, const std::wstring& tempDir) {
     UpdateTarget t;
@@ -562,7 +562,7 @@ UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetN
     bool whiskerkey = assetName.rfind(L"Whiskerkey", 0) == 0;
     t.renamed = whiskerkey && _wcsicmp(file.c_str(), L"Whiskerkey.exe") != 0;
     t.exe = t.renamed ? dir + L"\\Whiskerkey.exe" : curExe;
-    std::wstring name = whiskerkey ? L"Whiskerkey" : L"KuroCat";
+    std::wstring name = L"Whiskerkey";
     t.fallbackDir = !localAppData.empty() ? localAppData + L"\\Programs\\" + name : tempDir + name;
     t.fallbackExe = t.fallbackDir + L"\\" + name + L".exe";
     return t;
@@ -634,7 +634,7 @@ void startInAppUpdate(AppState& app) {
                 : curExeStr + L".update.exe";
             HANDLE hNew = CreateFileW(newExePath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (hNew == INVALID_HANDLE_VALUE) {
-                newExePath = std::wstring(tempDir) + L"KuroCat_update.exe";
+                newExePath = std::wstring(tempDir) + L"Whiskerkey_update.exe";
                 hNew = CreateFileW(newExePath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
             }
             if (hNew != INVALID_HANDLE_VALUE) {
@@ -642,7 +642,7 @@ void startInAppUpdate(AppState& app) {
                 BOOL okWrite = WriteFile(hNew, exeBytes.data(), (DWORD)exeBytes.size(), &written, nullptr);
                 CloseHandle(hNew);
                 if (okWrite && written == (DWORD)exeBytes.size()) {
-                    std::wstring batPath = std::wstring(tempDir) + L"kurocat_update.bat";
+                    std::wstring batPath = std::wstring(tempDir) + L"whiskerkey_update.bat";
                     // Use local ANSI codepage for cmd.exe .bat compatibility
                     auto wideToAcp = [](const std::wstring& w) -> std::string {
                         if (w.empty()) return "";
@@ -689,7 +689,7 @@ void registerTrayIcon(AppState& app) {
     app.nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     app.nid.uCallbackMessage = WM_TRAYICON;
     app.nid.hIcon = app.trayIcon;
-    wcscpy_s(app.nid.szTip, tr(L"KuroCat \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)", L"KuroCat keyboard cat (click for the menu)"));
+    wcscpy_s(app.nid.szTip, tr(L"Whiskerkey \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)", L"Whiskerkey keyboard cat (click for the menu)"));
     Shell_NotifyIconW(NIM_ADD, &app.nid);
 }
 
@@ -835,7 +835,7 @@ void housekeeping(AppState& app) {
             if (fullscreenFg && !app.warnedElevatedForeground) {
                 app.warnedElevatedForeground = true;
                 showTrayBalloon(app,
-                    tr(L"KuroCat 听不到这个游戏的键盘", L"KuroCat can't hear this game's keyboard"),
+                    tr(L"Whiskerkey 听不到这个游戏的键盘", L"Whiskerkey can't hear this game's keyboard"),
                     tr(L"该游戏以管理员权限运行，Windows 会拦截它的键盘输入。右键小猫/托盘图标 →「以管理员身份重新启动」即可恢复。", L"This game runs as administrator, so Windows hides its keyboard input. Right-click the cat or the tray icon \u2192 \u201CRestart as administrator\u201D to fix it."));
             }
         }
@@ -1029,7 +1029,7 @@ const wchar_t* linkPauseAndDisconnect() {
 
 std::wstring regReadString(const wchar_t* name) {
     HKEY k = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &k) != ERROR_SUCCESS) return L"";
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &k) != ERROR_SUCCESS) return L"";
     wchar_t buf[128] = {};
     DWORD size = sizeof(buf) - sizeof(wchar_t), type = 0;
     std::wstring out;
@@ -1040,7 +1040,7 @@ std::wstring regReadString(const wchar_t* name) {
 
 DWORD regReadDword(const wchar_t* name, DWORD def) {
     HKEY k = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &k) != ERROR_SUCCESS) return def;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &k) != ERROR_SUCCESS) return def;
     DWORD val = def, size = sizeof(val);
     if (RegQueryValueExW(k, name, nullptr, nullptr, (LPBYTE)&val, &size) != ERROR_SUCCESS) val = def;
     RegCloseKey(k);
@@ -1049,7 +1049,7 @@ DWORD regReadDword(const wchar_t* name, DWORD def) {
 
 void regWrite(const wchar_t* name, const std::wstring* str, DWORD dword) {
     HKEY k = nullptr;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, nullptr, 0, KEY_WRITE, nullptr, &k, nullptr) != ERROR_SUCCESS) return;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, nullptr, 0, KEY_WRITE, nullptr, &k, nullptr) != ERROR_SUCCESS) return;
     if (str) RegSetValueExW(k, name, 0, REG_SZ, (const BYTE*)str->c_str(), (DWORD)((str->size() + 1) * sizeof(wchar_t)));
     else RegSetValueExW(k, name, 0, REG_DWORD, (const BYTE*)&dword, sizeof(dword));
     RegCloseKey(k);
@@ -1127,10 +1127,10 @@ void setTrayTip(AppState& app, const wchar_t* tip) {
 const wchar_t* linkTrayTip(AppState& app) {
     catlink::Status st = app.link.status();
     if (st != catlink::Status::Linked && st != catlink::Status::FriendPaused) {
-        return tr(L"KuroCat 黑猫键盘桌宠 (右键/左键打开菜单)", L"KuroCat keyboard cat (click for the menu)");
+        return tr(L"Whiskerkey 黑猫键盘桌宠 (右键/左键打开菜单)", L"Whiskerkey keyboard cat (click for the menu)");
     }
-    return app.link.paused() ? tr(L"KuroCat 黑猫桌宠 · 猫咪连线中（暂停分享）", L"KuroCat \u00B7 Cat Link on (sharing paused)")
-                             : tr(L"KuroCat 黑猫桌宠 · 猫咪连线中", L"KuroCat \u00B7 Cat Link on");
+    return app.link.paused() ? tr(L"Whiskerkey 黑猫桌宠 · 猫咪连线中（暂停分享）", L"Whiskerkey \u00B7 Cat Link on (sharing paused)")
+                             : tr(L"Whiskerkey 黑猫桌宠 · 猫咪连线中", L"Whiskerkey \u00B7 Cat Link on");
 }
 
 void showFriendWindow(AppState& app, bool show) {
@@ -1156,7 +1156,7 @@ void ensureFriendCat(AppState& app) {
         if (x + w < vx + 40 || x > vx + vw - 40 || y + h < vy + 40 || y > vy + vh - 40) { x = mr.left - w - 12; y = mr.top; }
         DWORD exStyle = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
                       | (app.settings.alwaysOnTop ? WS_EX_TOPMOST : 0);
-        f.hwnd = CreateWindowExW(exStyle, FRIEND_CLASS, L"KuroCat Friend", WS_POPUP, x, y, w, h,
+        f.hwnd = CreateWindowExW(exStyle, FRIEND_CLASS, L"Whiskerkey Friend", WS_POPUP, x, y, w, h,
                                  nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
     }
     showFriendWindow(app, true);
@@ -1377,20 +1377,20 @@ void handleLinkCommand(AppState& app, UINT cmd) {
             startLink(app, code);
             writeClipboardText(owner, code.display());
             std::wstring msg = tr(L"配对码已复制到剪贴板：\n\n    ", L"The pairing code is copied to the clipboard:\n\n    ") + code.display()
-                + tr(L"\n\n把它发给你的朋友（比如用微信）。朋友在 KuroCat 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。", L"\n\nSend it to your friend (for example on WeChat). When they paste it in KuroCat's Cat Link menu, your cats appear on each other's screens.")
+                + tr(L"\n\n把它发给你的朋友（比如用微信）。朋友在 Whiskerkey 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。", L"\n\nSend it to your friend (for example on WeChat). When they paste it in Whiskerkey's Cat Link menu, your cats appear on each other's screens.")
                 + tr(L"\n配对码就是你们的密钥，请只发给这位朋友。\n\n", L"\nThe code is your shared key, so send it only to this friend.\n\n") + linkWhatIsShared();
-            MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+            MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
             break;
         }
         case CMD_LINK_JOIN: {
             auto code = catlink::Code::parse(readClipboardText(owner));
             if (!code) {
-                MessageBoxW(nullptr, tr(L"剪贴板里没有找到配对码。\n\n请先复制朋友发来的配对码（形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX），再点这里。", L"No pairing code found on the clipboard.\n\nCopy the code your friend sent you (it looks like KC-C-XXXX-XXXX-XXXX-XXXX-XXXX), then click here."),
-                            tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                MessageBoxW(nullptr, tr(L"剪贴板里没有找到配对码。\n\n请先复制朋友发来的配对码（形如 WK-C-XXXX-XXXX-XXXX-XXXX-XXXX），再点这里。", L"No pairing code found on the clipboard.\n\nCopy the code your friend sent you (it looks like WK-C-XXXX-XXXX-XXXX-XXXX-XXXX), then click here."),
+                            tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                 break;
             }
             std::wstring msg = tr(L"要和这个配对码连线吗？\n\n    ", L"Link with this pairing code?\n\n    ") + code->display() + L"\n\n" + linkWhatIsShared();
-            if (MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 猫咪连线", L"KuroCat Cat Link"), MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
+            if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
                 startLink(app, *code);
             }
             break;
@@ -1589,7 +1589,7 @@ void showContextMenu(AppState& app, POINT screenPt) {
         AppendMenuW(menu, MF_STRING, CMD_CHECK_UPDATE, chkTxt.c_str());
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA KuroCat", L"Quit KuroCat"));
+    AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA Whiskerkey", L"Quit Whiskerkey"));
 
     HWND menuOwner = app.menuOwnerHwnd ? app.menuOwnerHwnd : app.hwnd;
     SetForegroundWindow(menuOwner);
@@ -1617,8 +1617,8 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.saveToRegistry();
             if (app.settings.fullClickThrough) {
                 showTrayBalloon(app,
-                    tr(L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is on"),
-                    tr(L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB KuroCat.exe", L"To turn it off: press Ctrl+Alt+Shift+P, hold Alt and right-click the cat, click the cat in the tray, or open KuroCat.exe again"));
+                    tr(L"Whiskerkey \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is on"),
+                    tr(L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB Whiskerkey.exe", L"To turn it off: press Ctrl+Alt+Shift+P, hold Alt and right-click the cat, click the cat in the tray, or open Whiskerkey.exe again"));
             }
             break;
         case CMD_TOGGLE_TOPMOST:
@@ -1739,10 +1739,10 @@ void showContextMenu(AppState& app, POINT screenPt) {
             regWrite(L"ClaudeAlertSound", nullptr, app.claude.sound ? 1 : 0);
             break;
         case CMD_CLAUDE_TEST_DONE:
-            onClaudeAlert(app, app.claude.receive(claude::Kind::Done, L"KuroCat", L"menu-test-done", nullptr, nowSeconds()));
+            onClaudeAlert(app, app.claude.receive(claude::Kind::Done, L"Whiskerkey", L"menu-test-done", nullptr, nowSeconds()));
             break;
         case CMD_CLAUDE_TEST_NEEDS:
-            onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"KuroCat", L"menu-test-needs", nullptr, nowSeconds()));
+            onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"Whiskerkey", L"menu-test-needs", nullptr, nowSeconds()));
             break;
         case CMD_BREAK_OFF: case CMD_BREAK_30: case CMD_BREAK_60: case CMD_BREAK_120: case CMD_BREAK_180: {
             int m = cmd == CMD_BREAK_OFF ? 0 : cmd == CMD_BREAK_30 ? 30 : cmd == CMD_BREAK_60 ? 60 : cmd == CMD_BREAK_120 ? 120 : 180;
@@ -1760,10 +1760,10 @@ void showContextMenu(AppState& app, POINT screenPt) {
             MessageBoxW(app.menuOwnerHwnd,
                 tr(L"把它合并到 %USERPROFILE%\\.claude\\settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。\n\n"
                    L"之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。\n\n"
-                   L"如果以后移动了 KuroCat.exe，需要重新复制一次。",
+                   L"如果以后移动了 Whiskerkey.exe，需要重新复制一次。",
                    L"Merge it into the \"hooks\" section of %USERPROFILE%\\.claude\\settings.json, then reopen Claude Code.\n\n"
                    L"From then on, the cat tells you whenever a session finishes or Claude needs your OK. It stays on this computer and never goes over Cat Link.\n\n"
-                   L"If you move KuroCat.exe later, copy the settings again."),
+                   L"If you move Whiskerkey.exe later, copy the settings again."),
                 tr(L"已复制 Claude Code 钩子设置", L"Claude Code hook settings copied"), MB_OK | MB_ICONINFORMATION);
             break;
         }
@@ -2135,7 +2135,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (app) quitApp(*app);
             return 0;
 
-        case WM_COPYDATA: {   // from `KuroCat.exe --claude-hook` (a Claude Code hook)
+        case WM_COPYDATA: {   // from `Whiskerkey.exe --claude-hook` (a Claude Code hook)
             const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
             if (!app || !cds || cds->dwData != claude::COPYDATA_ID || !cds->lpData || cds->cbData < sizeof(wchar_t) || cds->cbData > 8192) return FALSE;
             std::wstring payload((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t));
@@ -2227,11 +2227,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 app->settings.saveToRegistry();
                 if (app->settings.fullClickThrough) {
                     showTrayBalloon(*app,
-                        tr(L"KuroCat \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is on"),
+                        tr(L"Whiskerkey \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is on"),
                         tr(L"\u518D\u6B21\u6309 Ctrl+Alt+Shift+P \u6216\u6309\u4F4F Alt \u53F3\u952E\u5C0F\u732B\u5373\u53EF\u53D6\u6D88", L"Press Ctrl+Alt+Shift+P again, or hold Alt and right-click the cat, to turn it off"));
                 } else {
                     showTrayBalloon(*app,
-                        tr(L"KuroCat \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"KuroCat full click-through is off"),
+                        tr(L"Whiskerkey \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is off"),
                         tr(L"\u73B0\u5728\u53EF\u4EE5\u6B63\u5E38\u62D6\u52A8\u3001\u6478\u5934\u548C\u53F3\u952E\u6253\u5F00\u83DC\u5355\u4E86", L"You can drag, pet and right-click the cat again"));
                 }
             }
@@ -2239,7 +2239,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_WAKE_EXISTING:
             if (app) {
-                // Re-launching KuroCat.exe unlocks click-through, restores visibility & opens settings menu!
+                // Re-launching Whiskerkey.exe unlocks click-through, restores visibility & opens settings menu!
                 if (app->settings.fullClickThrough) {
                     app->settings.fullClickThrough = false;
                     app->settings.saveToRegistry();
@@ -2271,12 +2271,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if (app && res->ok && res->hasUpdate && askNow) {
                     // Show WHICH exe is running: the usual cause of "I already updated but it still
                     // says there's a new version" is an old copy (Desktop / autostart) still running.
-                    std::wstring msg = tr(L"\u53D1\u73B0 KuroCat \u65B0\u7248\u672C ", L"A new KuroCat version is available: ") + res->latestTag
+                    std::wstring msg = tr(L"\u53D1\u73B0 Whiskerkey \u65B0\u7248\u672C ", L"A new Whiskerkey version is available: ") + res->latestTag
                         + tr(L"\n\u5F53\u524D\u7248\u672C\uFF1Av", L"\nCurrent version: v") + APP_VERSION
                         + tr(L"\n\u5F53\u524D\u8FD0\u884C\u7684\u7A0B\u5E8F\uFF1A", L"\nRunning from: ") + currentExePath()
                         + tr(L"\n\n\u5982\u679C\u4F60\u5DF2\u7ECF\u4E0B\u8F7D\u8FC7\u65B0\u7248\uFF0C\u76F4\u63A5\u53CC\u51FB\u65B0\u7248 exe \u5373\u53EF\u81EA\u52A8\u66FF\u6362\u6389\u8FD9\u4E2A\u65E7\u7248\u3002", L"\n\nIf you've already downloaded the new version, just open the new exe and it replaces this old one.")
                         + tr(L"\n\n\u662F\u5426\u7ACB\u5373\u5728\u8F6F\u4EF6\u5185\u81EA\u52A8\u4E0B\u8F7D\u5E76\u66F4\u65B0\u91CD\u542F\uFF1F", L"\n\nDownload and install it now, then restart?");
-                    if (MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat \u66F4\u65B0\u63D0\u9192", L"KuroCat update"),
+                    if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey \u66F4\u65B0\u63D0\u9192", L"Whiskerkey update"),
                                     MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST) == IDYES) {
                         startInAppUpdate(*app);
                     }
@@ -2285,13 +2285,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 } else if (res->manual) {
                     if (res->noRelease) {
                         std::wstring msg = std::wstring(tr(L"当前版本 v", L"Version v")) + APP_VERSION + tr(L"，还没有发布更新的版本。", L". No newer version has been published yet.");
-                        MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat 检查更新", L"KuroCat updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 检查更新", L"Whiskerkey updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else if (res->ok) {
                         std::wstring msg = std::wstring(tr(L"\u5F53\u524D\u7248\u672C v", L"Version v")) + APP_VERSION + tr(L" \u5DF2\u662F\u6700\u65B0\u7248\u672C\u3002", L" is the latest version.");
-                        MessageBoxW(nullptr, msg.c_str(), tr(L"KuroCat \u68C0\u67E5\u66F4\u65B0", L"KuroCat updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey \u68C0\u67E5\u66F4\u65B0", L"Whiskerkey updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else {
                         MessageBoxW(nullptr, tr(L"无法连接到 GitHub，请稍后重试或检查网络连接。", L"Couldn't reach GitHub. Please try again later or check your network connection."),
-                                    tr(L"KuroCat \u68C0\u67E5\u66F4\u65B0", L"KuroCat updates"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                                    tr(L"Whiskerkey \u68C0\u67E5\u66F4\u65B0", L"Whiskerkey updates"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                     }
                 }
                 delete res;
@@ -2309,7 +2309,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 } else {
                     if (MessageBoxW(nullptr,
                                     tr(L"\u81EA\u52A8\u4E0B\u8F7D\u6216\u66FF\u6362\u5B89\u88C5\u5305\u5931\u8D25\uFF0C\u662F\u5426\u6253\u5F00\u4E0B\u8F7D\u9875\u624B\u52A8\u4E0B\u8F7D\uFF1F", L"Downloading or installing the update failed. Open the download page to download it manually?"),
-                                    tr(L"KuroCat \u81EA\u52A8\u66F4\u65B0", L"KuroCat update"), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
+                                    tr(L"Whiskerkey \u81EA\u52A8\u66F4\u65B0", L"Whiskerkey update"), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
                         const wchar_t* url = (app && !app->availableUpdateUrl.empty())
                             ? app->availableUpdateUrl.c_str()
                             : UPDATE_PAGE_URL;
@@ -2365,7 +2365,7 @@ void CALLBACK onForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD,
     if (g_app) g_app->pendingTopmostTime = nowSeconds() + 0.4;
 }
 
-/// Asks the already-running KuroCat to exit and waits for it. Builds <= 1.3.2 do not know
+/// Asks the already-running Whiskerkey to exit and waits for it. Builds <= 1.3.2 do not know
 /// WM_REQUEST_QUIT, but they shut down cleanly when their overlay window receives WM_CLOSE.
 bool shutDownRunningInstance(HWND owner, DWORD timeoutMs) {
     DWORD pid = 0;
@@ -2399,7 +2399,7 @@ bool pngEncoder(CLSID& clsid) {
     return false;
 }
 
-/// `KuroCat.exe --render-preview out.png`: drives the real physics + renderer through the fork's
+/// `Whiskerkey.exe --render-preview out.png`: drives the real physics + renderer through the fork's
 /// features (resting paws, scroll paw, AirPods on/off, petting with AirPods, a friend's cat label).
 int renderPreviewSheet(const std::wstring& outPath) {
     Gdiplus::GdiplusStartupInput in;
@@ -2494,7 +2494,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
         snap(p, st, L"Claude done +0.1s", L"", &c);
         run(p, eng, st, 0.4, sync);
         snap(p, st, L"Claude done +0.5s", L"", &c);
-        c.receive(claude::Kind::NeedsYou, L"KuroCat-vibecoding-long-name", L"b", nullptr, nowSeconds());
+        c.receive(claude::Kind::NeedsYou, L"Whiskerkey-vibecoding-long-name", L"b", nullptr, nowSeconds());
         run(p, eng, st, 0.5, sync);
         snap(p, st, L"Claude needs you +0.5s", L"", &c);
         run(p, eng, st, 0.35, sync);
@@ -2509,7 +2509,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
         run(p, eng, st, 0.3, sync);
         c.receive(claude::Kind::Done, L"x_project", L"a", nullptr, nowSeconds());
         run(p, eng, st, 0.4, sync);
-        c.receive(claude::Kind::NeedsYou, L"KuroCat-vibecoding", L"b", nullptr, nowSeconds());
+        c.receive(claude::Kind::NeedsYou, L"Whiskerkey-vibecoding", L"b", nullptr, nowSeconds());
         p.triggerScroll(4.0f, st);
         run(p, eng, st, 0.5, [&] { sync(); eng.lastMouseMoveTime = nowSeconds(); });
         snap(p, st, L"English: bubbles + Wheel badge", L"", &c);
@@ -2587,9 +2587,9 @@ catlink::Event testHello(const char* name, const char* coat) {
     return e;
 }
 
-/// `KuroCat.exe --link-selftest [pairing code]`: checks crypto + JSON against macOS test vectors,
+/// `Whiskerkey.exe --link-selftest [pairing code]`: checks crypto + JSON against macOS test vectors,
 /// runs two sessions against the real relay, and (with a code) talks to a macOS peer. Writes
-/// kurocat-selftest.txt and returns the number of failures.
+/// whiskerkey-selftest.txt and returns the number of failures.
 int runLinkSelfTest(const std::wstring& joinCode) {
     std::string log;
     int failures = 0;
@@ -2604,18 +2604,20 @@ int runLinkSelfTest(const std::wstring& joinCode) {
     };
     auto save = [&] {
         FILE* f = nullptr;
-        if (fopen_s(&f, "kurocat-selftest.txt", "wb") == 0 && f) { fwrite(log.data(), 1, log.size(), f); fclose(f); }
+        if (fopen_s(&f, "whiskerkey-selftest.txt", "wb") == 0 && f) { fwrite(log.data(), 1, log.size(), f); fclose(f); }
     };
 
     // 1. macOS test vectors
-    const char* macSealed = "000102030405060708090a0b747a35c17c550600bf4337219e280fba1b09bde8c07c69f0d5a020105be399dc9aadc0b2ce8ca7ddd70b979e98206899b7de82fe73775ce7ed35cac2d16eb0e391e26bd284463ea0d26810780dbf60a723170dcbd93c5c047151b013a55eaed275ccee534e1473a377515f05f86c4996c4c9ae9222b3d4c5f8884cf76df88454232ade5a16480e3ac90e539617bd057d0b547e85040b794fd2f2b6afe8b407d9b6a862409e98dee7f6f578fadf163c5b1ba6d960c93d5ffda21a0047c37870f137384dd1080b7e69e9df3cd52f00181cf8d41f464feb1e9a851cab4bbdbfe37150f2d4cfe712fc04451ced8aa3393b09e4a7d06d694e0db80c7d70536cb05388520eb643be7f99ef67854a6984173412f3be93a6d49e5fe360badc040894795beba8d5d43db1c5aed772e4ef444f098c5adbb44016ea1545";
-    auto code = catlink::Code::parse(L"kc-c-2345-6789-abcd-efgh-jkmn");
+    const char* macSealed = "000102030405060708090a0b7a53a828b253c9f6a2a2e34df3dbfd4c3b45eac42e182cf3af2a52a88bbeedf341243adf3decd7d50f9378a60dad44af94ac7c178dc520ace4903d6f6c30545caf90d9ba2e4bbfcbacda99c3ea79f80861dbc6ffee6cab88a1de4abf0f91b8b7a2767253eed47919dba93b90bc2c8b999482b7767684296890ba2eea43930dd74aa820f9ae895549b21e10d923a080065ffcc1278517d9c93140726ce9779da3bb4a600232d09403a56d1c1ea3c2778d413bf97e75ea769d642d88d83a108a0ce0d8cae4f23311c7d6c0e06ca3a2afeead6fd173609143274efc0702c8e3e6a20ffd27a63b6cdb3ec5aab003a13919918eeafefa40d225d3c5eb4b7a9818e110f350aecbdc97d1c37311ec55153e26e968943ce62071f4a79dbba4852090e59e2958fd3e1aa3c3e6de0876c3a55fd58606d7fc2b9e2f702e";
+    auto code = catlink::Code::parse(L"wk-c-2345-6789-abcd-efgh-jkmn");
     check(code.has_value(), "parse pairing code");
+    auto kuroCatCode = catlink::Code::parse(L"KC-C-2345-6789-ABCD-EFGH-JKMN");
+    check(kuroCatCode && code && kuroCatCode->secret == code->secret && kuroCatCode->server == code->server, "a KuroCat code (KC-…) is the same code");
     if (code) {
-        check(code->display() == L"KC-C-2345-6789-ABCD-EFGH-JKMN", "display format");
-        check(code->topic() == "kurocat/v1/065e44db6944bbcbcd98b612413d9438", "topic matches macOS");
+        check(code->display() == L"WK-C-2345-6789-ABCD-EFGH-JKMN", "display format");
+        check(code->topic() == "whiskerkey/v1/7ec2a518abf1e18f8212a0099ef14038", "topic matches macOS");
         catlink::Bytes key = code->key();
-        check(catlink::toHex(key.data(), key.size()) == "6333cf40ccf75b347e348d54cbc4d1780b3f22ffeb6285170276c09c94ab565d", "AES key matches macOS");
+        check(catlink::toHex(key.data(), key.size()) == "a5de3d642d78922fe3cc9f9c112ebb9082b41a76d67f3c862aa98357d4cfb7c9", "AES key matches macOS");
         auto plain = catlink::Session::openForTest(*code, fromHex(macSealed));
         check(plain.has_value(), "decrypt a macOS message");
         if (plain) {
@@ -2800,7 +2802,7 @@ LRESULT CALLBACK claudeTestWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lP
     return DefWindowProcW(hwnd, msg, wParam, lParam);
 }
 
-/// Runs `KuroCat.exe --claude-hook` with `json` on stdin, like Claude Code does. Returns its exit code.
+/// Runs `Whiskerkey.exe --claude-hook` with `json` on stdin, like Claude Code does. Returns its exit code.
 DWORD runHookProcess(const std::string& json, double& seconds) {
     SECURITY_ATTRIBUTES sa = { sizeof(sa), nullptr, TRUE };
     HANDLE readEnd = nullptr, writeEnd = nullptr;
@@ -2835,8 +2837,8 @@ DWORD runHookProcess(const std::string& json, double& seconds) {
     return code;
 }
 
-/// `KuroCat.exe --claude-selftest`: hook parsing, bubble rules, and the real hook process talking to a
-/// stand-in KuroCat window over WM_COPYDATA. Writes kurocat-claude-selftest.txt; exit code 0 = pass.
+/// `Whiskerkey.exe --claude-selftest`: hook parsing, bubble rules, and the real hook process talking to a
+/// stand-in Whiskerkey window over WM_COPYDATA. Writes whiskerkey-claude-selftest.txt; exit code 0 = pass.
 int runClaudeSelfTest() {
     // Bubbles measure their text with GDI+, which must be started first (as the app does at launch).
     Gdiplus::GdiplusStartupInput gdipInput;
@@ -2845,7 +2847,7 @@ int runClaudeSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {   // after every check, so a crash still leaves a log that shows where
-        HANDLE f = CreateFileW(L"kurocat-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whiskerkey-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -2859,8 +2861,8 @@ int runClaudeSelfTest() {
     {
         auto e = claude::parseHook(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\\u5f20\u4e09\\projects\\x_project\\","session_id":"s1"})");
         check(e && e->kind == Kind::Done && e->project == L"x_project" && e->session == L"s1", "Stop -> done, project from a Windows path");
-        auto n = claude::parseHook(R"({"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash","cwd":"/home/a/KuroCat","session_id":"s2"})");
-        check(n && n->kind == Kind::NeedsYou && n->project == L"KuroCat", "Notification permission_prompt -> needs you");
+        auto n = claude::parseHook(R"({"hook_event_name":"Notification","notification_type":"permission_prompt","message":"Claude needs your permission to use Bash","cwd":"/home/a/Whiskerkey","session_id":"s2"})");
+        check(n && n->kind == Kind::NeedsYou && n->project == L"Whiskerkey", "Notification permission_prompt -> needs you");
         check(!claude::parseHook(R"({"hook_event_name":"Notification","notification_type":"idle_prompt","message":"x","cwd":"C:\\a"})"), "idle_prompt ignored");
         check(!claude::parseHook(R"({"hook_event_name":"Notification","message":"Claude is waiting for your input","cwd":"C:\\a"})"), "'waiting for your input' ignored");
         auto r = claude::parseHook(R"({"hook_event_name":"PermissionRequest","tool_name":"Bash","cwd":"D:\\","session_id":"s3"})");
@@ -2880,13 +2882,13 @@ int runClaudeSelfTest() {
         check(c.alerts.size() == 3, "at most 3 bubbles");
         c.step(t + 6 + 4 + 46);
         check(c.alerts.empty(), "done bubbles expire after 45 s");
-        auto a = c.receivePayload(L"needs\nKuroCat\nsess\n0", t);
-        check(a && a->kind == Kind::NeedsYou && a->project == L"KuroCat" && c.hit({ CatPhysics::SeatAnchor.x, claude::Center::NewestBubbleY + 10.0f }, t + 1) == a->id, "payload parsed, bubble clickable");
+        auto a = c.receivePayload(L"needs\nWhiskerkey\nsess\n0", t);
+        check(a && a->kind == Kind::NeedsYou && a->project == L"Whiskerkey" && c.hit({ CatPhysics::SeatAnchor.x, claude::Center::NewestBubbleY + 10.0f }, t + 1) == a->id, "payload parsed, bubble clickable");
         check(c.receivePayload(L"bogus\nx\ny", t) == nullptr, "bad payload ignored");
         c.enabled = false;
         check(c.receive(Kind::Done, L"p", L"z", nullptr, t) == nullptr, "nothing while disabled");
     }
-    {   // End to end: the real hook process finds a stand-in KuroCat window and delivers the event.
+    {   // End to end: the real hook process finds a stand-in Whiskerkey window and delivers the event.
         WNDCLASSEXW wc = { sizeof(wc) };
         wc.lpfnWndProc = claudeTestWndProc;
         wc.hInstance = GetModuleHandleW(nullptr);
@@ -2895,8 +2897,8 @@ int runClaudeSelfTest() {
         std::wstring got;
         double secs = 0;
         DWORD code = runHookProcess(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\a\\x_project","session_id":"e2e"})", secs);
-        check(code == 0, "hook exits 0 with no KuroCat running");   // window not created yet
-        HWND w = CreateWindowExW(0, TRAY_OWNER_CLASS, L"KuroCatTray", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
+        check(code == 0, "hook exits 0 with no Whiskerkey running");   // window not created yet
+        HWND w = CreateWindowExW(0, TRAY_OWNER_CLASS, L"WhiskerkeyTray", WS_POPUP, 0, 0, 0, 0, nullptr, nullptr, wc.hInstance, nullptr);
         SetWindowLongPtrW(w, GWLP_USERDATA, (LONG_PTR)&got);
         code = runHookProcess(R"({"hook_event_name":"Stop","cwd":"C:\\Users\\a\\x_project","session_id":"e2e"})", secs);
         check(code == 0 && got.rfind(L"done\nx_project\ne2e\n", 0) == 0, "hook process -> WM_COPYDATA delivered");
@@ -2906,8 +2908,8 @@ int runClaudeSelfTest() {
         check(code == 0 && got.empty(), "garbage input: exit 0, nothing sent");
         DestroyWindow(w);
     }
-    std::wstring snippet = claude::settingsSnippet(L"C:\\Users\\a\\KuroCat.exe");
-    check(snippet.find(L"\"command\": \"C:/Users/a/KuroCat.exe\", \"args\": [\"--claude-hook\"]") != std::wstring::npos, "settings snippet uses exec form");
+    std::wstring snippet = claude::settingsSnippet(L"C:\\Users\\a\\Whiskerkey.exe");
+    check(snippet.find(L"\"command\": \"C:/Users/a/Whiskerkey.exe\", \"args\": [\"--claude-hook\"]") != std::wstring::npos, "settings snippet uses exec form");
     check(catlink::JsonReader::parse(catlink::narrow(snippet)).has_value(), "settings snippet is valid JSON");
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();
@@ -2915,8 +2917,8 @@ int runClaudeSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
-/// `KuroCat.exe --break-selftest`: the break reminder rules (same cases as the macOS test), the
-/// tiny-movement filter, and the bubble's buttons. Writes kurocat-break-selftest.txt; exit code 0 = pass.
+/// `Whiskerkey.exe --break-selftest`: the break reminder rules (same cases as the macOS test), the
+/// tiny-movement filter, and the bubble's buttons. Writes whiskerkey-break-selftest.txt; exit code 0 = pass.
 int runBreakSelfTest() {
     Gdiplus::GdiplusStartupInput gdipInput;
     ULONG_PTR gdipToken = 0;
@@ -2924,7 +2926,7 @@ int runBreakSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {
-        HANDLE f = CreateFileW(L"kurocat-break-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whiskerkey-break-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -3118,13 +3120,13 @@ int runBreakSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
-/// `KuroCat.exe --update-selftest`: version rules, release parsing, and a real download through
-/// GitHub (upstream's latest release has the same file names). Writes kurocat-update-selftest.txt.
+/// `Whiskerkey.exe --update-selftest`: version rules, release parsing, and a real download through
+/// GitHub (upstream's latest release has the same file names). Writes whiskerkey-update-selftest.txt.
 int runUpdateSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {
-        HANDLE f = CreateFileW(L"kurocat-update-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whiskerkey-update-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -3140,21 +3142,21 @@ int runUpdateSelfTest() {
     }
     check(versionToNumber(L"1.3.3-mmccqq.5") > versionToNumber(L"1.3.3-mmccqq.4") && versionToNumber(L"1.3.3-mmccqq.4") > 10303,
           "running-copy numbers grow with the fork number and beat the old 1.3.3 value (10303)");
-    check(versionToNumber(APP_VERSION) == 1030305 || isSemVerNewer(APP_VERSION, L"1.3.3-mmccqq.5"), "APP_VERSION is a fork version");
+    check(versionToNumber(APP_VERSION) >= 1000000, "APP_VERSION is a Whiskerkey version (1.0.0 or later)");
+    check(!isWhiskerkeyRelease(L"v1.3.3-mmccqq.8") && isWhiskerkeyRelease(L"v1.0.1"), "KuroCat's releases are never updates for Whiskerkey");
 
     UpdateCheckResult r;
-    check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.9","html_url":"https://github.com/x/y/releases/tag/v1.3.3-mmccqq.9","assets":[{"name":"KuroCat-macOS-universal.zip","size":1,"browser_download_url":"https://a/mac.zip"},{"name":"KuroCat-Windows-x64.exe","size":585728,"browser_download_url":"https://a/win.exe"}]})", r)
-          && r.latestTag == L"v1.3.3-mmccqq.9" && r.assetUrl == L"https://a/win.exe" && r.assetSize == 585728 && r.assetName == L"KuroCat-Windows-x64.exe", "release JSON -> tag, .exe URL and size");
-    UpdateCheckResult both;
-    check(parseLatestRelease(R"({"tag_name":"v2.0.0","assets":[{"name":"KuroCat-Windows-x64.exe","size":1,"browser_download_url":"https://a/old.exe"},{"name":"Whiskerkey-Windows-x64.exe","size":2,"browser_download_url":"https://a/new.exe"}]})", both)
-          && both.assetName == L"Whiskerkey-Windows-x64.exe" && both.assetUrl == L"https://a/new.exe" && both.assetSize == 2, "Whiskerkey exe preferred over the KuroCat one");
-    check(isSemVerNewer(L"v2.0.0", L"1.3.3-mmccqq.8") && versionToNumber(L"2.0.0") > versionToNumber(L"1.3.3-mmccqq.99"), "2.0.0 is newer than every 1.3.3-mmccqq version");
+    check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.9","html_url":"https://github.com/x/y/releases/tag/v1.3.3-mmccqq.9","assets":[{"name":"Whiskerkey-macOS-universal.zip","size":1,"browser_download_url":"https://a/mac.zip"},{"name":"Whiskerkey-Windows-x64.exe","size":585728,"browser_download_url":"https://a/win.exe"}]})", r)
+          && r.latestTag == L"v1.3.3-mmccqq.9" && r.assetUrl == L"https://a/win.exe" && r.assetSize == 585728 && r.assetName == L"Whiskerkey-Windows-x64.exe", "release JSON -> tag, .exe URL and size");
+    UpdateCheckResult kuroOnly;
+    check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.8","assets":[{"name":"KuroCat-Windows-x64.exe","size":1,"browser_download_url":"https://a/old.exe"}]})", kuroOnly)
+          && kuroOnly.assetUrl.empty(), "a KuroCat exe is not a Whiskerkey download");
     {
-        UpdateTarget a = updateTarget(L"C:\\Users\\a\\Downloads\\KuroCat.exe", L"Whiskerkey-Windows-x64.exe", L"C:\\Users\\a\\AppData\\Local", L"C:\\T\\");
+        UpdateTarget a = updateTarget(L"C:\\Users\\a\\Downloads\\Whiskerkey (1).exe", L"Whiskerkey-Windows-x64.exe", L"C:\\Users\\a\\AppData\\Local", L"C:\\T\\");
         check(a.renamed && a.exe == L"C:\\Users\\a\\Downloads\\Whiskerkey.exe" && a.fallbackExe == L"C:\\Users\\a\\AppData\\Local\\Programs\\Whiskerkey\\Whiskerkey.exe",
-              "KuroCat.exe + Whiskerkey update -> Whiskerkey.exe in the same folder");
-        UpdateTarget b = updateTarget(L"C:\\Users\\a\\Downloads\\KuroCat.exe", L"KuroCat-Windows-x64.exe", L"", L"C:\\T\\");
-        check(!b.renamed && b.exe == L"C:\\Users\\a\\Downloads\\KuroCat.exe" && b.fallbackExe == L"C:\\T\\KuroCat\\KuroCat.exe", "KuroCat update replaces KuroCat.exe");
+              "\"Whiskerkey (1).exe\" + update -> Whiskerkey.exe in the same folder");
+        UpdateTarget b = updateTarget(L"C:\\Users\\a\\Downloads\\Whiskerkey.exe", L"Whiskerkey-Windows-x64.exe", L"", L"C:\\T\\");
+        check(!b.renamed && b.exe == L"C:\\Users\\a\\Downloads\\Whiskerkey.exe" && b.fallbackExe == L"C:\\T\\Whiskerkey\\Whiskerkey.exe", "an update replaces Whiskerkey.exe");
         UpdateTarget c = updateTarget(L"D:\\Apps\\whiskerkey.EXE", L"Whiskerkey-Windows-x64.exe", L"C:\\L", L"C:\\T\\");
         check(!c.renamed && c.exe == L"D:\\Apps\\whiskerkey.EXE", "Whiskerkey.exe updates in place");
     }
@@ -3184,17 +3186,18 @@ int runUpdateSelfTest() {
             CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
             return done;
         };
-        std::string dir = tmp + "kurocat-update-test";
+        std::string dir = tmp + "whiskerkey-update-test";
         CreateDirectoryA(dir.c_str(), nullptr);
-        std::string oldExe = dir + "\\KuroCat.exe", src = dir + "\\KuroCat.update.exe", dst = dir + "\\Whiskerkey.exe", bat = dir + "\\u.bat";
+        std::string oldExe = dir + "\\Whiskerkey (1).exe", src = dir + "\\Whiskerkey.update.exe", dst = dir + "\\Whiskerkey.exe", bat = dir + "\\u.bat";
         DeleteFileA(dst.c_str());
         writeFile(oldExe, "old"); writeFile(src, "new");
         bool ran = runBatch(updateBatch(99999999, src, dst, oldExe, true, dir + "\\fb", dir + "\\fb\\Whiskerkey.exe", "rem"), bat);
         check(ran && readFile(dst) == "new" && !exists(oldExe) && !exists(src) && !exists(bat),
-              "batch: Whiskerkey.exe in place, KuroCat.exe and the download removed, batch deleted itself");
+              "batch: Whiskerkey.exe in place, \"Whiskerkey (1).exe\" and the download removed, batch deleted itself");
         writeFile(oldExe, "old"); writeFile(src, "new");
-        ran = runBatch(updateBatch(99999999, src, oldExe, oldExe, false, dir + "\\fb", dir + "\\fb\\KuroCat.exe", "rem"), bat);
-        check(ran && readFile(oldExe) == "new" && !exists(src), "batch: same name replaces KuroCat.exe in place");
+        writeFile(dst, "old");
+        ran = runBatch(updateBatch(99999999, src, dst, dst, false, dir + "\\fb", dir + "\\fb\\Whiskerkey.exe", "rem"), bat);
+        check(ran && readFile(dst) == "new" && !exists(src), "batch: same name replaces Whiskerkey.exe in place");
         DeleteFileA(oldExe.c_str()); DeleteFileA(dst.c_str());
         RemoveDirectoryA(dir.c_str());
     }
@@ -3204,7 +3207,7 @@ int runUpdateSelfTest() {
     DWORD status = 0;
     std::string body = httpsGet(L"https://api.github.com/repos/chanke17/KuroCat/releases/latest", status, 15000, 1u << 20);
     UpdateCheckResult live;
-    bool parsed = status == 200 && parseLatestRelease(body, live);
+    bool parsed = status == 200 && parseLatestRelease(body, live, "KuroCat-Windows-x64.exe");   // upstream's file name
     check(parsed && !live.assetUrl.empty() && live.assetSize > 50000, "live GitHub API: " + catlink::narrow(live.latestTag) + ", exe " + std::to_string(live.assetSize) + " bytes (HTTP " + std::to_string(status) + ")");
     if (parsed && !live.assetUrl.empty()) {
         double t0 = nowSeconds();
@@ -3226,6 +3229,41 @@ int runUpdateSelfTest() {
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();
     return failures == 0 ? 0 : 1;
+}
+
+/// Whiskerkey 1.0 replaces KuroCat (this project's earlier name). On the first launch it copies
+/// KuroCat's settings (HKCU\\Software\\KuroCat, incl. the Cat Link pairing code and nickname), moves
+/// "start with Windows" over, and asks a KuroCat that is still running to quit: two cats would both
+/// react to the keyboard. The old KuroCat.exe stays where it is; it can simply be deleted.
+void migrateFromKuroCat() {
+    HKEY key = nullptr;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        RegCloseKey(key);   // already has its own settings
+    } else if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &key) == ERROR_SUCCESS) {
+        HKEY created = nullptr;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &created, nullptr) == ERROR_SUCCESS) {
+            RegCopyTreeW(key, nullptr, created);
+            RegCloseKey(created);
+        }
+        RegCloseKey(key);
+    }
+    HKEY run = nullptr;
+    bool kuroCatStartedWithWindows = false;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ | KEY_SET_VALUE, &run) == ERROR_SUCCESS) {
+        DWORD type = 0, size = 0;
+        kuroCatStartedWithWindows = RegQueryValueExW(run, L"KuroCat", nullptr, &type, nullptr, &size) == ERROR_SUCCESS;
+        if (kuroCatStartedWithWindows) RegDeleteValueW(run, L"KuroCat");
+        RegCloseKey(run);
+    }
+    if (kuroCatStartedWithWindows) setAutoStartEnabled(true);
+    if (HWND kuroCat = FindWindowW(L"KuroCatTrayOwnerClass", nullptr)) {
+        DWORD pid = 0;
+        GetWindowThreadProcessId(kuroCat, &pid);
+        HANDLE proc = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : nullptr;
+        PostMessageW(kuroCat, WM_REQUEST_QUIT, 0, 0);   // same message number in KuroCat
+        if (HWND overlay = FindWindowW(L"KuroCatOverlayWindowClass", nullptr)) PostMessageW(overlay, WM_CLOSE, 0, 0);
+        if (proc) { WaitForSingleObject(proc, 5000); CloseHandle(proc); }
+    }
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
@@ -3260,10 +3298,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         return renderPreviewSheet(out);
     }
 
+    // Before anything reads the settings (the language is read on the first text shown).
+    migrateFromKuroCat();
+
     const int myVersion = versionToNumber(APP_VERSION);
     const bool forceTakeover = commandLineHasFlag(L"--takeover");   // admin relaunch
     const bool noElevate = commandLineHasFlag(L"--no-elevate");
-    const wchar_t* kMutexName = L"Local\\KuroCatDesktopPetSingleInstance";
+    const wchar_t* kMutexName = L"Local\\WhiskerkeyDesktopPetSingleInstance";
 
     // Single-instance guard. Re-launching the SAME version wakes the existing cat (cancels full
     // click-through and pops the menu so users never get stuck). Launching a NEWER version (e.g. a
@@ -3324,7 +3365,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     ULONG_PTR gdipToken = 0;
     Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, nullptr);
 
-    // Refresh auto-start exe path if user enabled auto-start and moved KuroCat.exe
+    // Refresh auto-start exe path if user enabled auto-start and moved Whiskerkey.exe
     if (isAutoStartEnabled()) {
         setAutoStartEnabled(true);
     }
@@ -3368,7 +3409,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.menuOwnerHwnd = CreateWindowExW(
         WS_EX_TOOLWINDOW,
         trayWc.lpszClassName,
-        L"KuroCatTray",
+        L"WhiskerkeyTray",
         WS_POPUP,
         0, 0, 0, 0,
         nullptr, nullptr, hInst, nullptr
@@ -3376,7 +3417,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     if (app.menuOwnerHwnd) {
         SetPropW(app.menuOwnerHwnd, VERSION_PROP, (HANDLE)(INT_PTR)myVersion);
         // When elevated, UIPI would drop messages from the (non-elevated) taskbar and from a
-        // re-launched KuroCat. Explicitly allow the few messages we rely on.
+        // re-launched Whiskerkey. Explicitly allow the few messages we rely on.
         const UINT allowed[] = { WM_TRAYICON, WM_WAKE_EXISTING, WM_REQUEST_QUIT, WM_COPYDATA };
         for (UINT m : allowed) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, m, MSGFLT_ALLOW, nullptr);
         if (g_msgTaskbarCreated) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, g_msgTaskbarCreated, MSGFLT_ALLOW, nullptr);
@@ -3397,7 +3438,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.hwnd = CreateWindowExW(
         exStyle,
         wc.lpszClassName,
-        L"KuroCat",
+        L"Whiskerkey",
         WS_POPUP,
         initX, initY, initW, initH,
         nullptr, nullptr, hInst, nullptr

@@ -1,6 +1,6 @@
 # Cat Link protocol (v1)
 
-Cat Link lets two KuroCats show each other's cat.
+Cat Link lets two Whiskerkeys show each other's cat. (KuroCat used the same design with `kurocat` names instead of `whiskerkey`, so the two don't link.)
 
 Cat Link uses EMQX's public servers (`broker-cn.emqx.io` and `broker.emqx.io`). They're open to anyone with no sign-up, no username and no password. EMQX runs them free so developers can test MQTT apps, a bit like a public Wi-Fi hotspot.
 
@@ -9,14 +9,14 @@ Both apps connect to the same MQTT server and exchange small, encrypted, anonymi
 ## Pairing code
 
 ```
-KC-C-7KQ2-M9XA-P3TD-W8RF-Z5HN
+WK-C-7KQ2-M9XA-P3TD-W8RF-Z5HN
    │ └────────── secret ────────┘
    └─ server: C = broker-cn.emqx.io (Shanghai), G = broker.emqx.io (US)
 ```
 
 - The secret is 20 characters from `23456789ABCDEFGHJKMNPQRSTUVWXYZ`, which leaves out 0/O and 1/I/L. That's about 99 bits.
-- Parsing: uppercase the text, keep only letters and digits, then expect `KC` + server letter + 20 secret characters (23 in total).
-- Shown to users as `KC-<server>-XXXX-XXXX-XXXX-XXXX-XXXX`.
+- Parsing: uppercase the text, keep only letters and digits, then expect `WK` + server letter + 20 secret characters (23 in total). Codes starting with `KC` (from KuroCat) are accepted too: the prefix isn't part of the keys.
+- Shown to users as `WK-<server>-XXXX-XXXX-XXXX-XXXX-XXXX`.
 
 ## Keys and topic
 
@@ -24,16 +24,16 @@ Both are derived with HKDF-SHA256 (RFC 5869):
 
 | | Input key material | Salt | Info | Length |
 |---|---|---|---|---|
-| AES key | the 20 secret characters (ASCII) | `kurocat-link-v1` | `aes-gcm-key` | 32 bytes |
+| AES key | the 20 secret characters (ASCII) | `whiskerkey-link-v1` | `aes-gcm-key` | 32 bytes |
 | Topic id | same | same | `mqtt-topic` | 16 bytes |
 
-- Topic: `kurocat/v1/` + the 16-byte topic id as lowercase hex (32 characters).
+- Topic: `whiskerkey/v1/` + the 16-byte topic id as lowercase hex (32 characters).
 - Windows CNG has HMAC-SHA256 (`BCRYPT_SHA256_ALGORITHM` with `BCRYPT_ALG_HANDLE_HMAC_FLAG`), and HKDF is two HMAC steps: extract, then one expand block.
 
 ## Transport
 
 - MQTT **5** over secure WebSocket: `wss://<server>:8084/mqtt`, WebSocket subprotocol `mqtt`.
-- CONNECT: clean start, keep-alive 60 s, no properties, client id `kurocat-<peer id>-<4 random digits>`.
+- CONNECT: clean start, keep-alive 60 s, no properties, client id `whiskerkey-<peer id>-<4 random digits>`.
 - SUBSCRIBE to the topic with options `0x04`: QoS 0 and **No Local**, so the server doesn't echo our own messages.
 - PUBLISH: QoS 0, no properties. The payload is one encrypted batch.
 - Send PINGREQ every 25 s. If nothing arrives for 90 s, treat the connection as dead.

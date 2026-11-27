@@ -18,18 +18,18 @@ final class CatLinkController: NSObject {
     var isSharingPaused: Bool { link.isPaused }
 
     private let defaults = UserDefaults.standard
-    private var savedCode: CatLinkCode? { defaults.string(forKey: "KuroCat.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
-    private var nickname: String { defaults.string(forKey: "KuroCat.LinkNickname") ?? "" }
+    private var savedCode: CatLinkCode? { defaults.string(forKey: "Whiskerkey.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
+    private var nickname: String { defaults.string(forKey: "Whiskerkey.LinkNickname") ?? "" }
     /// Whether the friend's cat is shown (independent of our own cat).
     var showFriendCat: Bool {
-        get { defaults.object(forKey: "KuroCat.LinkShowFriend") as? Bool ?? true }
+        get { defaults.object(forKey: "Whiskerkey.LinkShowFriend") as? Bool ?? true }
         set {
-            defaults.set(newValue, forKey: "KuroCat.LinkShowFriend")
+            defaults.set(newValue, forKey: "Whiskerkey.LinkShowFriend")
             if shouldShowRemote { remoteWindow?.orderFrontRegardless() } else { remoteWindow?.orderOut(nil) }
         }
     }
     private var newCodeServer: CatLinkCode.Server {
-        CatLinkCode.Server(rawValue: defaults.string(forKey: "KuroCat.LinkServer") ?? "") ?? .china
+        CatLinkCode.Server(rawValue: defaults.string(forKey: "Whiskerkey.LinkServer") ?? "") ?? .china
     }
     private var isDemo: Bool { CACurrentMediaTime() < demoUntil }
 
@@ -67,8 +67,8 @@ final class CatLinkController: NSObject {
                 self?.applyFriend(event)
             }
         }
-        link.setPaused(defaults.bool(forKey: "KuroCat.LinkPaused"))
-        if defaults.bool(forKey: "KuroCat.LinkEnabled"), let code = savedCode {
+        link.setPaused(defaults.bool(forKey: "Whiskerkey.LinkPaused"))
+        if defaults.bool(forKey: "Whiskerkey.LinkEnabled"), let code = savedCode {
             link.start(code: code)
         }
     }
@@ -129,7 +129,7 @@ final class CatLinkController: NSObject {
 
     private func ensureRemoteWindow() {
         if remoteWindow == nil, let main = mainWindow {
-            let window = OverlayWindow(positionKey: "KuroCat.FriendPos", defaultShiftX: -(main.frame.width + 12))
+            let window = OverlayWindow(positionKey: "Whiskerkey.FriendPos", defaultShiftX: -(main.frame.width + 12))
             window.catView.isRemote = true
             window.catView.onPetStroke = { [weak self] pt, delta, isHead in
                 guard let self, !self.isDemo else { return }
@@ -245,8 +245,8 @@ final class CatLinkController: NSObject {
     // MARK: Actions
 
     private func start(_ code: CatLinkCode) {
-        defaults.set(code.display, forKey: "KuroCat.LinkCode")
-        defaults.set(true, forKey: "KuroCat.LinkEnabled")
+        defaults.set(code.display, forKey: "Whiskerkey.LinkCode")
+        defaults.set(true, forKey: "Whiskerkey.LinkEnabled")
         link.start(code: code)
     }
 
@@ -255,7 +255,7 @@ final class CatLinkController: NSObject {
         start(code)
         let alert = NSAlert()
         alert.messageText = tr("把这个配对码发给你的朋友", "Send this pairing code to your friend")
-        alert.informativeText = tr("朋友在 KuroCat 菜单「🔗 猫咪连线 → 输入朋友的配对码」里粘贴它，你们的猫就会出现在对方的屏幕上。\n配对码就是你们的密钥，请只发给这位朋友。\n\n", "Your friend pastes it in KuroCat's menu (🔗 Cat Link → Enter a friend's pairing code), and your cats appear on each other's screens.\nThe code is your shared key, so send it only to this friend.\n\n") + Self.whatIsShared
+        alert.informativeText = tr("朋友在小猫的菜单「🔗 猫咪连线 → 输入朋友的配对码」里粘贴它，你们的猫就会出现在对方的屏幕上。\n配对码就是你们的密钥，请只发给这位朋友。\n\n", "Your friend pastes it in the cat's menu (🔗 Cat Link → Enter a friend's pairing code), and your cats appear on each other's screens.\nThe code is your shared key, so send it only to this friend.\n\n") + Self.whatIsShared
         alert.accessoryView = selectableField(code.display)
         alert.addButton(withTitle: tr("复制配对码", "Copy code"))
         alert.addButton(withTitle: tr("完成", "Done"))
@@ -266,9 +266,9 @@ final class CatLinkController: NSObject {
     @objc private func joinCode() {
         let alert = NSAlert()
         alert.messageText = tr("输入朋友的配对码", "Enter your friend's pairing code")
-        alert.informativeText = tr("形如 KC-C-XXXX-XXXX-XXXX-XXXX-XXXX。\n\n", "It looks like KC-C-XXXX-XXXX-XXXX-XXXX-XXXX.\n\n") + Self.whatIsShared
+        alert.informativeText = tr("形如 WK-C-XXXX-XXXX-XXXX-XXXX-XXXX。\n\n", "It looks like WK-C-XXXX-XXXX-XXXX-XXXX-XXXX.\n\n") + Self.whatIsShared
         let field = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
-        field.placeholderString = "KC-C-XXXX-XXXX-XXXX-XXXX-XXXX"
+        field.placeholderString = "WK-C-XXXX-XXXX-XXXX-XXXX-XXXX"
         if let clip = NSPasteboard.general.string(forType: .string), let code = CatLinkCode(parsing: clip) {
             field.stringValue = code.display
         }
@@ -281,7 +281,7 @@ final class CatLinkController: NSObject {
         guard let code = CatLinkCode(parsing: field.stringValue) else {
             let error = NSAlert()
             error.messageText = tr("配对码不对", "That pairing code isn't right")
-            error.informativeText = tr("请检查是否完整复制了配对码（KC- 开头，共 5 组 4 个字符）。", "Check that you copied the whole code (it starts with KC- and has 5 groups of 4 characters).")
+            error.informativeText = tr("请检查是否完整复制了配对码（WK- 开头，共 5 组 4 个字符）。", "Check that you copied the whole code (it starts with WK- and has 5 groups of 4 characters).")
             error.runModal()
             return
         }
@@ -298,19 +298,19 @@ final class CatLinkController: NSObject {
     }
 
     @objc private func disconnect() {
-        defaults.set(false, forKey: "KuroCat.LinkEnabled")
+        defaults.set(false, forKey: "Whiskerkey.LinkEnabled")
         link.stop()
     }
 
     @objc private func togglePause() {
         let paused = !link.isPaused
-        defaults.set(paused, forKey: "KuroCat.LinkPaused")
+        defaults.set(paused, forKey: "Whiskerkey.LinkPaused")
         link.setPaused(paused)
         onIndicatorChange?(isLinkIndicatorOn)
     }
 
     @objc private func selectServer(_ sender: NSMenuItem) {
-        defaults.set(sender.representedObject as? String, forKey: "KuroCat.LinkServer")
+        defaults.set(sender.representedObject as? String, forKey: "Whiskerkey.LinkServer")
     }
 
     @objc private func setNickname() {
@@ -325,7 +325,7 @@ final class CatLinkController: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        defaults.set(String(field.stringValue.trimmingCharacters(in: .whitespaces).prefix(16)), forKey: "KuroCat.LinkNickname")
+        defaults.set(String(field.stringValue.trimmingCharacters(in: .whitespaces).prefix(16)), forKey: "Whiskerkey.LinkNickname")
         link.profileChanged()
     }
 

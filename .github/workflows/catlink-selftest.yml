@@ -1,6 +1,6 @@
 name: Cat Link self-test (Windows)
 
-# Builds KuroCat.exe on a real Windows machine and runs `KuroCat.exe --link-selftest`:
+# Builds Whiskerkey.exe on a real Windows machine and runs `Whiskerkey.exe --link-selftest`:
 # crypto/JSON against the macOS test vectors, two sessions over the public relay, and
 # (optionally) a conversation with a macOS peer that joined the given pairing code.
 on:
@@ -27,7 +27,7 @@ jobs:
         with:
           arch: x64
 
-      - name: Build KuroCat.exe
+      - name: Build Whiskerkey.exe
         shell: cmd
         run: |
           cd windows
@@ -39,9 +39,9 @@ jobs:
           PEER_CODE: ${{ github.event.inputs.code }}
         run: |
           cd windows
-          start "" /wait KuroCat.exe --link-selftest %PEER_CODE%
+          start "" /wait Whiskerkey.exe --link-selftest %PEER_CODE%
           set RC=%ERRORLEVEL%
-          type kurocat-selftest.txt
+          type whiskerkey-selftest.txt
           exit /b %RC%
 
       - name: Run Claude Code hook self-test
@@ -49,9 +49,9 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait KuroCat.exe --claude-selftest
+          start "" /wait Whiskerkey.exe --claude-selftest
           set RC=%ERRORLEVEL%
-          if exist kurocat-claude-selftest.txt type kurocat-claude-selftest.txt
+          if exist whiskerkey-claude-selftest.txt type whiskerkey-claude-selftest.txt
           exit /b %RC%
 
       - name: Run break reminder self-test
@@ -59,9 +59,9 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait KuroCat.exe --break-selftest
+          start "" /wait Whiskerkey.exe --break-selftest
           set RC=%ERRORLEVEL%
-          if exist kurocat-break-selftest.txt type kurocat-break-selftest.txt
+          if exist whiskerkey-break-selftest.txt type whiskerkey-break-selftest.txt
           exit /b %RC%
 
       - name: Run update self-test
@@ -69,9 +69,9 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait KuroCat.exe --update-selftest
+          start "" /wait Whiskerkey.exe --update-selftest
           set RC=%ERRORLEVEL%
-          if exist kurocat-update-selftest.txt type kurocat-update-selftest.txt
+          if exist whiskerkey-update-selftest.txt type whiskerkey-update-selftest.txt
           exit /b %RC%
 
       - name: Render preview sheet
@@ -79,18 +79,18 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait KuroCat.exe --render-preview preview.png
+          start "" /wait Whiskerkey.exe --render-preview preview.png
           dir preview.png
 
-      - name: Upload KuroCat.exe and the self-test log
+      - name: Upload Whiskerkey.exe and the self-test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: KuroCat-Windows-x64-catlink
+          name: Whiskerkey-Windows-x64-selftest
           path: |
-            windows/KuroCat.exe
-            windows/kurocat-selftest.txt
-            windows/kurocat-claude-selftest.txt
-            windows/kurocat-break-selftest.txt
-            windows/kurocat-update-selftest.txt
+            windows/Whiskerkey.exe
+            windows/whiskerkey-selftest.txt
+            windows/whiskerkey-claude-selftest.txt
+            windows/whiskerkey-break-selftest.txt
+            windows/whiskerkey-update-selftest.txt
             windows/preview.png
