@@ -9,6 +9,7 @@ What changed in each version of this fork (based on upstream [chanke17/KuroCat](
 macOS and Windows.
 
 - **⏸ Pause sharing in Cat Link**: **🔗 Cat Link → ⏸ Pause sharing my cat** keeps you linked but stops sending your activity. Your cat disappears from your friend's screen at once, and you still see theirs. Their menu says you paused sharing (not that you went offline): while paused, the only thing sent is a tiny "paused" signal every 10 seconds, with no keys, mouse movement, clicks, scrolling, petting, headphones or nickname. Uncheck it and your cat comes back. The switch stays on after a restart. Both of you need this version: an older version keeps showing a paused friend's cat, standing still.
+- **Friend's name tag sits lower**: the tag above your friend's cat ("…'s cat · online") now sits just above its ears instead of floating high above its head.
 
 ## v1.3.3-mmccqq.5 — 2026-11-26
 
