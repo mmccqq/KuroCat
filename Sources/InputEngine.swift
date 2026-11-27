@@ -170,6 +170,53 @@ final class InputEngine {
         if recentKeyTimes.count > 120 {
             recentKeyTimes.removeAll { now - $0 > 12.0 }
         }
+        releaseStuckKeys(now: now)
+    }
+
+    // MARK: - Stuck keys
+
+    /// When each held key went down.
+    private var keyDownSince: [PhysicalKey: CFTimeInterval] = [:]
+    private var lastStuckKeyCheck: CFTimeInterval = 0
+
+    /// Every macOS key code of each key (Return and keypad Enter are both `.enter`).
+    private static let cgKeyCodes: [PhysicalKey: [CGKeyCode]] = {
+        var map: [PhysicalKey: [CGKeyCode]] = [:]
+        for code in 0..<128 {
+            if let key = PhysicalKey.fromCGKeyCode(UInt16(code)) { map[key, default: []].append(CGKeyCode(code)) }
+        }
+        return map
+    }()
+
+    /// Keys held at least this long are compared with the keyboard (a newer key-up may still be on its way).
+    static let stuckKeyGrace: CFTimeInterval = 0.4
+
+    /// Held keys that the keyboard says are no longer down. A key-up can go missing: while the screen is
+    /// locked, or a password field turns on Secure Input, key releases go to macOS only (an event tap that
+    /// timed out misses them too). Without this check, the paw stays on that key until it is pressed again.
+    /// Caps Lock is also released here: the event tap reports it as held for as long as Caps Lock is on.
+    static func stuckKeys(active: Set<PhysicalKey>, downSince: [PhysicalKey: CFTimeInterval], now: CFTimeInterval,
+                          isDown: (CGKeyCode) -> Bool) -> Set<PhysicalKey> {
+        active.filter { key in
+            guard now - (downSince[key] ?? now) >= stuckKeyGrace, let codes = cgKeyCodes[key] else { return false }
+            return !codes.contains(where: isDown)
+        }
+    }
+
+    /// Four times a second: release held keys that aren't physically down (the Windows version does the same).
+    private func releaseStuckKeys(now: CFTimeInterval) {
+        guard !activeKeys.isEmpty, now - lastStuckKeyCheck >= 0.25 else { return }
+        lastStuckKeyCheck = now
+        let stuck = Self.stuckKeys(active: activeKeys, downSince: keyDownSince, now: now,
+                                   isDown: { CGEventSource.keyState(.hidSystemState, key: $0) })
+        for key in stuck {
+            hidPressedKeys.remove(key)
+            tapPressedKeys.remove(key)
+            recomputeUnifiedKeys()
+            keyDownSince[key] = nil
+            pressedOrder.removeAll { $0 == key }
+            onKeyUp?(key)
+        }
     }
 
     // MARK: - Layer 1: IOHIDManager (Raw Kernel HID — Best for Games + IME)
@@ -443,6 +490,7 @@ final class InputEngine {
 
         if !wasActive && isNowActive {
             let now = CACurrentMediaTime()
+            keyDownSince[key] = now
             lastKeyActivityTime = now
             recentKeyTimes.append(now)
             incrementTodayStats()
@@ -450,6 +498,7 @@ final class InputEngine {
             pressedOrder.append(key)
             onKeyDown?(key)
         } else if wasActive && !isNowActive {
+            keyDownSince[key] = nil
             pressedOrder.removeAll { $0 == key }
             onKeyUp?(key)
         }
