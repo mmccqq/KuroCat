@@ -143,7 +143,7 @@ inline std::wstring duration(double seconds) {
 /// The same, spelled out for a sentence: "1 hour 30 min".
 inline std::wstring spokenDuration(double seconds) {
     int total = std::max(0, (int)(seconds / 60)), h = total / 60, m = total % 60;
-    if (h == 0) return std::to_wstring(m) + tr(L" 分钟", L" minutes");
+    if (h == 0) return std::to_wstring(m) + tr(L" 分钟", m == 1 ? L" minute" : L" minutes");
     std::wstring s = l10n::isChinese() ? std::to_wstring(h) + L" 小时" : h == 1 ? L"1 hour" : std::to_wstring(h) + L" hours";
     return m == 0 ? s : s + L" " + std::to_wstring(m) + tr(L" 分钟", L" min");
 }
@@ -313,7 +313,7 @@ private:
         l.titleX = x + w / 2 - titleW / 2;
         l.titleY = l.rect.Y + 7;
         l.titleSize = size;
-        l.cupX = l.titleX + measure(t, size) + 4;
+        l.cupX = l.titleX + measure(t, size) + 1;
         float bx = x + w / 2 - buttonsW / 2;
         for (size_t i = 0; i < list.size(); ++i) {
             l.buttons.push_back({ list[i], Gdiplus::RectF(bx, l.rect.Y + h - 7 - ButtonHeight, widths[i], ButtonHeight) });

@@ -256,7 +256,7 @@ final class BreakReminderCenter {
     static func spokenDuration(_ seconds: Double) -> String {
         let total = max(0, Int(seconds / 60))
         let h = total / 60, m = total % 60
-        if h == 0 { return tr("\(m) 分钟", "\(m) minutes") }
+        if h == 0 { return tr("\(m) 分钟", m == 1 ? "1 minute" : "\(m) minutes") }
         let hours = tr("\(h) 小时", h == 1 ? "1 hour" : "\(h) hours")
         return m == 0 ? hours : tr("\(hours) \(m) 分钟", "\(hours) \(m) min")
     }

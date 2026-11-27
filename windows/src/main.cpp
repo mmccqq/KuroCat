@@ -2495,19 +2495,25 @@ int renderPreviewSheet(const std::wstring& outPath) {
         breaks::Center c;
         double t0 = breaks::clock();
         c.begin(60, t0);
-        c.logic = breaks::Logic(60.0, t0 - 61);
+        c.logic = breaks::Logic(3600.0, t0 - 3601);
         c.logic.tick(t0);
         CatPhysics p; InputEngine eng = feed();
         auto sync = [&] { p.wantsAttention = c.isWaving(breaks::clock()); };
-        run(p, eng, st, 0.75, sync);
-        snap(p, st, L"Break reminder (first) +0.75s", L"", nullptr, &c);
         l10n::cachedChinese() = 0;
-        c.showPreview(breaks::clock());
-        run(p, eng, st, 0.5, sync);
-        snap(p, st, L"English: later reminder", L"", nullptr, &c);
-        c.tap(breaks::Button::Ok, breaks::clock());
-        run(p, eng, st, 0.5, sync);
-        snap(p, st, L"English: after OK", L"", nullptr, &c);
+        run(p, eng, st, 0.75, sync);
+        snap(p, st, L"English: first break reminder", L"", nullptr, &c);
+        breaks::Center v;   // the preview: a later reminder, then "Enjoy your break" after OK
+        v.begin(60, breaks::clock());
+        CatPhysics q; InputEngine eng2 = feed();
+        auto sync2 = [&] { q.wantsAttention = v.isWaving(breaks::clock()); };
+        l10n::cachedChinese() = 1;
+        v.showPreview(breaks::clock());
+        run(q, eng2, st, 0.5, sync2);
+        snap(q, st, L"Chinese: later break reminder", L"", nullptr, &v);
+        l10n::cachedChinese() = 0;
+        v.tap(breaks::Button::Ok, breaks::clock());
+        run(q, eng2, st, 0.5, sync2);
+        snap(q, st, L"English: after OK", L"", nullptr, &v);
         l10n::cachedChinese() = -1;
     }
     {   // Mosquito: sleeping cat, mosquito circles, two swats, it leaves, the cat dozes off again.
@@ -3057,6 +3063,9 @@ int runBreakSelfTest() {
         double t = breaks::clock();
         v.begin(60, t);
         l10n::cachedChinese() = 0;
+        check(breaks::spokenDuration(60) == L"1 minute" && breaks::spokenDuration(1800) == L"30 minutes" &&
+              breaks::spokenDuration(3600) == L"1 hour" && breaks::spokenDuration(5400) == L"1 hour 30 min" &&
+              breaks::spokenDuration(7200) == L"2 hours", "spoken durations");
         v.showPreview(t);
         check(v.isShowingBubble() && v.isWaving(t + 1), "preview shows the bubble and waves");
         std::vector<Button> found;
