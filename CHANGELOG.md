@@ -4,7 +4,7 @@
 
 本分支（基于上游 [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3）每个版本的改动，最新的在最上面。版本号形如 `v1.3.3-mmccqq.5`：前面是上游版本，最后的数字是本分支的第几个版本。
 
-## v1.3.3-mmccqq.8 — 未发布
+## v1.3.3-mmccqq.8 — 2026-11-27
 
 macOS 和 Windows。
 

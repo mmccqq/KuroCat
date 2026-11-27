@@ -4,7 +4,7 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
 
-## v1.3.3-mmccqq.8 — unreleased
+## v1.3.3-mmccqq.8 — 2026-11-27
 
 macOS and Windows.
 
