@@ -98,6 +98,7 @@ SWIFT_SOURCES=(
     "$ROOT/Sources/CatLink.swift"
     "$ROOT/Sources/CatLinkController.swift"
     "$ROOT/Sources/ClaudeCodeAlerts.swift"
+    "$ROOT/Sources/BreakReminder.swift"
     "$ROOT/Sources/main.swift"
 )
 

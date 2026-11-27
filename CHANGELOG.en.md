@@ -4,6 +4,17 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of this fork (based on upstream [chanke17/KuroCat](https://github.com/chanke17/KuroCat) v1.3.3), newest first. Versions look like `v1.3.3-mmccqq.5`: the upstream version, then this fork's release number.
 
+## v1.3.3-mmccqq.7 — unreleased
+
+macOS and Windows.
+
+- **☕ Break reminder**: after you've worked for an hour, the cat waves for a few seconds and a bubble says "You've worked for 1 hour. Time for a break ☕". Choose how long in **Break reminder ☕** (Off, 30 min, 1 h, 2 h, 3 h), and try it with **Preview the reminder**.
+  - **OK**: you have 30 seconds to save your work, then 2 minutes away counts as a break. If you keep working instead, the cat keeps reminding you.
+  - **Later**, or ignoring the bubble (it closes after 30 seconds): the cat reminds you again every 30 minutes.
+  - **I've rested** (from the second reminder on): for a break the cat couldn't see. The work timer starts again.
+  - **What counts as a break**: 15 minutes without the mouse or keyboard (shorter pauses could just be thinking), 2 minutes after OK, or 2 minutes with the screen locked or the computer asleep. Tiny mouse movements, like bumping the desk, don't count as input. After a break, the timer starts again when you come back.
+  - It stays on this computer: nothing about it goes over Cat Link.
+
 ## v1.3.3-mmccqq.6 — 2026-11-26
 
 macOS and Windows.

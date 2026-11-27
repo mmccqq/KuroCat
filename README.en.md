@@ -26,6 +26,7 @@ What's new:
 - **🔗 Cat Link**: see a faraway friend's cat on your screen, typing, moving the mouse and wearing headphones along with them, and pet each other's cats from afar. Macs and Windows PCs can link; everything is encrypted, and which keys you press is never sent.
 - **🎧 AirPods**: when the sound output switches to headphones, the cat puts on AirPods, with ♪ notes while music plays.
 - **🤖 Claude Code alerts**: a bubble over the cat when a Claude Code session finishes or needs your OK.
+- **☕ Break reminder**: after an hour of work (you can choose 30 min to 3 h), the cat waves and suggests a break.
 - **🦟 A mosquito while it sleeps**: a few minutes into a nap, a mosquito wakes the cat, which swats at it and dozes off again.
 - **🐾 More natural moves**: petting must be deliberate, hunting eyes need sustained fast mouse movement, paws rest on the keyboard when idle, and a paw strokes the scroll wheel while you scroll.
 - **🔄 Updates from this fork only**: checks only this repository's Releases, and asks before updating.
@@ -35,6 +36,7 @@ What's new:
 
 - **Cat Link**: in the menu, choose **🔗 Cat Link → Create a pairing code to invite a friend…** and send the code to your friend, who picks **Enter a friend's pairing code…** in the same menu (on Windows: copy it, then click **Paste a friend's pairing code and link**). **⏸ Pause sharing my cat** in the same menu hides your cat from your friend without disconnecting. **🎬 Demo: pretend friend** previews it locally. Wire format: [docs/cat-link-protocol.md](docs/cat-link-protocol.md).
 - **Claude Code alerts**: **Claude Code alerts 🤖 → Copy Claude Code hook settings**, merge it into `~/.claude/settings.json` (Windows: `%USERPROFILE%\.claude\settings.json`), then reopen Claude Code.
+- **Break reminder**: **Break reminder ☕** sets how long you work before the cat reminds you (Off, 30 min, 1 h, 2 h, 3 h; 1 h at first), and **Preview the reminder** shows it right away. Click **OK** and step away for 2 minutes (you get 30 seconds to save your work first), or **Later** to be reminded again in 30 minutes. 15 minutes without the mouse or keyboard, or 2 minutes with the screen locked or the computer asleep, also counts as a break. From the second reminder on, **I've rested** tells the cat about a break it didn't see. It stays on this computer.
 - **Mosquito**: **🎬 Demo: here comes a mosquito** shows it right away; untick **Mosquito visits while asleep 🦟** to turn it off.
 - **Updates**: checked at launch and every 6 hours, or any time with **Check for updates** in the menu.
 - **Language**: the menus follow your system language (Chinese on a Chinese system, English otherwise). Change it any time with **语言 / Language** in the menu.
@@ -169,7 +171,7 @@ KuroCat/
 
 ## 🔒 Privacy
 
-All keyboard and mouse hardware signals in KuroCat are processed **strictly in local memory in real time** to drive animations and counters—**no keystrokes are ever logged or saved**. This fork goes online in only two cases: checking this repository's GitHub Releases for updates, and, if you turn on Cat Link, relaying activity encrypted with the pairing code through EMQX's public server (only which paw is typing, mouse movement and the like, never which key). Claude Code alerts stay on this computer. The entire codebase is open source and auditable.
+All keyboard and mouse hardware signals in KuroCat are processed **strictly in local memory in real time** to drive animations and counters—**no keystrokes are ever logged or saved**. This fork goes online in only two cases: checking this repository's GitHub Releases for updates, and, if you turn on Cat Link, relaying activity encrypted with the pairing code through EMQX's public server (only which paw is typing, mouse movement and the like, never which key). Claude Code alerts and the break reminder stay on this computer. The entire codebase is open source and auditable.
 
 ## 📄 License
 

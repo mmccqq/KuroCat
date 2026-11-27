@@ -19,6 +19,7 @@
 #include "CatRenderer.hpp"
 #include "CatLink.hpp"
 #include "ClaudeAlerts.hpp"
+#include "BreakReminder.hpp"
 #include <UIAutomation.h>
 #include <mmdeviceapi.h>
 #include <endpointvolume.h>
@@ -116,6 +117,12 @@ enum MenuCmd : UINT {
     CMD_CLAUDE_TEST_DONE,
     CMD_CLAUDE_TEST_NEEDS,
     CMD_CLAUDE_COPY,
+    CMD_BREAK_OFF,
+    CMD_BREAK_30,
+    CMD_BREAK_60,
+    CMD_BREAK_120,
+    CMD_BREAK_180,
+    CMD_BREAK_PREVIEW,
     CMD_QUIT
 };
 
@@ -183,6 +190,8 @@ struct AppState {
 
     // Claude Code alerts: bubbles when a session finishes or waits for an approval (local only)
     claude::Center claude;
+    // Break reminder: the cat suggests a break after a long stretch of work (local only)
+    breaks::Center breaks;
     struct FriendCat {
         HWND hwnd = nullptr;
         bool shown = false;
@@ -1475,6 +1484,25 @@ void showContextMenu(AppState& app, POINT screenPt) {
     AppendMenuW(claudeMenu, MF_SEPARATOR, 0, nullptr);
     AppendMenuW(claudeMenu, MF_STRING, CMD_CLAUDE_COPY, tr(L"复制 Claude Code 钩子设置", L"Copy Claude Code hook settings"));
     AppendMenuW(menu, MF_POPUP, (UINT_PTR)claudeMenu, tr(L"Claude Code 提醒 \U0001F916", L"Claude Code alerts \U0001F916"));
+    HMENU breakMenu = CreatePopupMenu();
+    if (app.breaks.minutes > 0) {
+        double now = breaks::clock();
+        std::wstring status = app.breaks.logic.phase == breaks::Phase::Rest ? std::wstring(tr(L"正在休息", L"On a break"))
+            : tr(L"已连续工作 ", L"Working for ") + breaks::duration(app.breaks.logic.workedSeconds(now));
+        AppendMenuW(breakMenu, MF_STRING | MF_GRAYED, 0, status.c_str());
+        AppendMenuW(breakMenu, MF_SEPARATOR, 0, nullptr);
+    }
+    AppendMenuW(breakMenu, MF_STRING | MF_GRAYED, 0, tr(L"工作多久后提醒：", L"Remind me after working:"));
+    for (int m : breaks::Center::Choices) {
+        int cmd = m == 0 ? CMD_BREAK_OFF : m == 30 ? CMD_BREAK_30 : m == 60 ? CMD_BREAK_60 : m == 120 ? CMD_BREAK_120 : CMD_BREAK_180;
+        std::wstring title = L"    " + (m == 0 ? std::wstring(tr(L"关闭", L"Off")) : breaks::duration(m * 60.0));
+        AppendMenuW(breakMenu, MF_STRING | (app.breaks.minutes == m ? MF_CHECKED : 0), cmd, title.c_str());
+    }
+    AppendMenuW(breakMenu, MF_SEPARATOR, 0, nullptr);
+    AppendMenuW(breakMenu, MF_STRING, CMD_BREAK_PREVIEW, tr(L"预览提醒", L"Preview the reminder"));
+    AppendMenuW(breakMenu, MF_STRING | MF_GRAYED, 0, tr(L"离开 15 分钟、点「好的」后离开 2 分钟，或锁屏 2 分钟，都算休息",
+                                                        L"A break: 15 min away, 2 min after OK, or 2 min locked"));
+    AppendMenuW(menu, MF_POPUP, (UINT_PTR)breakMenu, tr(L"休息提醒 \u2615", L"Break reminder \u2615"));
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
 
     // Cat Coat Skin submenu
@@ -1692,6 +1720,15 @@ void showContextMenu(AppState& app, POINT screenPt) {
         case CMD_CLAUDE_TEST_NEEDS:
             onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"KuroCat", L"menu-test-needs", nullptr, nowSeconds()));
             break;
+        case CMD_BREAK_OFF: case CMD_BREAK_30: case CMD_BREAK_60: case CMD_BREAK_120: case CMD_BREAK_180: {
+            int m = cmd == CMD_BREAK_OFF ? 0 : cmd == CMD_BREAK_30 ? 30 : cmd == CMD_BREAK_60 ? 60 : cmd == CMD_BREAK_120 ? 120 : 180;
+            app.breaks.setMinutes(m, breaks::clock());
+            regWrite(L"BreakReminderMinutes", nullptr, (DWORD)m);
+            break;
+        }
+        case CMD_BREAK_PREVIEW:
+            app.breaks.showPreview(breaks::clock());
+            break;
         case CMD_CLAUDE_COPY: {
             wchar_t exe[MAX_PATH * 2] = {};
             GetModuleFileNameW(nullptr, exe, MAX_PATH * 2 - 1);
@@ -1858,7 +1895,13 @@ void tickAndRender(AppState& app) {
     int h = std::max(1, (int)(wr.bottom - wr.top));
 
     app.claude.step(now);
-    app.physics.wantsAttention = app.claude.needsAttention();
+    {
+        POINT cursor = {};
+        GetCursorPos(&cursor);
+        double t = breaks::clock();
+        app.breaks.step(cursor, t);
+        app.physics.wantsAttention = app.claude.needsAttention() || app.breaks.isWaving(t);
+    }
     app.physics.step(dt, wr, app.input, app.settings);
     if (!physicsLooksSane(app.physics)) {
         // A single non-finite value would otherwise make every later frame draw nothing (the cat
@@ -1892,7 +1935,9 @@ void tickAndRender(AppState& app) {
             }
             // Holding Alt temporarily unlocks click-through so user can ALWAYS right-click or drag the cat!
             bool altHeld = (GetAsyncKeyState(VK_MENU) & 0x8000) != 0;
-            bool overAlert = app.claude.hit(cp, now) != 0;
+            bool onBreakBubble = false;
+            app.breaks.hit(cp, &onBreakBubble);
+            bool overAlert = onBreakBubble || (!app.breaks.isShowingBubble() && app.claude.hit(cp, now) != 0);
             bool clickThrough = ((app.settings.fullClickThrough && !altHeld) || (zone == CatHitZone::None)) && !overAlert;
             setClickThrough(app.hwnd, clickThrough);
         } else {
@@ -1912,7 +1957,9 @@ void tickAndRender(AppState& app) {
     g.Clear(Gdiplus::Color(0, 0, 0, 0));
     g.ScaleTransform((float)w / CatPhysics::CanvasWidth, (float)h / CatPhysics::CanvasHeight);
     CatRenderer::draw(g, app.physics, app.settings);
-    app.claude.draw(g, now);
+    // While the break reminder is up, it takes the Claude bubbles' place above the cat.
+    if (app.breaks.isShowingBubble()) app.breaks.draw(g, breaks::clock());
+    else app.claude.draw(g, now);
 
     POINT ptDst = { wr.left, wr.top };
     SIZE szWnd = { w, h };
@@ -1953,6 +2000,7 @@ LRESULT CALLBACK mouseHookProc(int code, WPARAM wParam, LPARAM lParam) {
         g_app->input.lastMouseMoveTime = nowSeconds();
         g_app->physics.triggerScroll(delta, g_app->settings);
         g_app->link.noteScroll(delta);
+        g_app->breaks.noteInput(breaks::clock());
     }
     return CallNextHookEx(nullptr, code, wParam, lParam);
 }
@@ -2027,11 +2075,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                     case WTS_REMOTE_DISCONNECT:
                         // Win+L: the key-ups for Win and L go to the secure desktop, never to us.
                         app->input.resetAllState();
+                        app->breaks.logic.screenLocked(breaks::clock());
                         break;
                     case WTS_SESSION_UNLOCK:
                     case WTS_SESSION_LOGON:
                     case WTS_CONSOLE_CONNECT:
                     case WTS_REMOTE_CONNECT:
+                        app->breaks.logic.screenUnlocked(breaks::clock());
                         recoverAfterSystemEvent(*app);
                         break;
                     default:
@@ -2041,8 +2091,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             return 0;
 
         case WM_POWERBROADCAST:
+            if (app && hwnd == app->hwnd && wParam == PBT_APMSUSPEND) {
+                app->breaks.logic.willSleep(breaks::clock());
+            }
             if (app && hwnd == app->hwnd &&
                 (wParam == PBT_APMRESUMEAUTOMATIC || wParam == PBT_APMRESUMESUSPEND)) {
+                app->breaks.logic.didWake(breaks::clock());
                 recoverAfterSystemEvent(*app);
             }
             return TRUE;
@@ -2082,7 +2136,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 GetCursorPos(&cur);
                 float w = (float)std::max(1L, wr.right - wr.left), h = (float)std::max(1L, wr.bottom - wr.top);
                 Pt cp = { (cur.x - wr.left) / w * CatPhysics::CanvasWidth, (cur.y - wr.top) / h * CatPhysics::CanvasHeight };
-                if (int id = app->claude.hit(cp, nowSeconds())) {
+                bool onBreakBubble = false;
+                breaks::Button button = app->breaks.hit(cp, &onBreakBubble);
+                if (onBreakBubble) {
+                    app->breaks.tap(button, breaks::clock());
+                    return 0;
+                }
+                if (int id = app->breaks.isShowingBubble() ? 0 : app->claude.hit(cp, nowSeconds())) {
                     app->claude.activate(id);
                     return 0;
                 }
@@ -2327,7 +2387,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
     RECT rect = { 600, 300, 600 + fw, 300 + fh };
 
     auto snap = [&](const CatPhysics& p, const CatSettings& st, const std::wstring& label, const std::wstring& tag = L"",
-                    const claude::Center* bubbles = nullptr) {
+                    const claude::Center* bubbles = nullptr, const breaks::Center* reminder = nullptr) {
         auto bmp = std::make_unique<Gdiplus::Bitmap>(fw, fh, PixelFormat32bppARGB);
         Gdiplus::Graphics g(bmp.get());
         g.Clear(Gdiplus::Color(255, 219, 222, 217));
@@ -2335,6 +2395,7 @@ int renderPreviewSheet(const std::wstring& outPath) {
         CatRenderer::draw(g, p, st);
         if (!tag.empty()) drawFriendLabel(g, tag, false);
         if (bubbles) bubbles->draw(g, nowSeconds());
+        if (reminder) reminder->draw(g, breaks::clock());
         frames.push_back({ label, std::move(bmp) });
     };
     auto run = [&](CatPhysics& p, InputEngine& eng, const CatSettings& st, double seconds, std::function<void()> each) {
@@ -2427,6 +2488,26 @@ int renderPreviewSheet(const std::wstring& outPath) {
         p.triggerScroll(4.0f, st);
         run(p, eng, st, 0.5, [&] { sync(); eng.lastMouseMoveTime = nowSeconds(); });
         snap(p, st, L"English: bubbles + Wheel badge", L"", &c);
+        l10n::cachedChinese() = -1;
+    }
+    {   // Break reminder: the first one (OK / Later) waving, a later one with "I've rested" in English,
+        // and "Enjoy your break" after OK
+        breaks::Center c;
+        double t0 = breaks::clock();
+        c.begin(60, t0);
+        c.logic = breaks::Logic(60.0, t0 - 61);
+        c.logic.tick(t0);
+        CatPhysics p; InputEngine eng = feed();
+        auto sync = [&] { p.wantsAttention = c.isWaving(breaks::clock()); };
+        run(p, eng, st, 0.75, sync);
+        snap(p, st, L"Break reminder (first) +0.75s", L"", nullptr, &c);
+        l10n::cachedChinese() = 0;
+        c.showPreview(breaks::clock());
+        run(p, eng, st, 0.5, sync);
+        snap(p, st, L"English: later reminder", L"", nullptr, &c);
+        c.tap(breaks::Button::Ok, breaks::clock());
+        run(p, eng, st, 0.5, sync);
+        snap(p, st, L"English: after OK", L"", nullptr, &c);
         l10n::cachedChinese() = -1;
     }
     {   // Mosquito: sleeping cat, mosquito circles, two swats, it leaves, the cat dozes off again.
@@ -2802,6 +2883,206 @@ int runClaudeSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
+/// `KuroCat.exe --break-selftest`: the break reminder rules (same cases as the macOS test), the
+/// tiny-movement filter, and the bubble's buttons. Writes kurocat-break-selftest.txt; exit code 0 = pass.
+int runBreakSelfTest() {
+    Gdiplus::GdiplusStartupInput gdipInput;
+    ULONG_PTR gdipToken = 0;
+    Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, nullptr);
+    std::string report;
+    int failures = 0;
+    auto save = [&] {
+        HANDLE f = CreateFileW(L"kurocat-break-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
+    };
+    auto check = [&](bool ok, const std::string& what) {
+        report += (ok ? "PASS  " : "FAIL  ") + what + "\r\n";
+        if (!ok) ++failures;
+        save();
+    };
+    report += "started\r\n";
+    save();
+    using breaks::Logic; using breaks::Phase; using breaks::Button;
+    const double H = 3600, M = 60;
+    auto work = [](Logic& l, double from, double to) {
+        for (double t = from; t < to; t += 1) { if ((long long)t % 20 == 0) l.noteInput(t); l.tick(t); }
+    };
+    auto idle = [](Logic& l, double from, double to) { for (double t = from; t < to; t += 1) l.tick(t); };
+    auto shownAt = [](const Logic& l, double t) { return l.bubbleShownAt && *l.bubbleShownAt == t; };
+
+    {   // first reminder after 1 h; ignored; I've rested
+        Logic l(H, 0);
+        work(l, 0, H - 1);
+        check(l.phase == Phase::Work && !l.bubbleShownAt, "no reminder before 1 h");
+        work(l, H - 1, H + 1);
+        check(l.phase == Phase::Remind && shownAt(l, H) && !l.bubbleOffersRested, "first reminder at 1 h, without I've rested");
+        check(l.isWaving(H + 6.9) && !l.isWaving(H + 7.1), "waves for 7 s");
+        work(l, H + 1, H + 31);
+        check(!l.bubbleShownAt && l.phase == Phase::Remind, "bubble gone after 30 s, still reminding (ignored)");
+        work(l, H + 31, H + 30 * M + 1);
+        check(shownAt(l, H + 30 * M) && l.bubbleOffersRested && l.remindersShown == 2, "ignored + working: second reminder 30 min later, with I've rested");
+        l.tap(Button::Rested, H + 30 * M + 5);
+        check(l.phase == Phase::Work && l.workStart == H + 30 * M + 5 && !l.bubbleShownAt, "I've rested -> work, fresh timer");
+        work(l, H + 30 * M + 6, 2 * H + 30 * M + 4);
+        check(l.phase == Phase::Work, "no reminder until a full hour after I've rested");
+        work(l, 2 * H + 30 * M + 4, 2 * H + 30 * M + 7);
+        check(l.phase == Phase::Remind && !l.bubbleOffersRested, "next round starts with a first reminder again");
+    }
+    {   // Later
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.tap(Button::Later, H + 3);
+        check(l.phase == Phase::Remind && !l.bubbleShownAt, "Later -> remind, bubble closed");
+        work(l, H + 4, H + 30 * M + 1);
+        check(shownAt(l, H + 30 * M) && l.bubbleOffersRested, "Later: next reminder in 30 min, with I've rested");
+    }
+    {   // OK, save for 25 s, then away
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.tap(Button::Ok, H + 3);
+        for (double s : { 5.0, 12.0, 20.0, 28.0 }) { l.noteInput(H + s); l.tick(H + s); }
+        check(l.okAt.has_value() && l.phase == Phase::Remind, "input during the 30 s after OK is ignored");
+        idle(l, H + 29, H + 28 + 2 * M - 1);
+        check(l.phase == Phase::Remind, "not yet a break 1:59 after the last input");
+        idle(l, H + 28 + 2 * M - 1, H + 28 + 2 * M + 1);
+        check(l.phase == Phase::Rest && !l.bubbleShownAt, "OK + 2 min without input -> break");
+        idle(l, H + 3 * M, H + 20 * M);
+        check(l.phase == Phase::Rest, "stays on a break while away");
+        l.noteInput(H + 20 * M);
+        check(l.phase == Phase::Work && l.workStart == H + 20 * M, "back -> work, fresh timer");
+    }
+    {   // OK, then keeps working
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.tap(Button::Ok, H + 3);
+        work(l, H + 4, H + 30 * M + 1);
+        check(l.phase == Phase::Remind && !l.okAt, "OK + keeps working -> still reminding");
+        check(shownAt(l, H + 30 * M) && l.bubbleOffersRested, "OK + keeps working: reminder 30 min later, with I've rested");
+    }
+    {   // OK, back within 2 min; then thinking for 5 min
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.tap(Button::Ok, H + 3);
+        idle(l, H + 4, H + 3 + 100);
+        l.noteInput(H + 3 + 100);
+        check(l.phase == Phase::Remind && !l.okAt, "OK + back after 1:40 -> still reminding");
+        idle(l, H + 104, H + 104 + 5 * M);
+        check(l.phase == Phase::Remind, "after that, 5 min without input is not a break");
+    }
+    {   // OK, back after 3 min
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.tap(Button::Ok, H + 3);
+        idle(l, H + 4, H + 3 + 3 * M);
+        l.noteInput(H + 3 + 3 * M);
+        check(l.phase == Phase::Work && l.workStart == H + 3 + 3 * M, "OK + back after 3 min -> work");
+    }
+    {   // ignored: 14 min without input is thinking, 15 min is a break
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        idle(l, H + 2, H + 2 + 14 * M);
+        check(l.phase == Phase::Remind, "ignored + 14 min without input: still reminding");
+        idle(l, H + 2 + 14 * M, H + 2 + 15 * M + 2);
+        check(l.phase == Phase::Rest, "ignored + 15 min without input -> break");
+    }
+    {   // work: a 14 min pause keeps the timer, 15 min resets it
+        Logic l(H, 0);
+        work(l, 0, 20 * M);
+        idle(l, 20 * M, 34 * M);
+        l.noteInput(34 * M);
+        check(l.phase == Phase::Work && l.workStart == 0, "14 min pause in work: timer keeps counting");
+        idle(l, 34 * M, 49 * M + 1);
+        check(l.phase == Phase::Rest, "15 min pause in work -> break");
+        l.noteInput(50 * M);
+        check(l.workStart == 50 * M, "back after the break: fresh timer");
+    }
+    {   // locked screen
+        Logic l(H, 0);
+        work(l, 0, 30 * M);
+        l.screenLocked(30 * M);
+        idle(l, 30 * M, 31 * M);
+        l.screenUnlocked(31 * M); l.noteInput(31 * M);
+        check(l.phase == Phase::Work && l.workStart == 0, "locked 1 min: not a break");
+        l.screenLocked(40 * M);
+        idle(l, 40 * M, 42 * M + 1);
+        check(l.phase == Phase::Rest, "locked 2 min -> break");
+        l.screenUnlocked(45 * M); l.noteInput(45 * M);
+        check(l.phase == Phase::Work && l.workStart == 45 * M, "unlock + input: fresh timer");
+    }
+    {   // asleep (no ticks while asleep)
+        Logic l(H, 0);
+        work(l, 0, 50 * M);
+        l.willSleep(50 * M);
+        l.didWake(60 * M);
+        check(l.phase == Phase::Rest, "asleep 10 min -> break, seen at wake");
+        l.noteInput(60 * M + 5);
+        check(l.phase == Phase::Work && l.workStart == 60 * M + 5, "first input after waking: fresh timer");
+        l.willSleep(70 * M);
+        l.didWake(71 * M);
+        l.noteInput(71 * M);
+        check(l.phase == Phase::Work && l.workStart == 60 * M + 5, "asleep 1 min: not a break");
+    }
+    {   // no reminder while locked
+        Logic l(H, 0);
+        work(l, 0, H - 30);
+        l.screenLocked(H - 30);
+        idle(l, H - 30, H + 60);
+        check(!l.bubbleShownAt && l.remindersShown == 0, "no reminder while the screen is locked");
+    }
+    {   // settings
+        Logic l(H, 0);
+        work(l, 0, H + 2);
+        l.setInterval(2 * H, H + 2);
+        check(l.phase == Phase::Work && !l.bubbleShownAt, "raising the setting past the time worked stops reminding");
+        l.setInterval(0, H + 3);
+        work(l, H + 3, 4 * H);
+        check(l.phase == Phase::Work && l.remindersShown == 0, "Off: never reminds");
+        l.setInterval(30 * M, 4 * H);
+        work(l, 4 * H, 4 * H + 2);
+        check(l.phase == Phase::Remind, "turning it back on with less than the time worked reminds right away");
+    }
+    {   // the clock, tiny movements, the bubble's buttons and the preview
+        double a = breaks::clock();
+        check(a > 0 && breaks::clock() >= a, "GetTickCount64 clock");
+        breaks::Center c;
+        c.begin(60, 0);
+        POINT p = {}; GetCursorPos(&p);
+        c.logic.lastInput = 0;
+        c.step({ p.x + 5, p.y + 5 }, 100);
+        check(c.logic.lastInput == 0, "a 7 px nudge is not input");
+        c.step({ p.x + 14, p.y }, 101);
+        check(c.logic.lastInput == 101, "a 14 px move is input");
+
+        breaks::Center v;
+        double t = breaks::clock();
+        v.begin(60, t);
+        l10n::cachedChinese() = 0;
+        v.showPreview(t);
+        check(v.isShowingBubble() && v.isWaving(t + 1), "preview shows the bubble and waves");
+        std::vector<Button> found;
+        for (float x = 0; x < CatPhysics::CanvasWidth; x += 2) {
+            Button b = v.hit({ x, 46.0f + 21.0f - 16.0f });
+            if (b != Button::None && (found.empty() || found.back() != b)) found.push_back(b);
+        }
+        check(found == std::vector<Button>{ Button::Ok, Button::Later, Button::Rested }, "buttons hit-test left to right: OK, Later, I've rested");
+        bool onBubble = false;
+        v.hit({ CatPhysics::SeatAnchor.x, 46.0f + 21.0f - 40.0f }, &onBubble);
+        check(onBubble, "the title row is part of the bubble (clicks don't fall through)");
+        v.tap(Button::Ok, t + 2);
+        check(v.isShowingBubble() && !v.isWaving(t + 2), "OK in the preview: 'enjoy your break' shows");
+        l10n::cachedChinese() = 1;
+        v.showPreview(t + 3);
+        v.tap(Button::Later, t + 4);
+        check(!v.isShowingBubble(), "Later in the preview closes it");
+        check(v.logic.phase == Phase::Work && v.logic.remindersShown == 0, "preview taps don't change the real state");
+        l10n::cachedChinese() = -1;
+    }
+    report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
+    save();
+    Gdiplus::GdiplusShutdown(gdipToken);
+    return failures == 0 ? 0 : 1;
+}
+
 /// `KuroCat.exe --update-selftest`: version rules, release parsing, and a real download through
 /// GitHub (upstream's latest release has the same file names). Writes kurocat-update-selftest.txt.
 int runUpdateSelfTest() {
@@ -2872,6 +3153,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
         return claude::runHook(TRAY_OWNER_CLASS, manual);
     }
     if (commandLineHasFlag(L"--claude-selftest")) return runClaudeSelfTest();
+    if (commandLineHasFlag(L"--break-selftest")) return runBreakSelfTest();
     if (commandLineHasFlag(L"--update-selftest")) return runUpdateSelfTest();
     if (commandLineHasFlag(L"--link-selftest")) {
         int argc = 0;
@@ -2934,6 +3216,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.nickname = regReadString(L"LinkNickname");
     app.claude.enabled = regReadDword(L"ClaudeAlerts", 1) != 0;
     app.claude.sound = regReadDword(L"ClaudeAlertSound", 1) != 0;
+    app.breaks.begin((int)std::min<DWORD>(regReadDword(L"BreakReminderMinutes", 60), 24 * 60), breaks::clock());
     app.link.profile = [&app] { return linkProfile(app); };
 
     // "Always run as administrator": hand over to an elevated copy (one UAC prompt). If the user
@@ -2961,11 +3244,13 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.input.onKeyDown = [&](PhysicalKey k) {
         app.physics.triggerKeyDown(k, app.settings);
         app.link.noteKeyDown(k, prefersViewerLeftPaw(k), g_passwordWatcher.isPassword.load());
+        app.breaks.noteInput(breaks::clock());
     };
     app.input.onKeyUp = [&](PhysicalKey k) { app.link.noteKeyUp(k); };
     app.input.onMouseClick = [&](int btn, bool down) {
         app.physics.triggerMouseClick(btn, down, app.settings);
         app.link.noteClick(btn, down);
+        if (down) app.breaks.noteInput(breaks::clock());
     };
 
     WNDCLASSEXW wc = {};

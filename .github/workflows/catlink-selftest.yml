@@ -54,6 +54,16 @@ jobs:
           if exist kurocat-claude-selftest.txt type kurocat-claude-selftest.txt
           exit /b %RC%
 
+      - name: Run break reminder self-test
+        if: always()
+        shell: cmd
+        run: |
+          cd windows
+          start "" /wait KuroCat.exe --break-selftest
+          set RC=%ERRORLEVEL%
+          if exist kurocat-break-selftest.txt type kurocat-break-selftest.txt
+          exit /b %RC%
+
       - name: Run update self-test
         if: always()
         shell: cmd
@@ -81,5 +91,6 @@ jobs:
             windows/KuroCat.exe
             windows/kurocat-selftest.txt
             windows/kurocat-claude-selftest.txt
+            windows/kurocat-break-selftest.txt
             windows/kurocat-update-selftest.txt
             windows/preview.png

@@ -14,6 +14,9 @@ final class CatCanvasView: NSView {
     var positionKey = "KuroCat.Pos"
     /// Our own cat shows Claude Code bubbles above its head (never the friend's cat).
     var showsClaudeAlerts = false
+    /// Our own cat also shows the break reminder; while it is up, it takes the Claude bubbles' place.
+    var showsBreakReminder = false
+    private var isShowingBreakBubble: Bool { showsBreakReminder && BreakReminderCenter.shared.isShowingBubble }
 
     private var lastHoverCanvasPt: CGPoint?
     private var isDragging = false
@@ -37,7 +40,11 @@ final class CatCanvasView: NSView {
         let showPill = !isRemote && InputEngine.shared.status == .needsPermission
         CatRenderer.draw(in: ctx, physics: physics, showPermissionPill: showPill)
         if let label = nameLabel { drawNameLabel(label, in: ctx) }
-        if showsClaudeAlerts { ClaudeAlertCenter.shared.draw(in: ctx, now: CACurrentMediaTime()) }
+        if isShowingBreakBubble {
+            BreakReminderCenter.shared.draw(in: ctx)
+        } else if showsClaudeAlerts {
+            ClaudeAlertCenter.shared.draw(in: ctx, now: CACurrentMediaTime())
+        }
 
         ctx.restoreGState()
     }
@@ -93,7 +100,10 @@ final class CatCanvasView: NSView {
         }
 
         let zone = CatRenderer.hitTest(point: pt, physics: physics, showPermissionPill: showPill)
-        let overAlert = claudeAlertID(at: pt) != nil
+        let breakHit = breakReminderHit(at: pt)
+        let overButton: Bool
+        if case .button = breakHit { overButton = true } else { overButton = claudeAlertID(at: pt) != nil }
+        let overAlert = overButton || breakHit != nil
 
         // Petting works in both Smart Mode and Full Click-Through Mode!
         if zone == .head || zone == .body {
@@ -116,7 +126,7 @@ final class CatCanvasView: NSView {
             // Keep permission pill clickable only if permission isn't granted yet
             win.ignoresMouseEvents = (zone != .permissionPill) && !overAlert
             resetCursorIfNeeded()
-            if overAlert { NSCursor.pointingHand.set() }
+            if overButton { NSCursor.pointingHand.set() }
         } else {
             let shouldCapture = (zone != .none) || overAlert
             if win.ignoresMouseEvents == shouldCapture {
@@ -127,8 +137,11 @@ final class CatCanvasView: NSView {
                     NSCursor.openHand.set()
                     isShowingOpenHand = true
                 }
-            } else if zone == .permissionPill || overAlert {
+            } else if zone == .permissionPill || overButton {
                 NSCursor.pointingHand.set()
+                isShowingOpenHand = false
+            } else if overAlert {
+                NSCursor.arrow.set()
                 isShowingOpenHand = false
             } else {
                 resetCursorIfNeeded()
@@ -137,7 +150,11 @@ final class CatCanvasView: NSView {
     }
 
     private func claudeAlertID(at pt: CGPoint) -> UUID? {
-        showsClaudeAlerts ? ClaudeAlertCenter.shared.alertID(at: pt, now: CACurrentMediaTime()) : nil
+        showsClaudeAlerts && !isShowingBreakBubble ? ClaudeAlertCenter.shared.alertID(at: pt, now: CACurrentMediaTime()) : nil
+    }
+
+    private func breakReminderHit(at pt: CGPoint) -> BreakReminderCenter.Hit? {
+        showsBreakReminder ? BreakReminderCenter.shared.hit(at: pt) : nil
     }
 
     private func resetCursorIfNeeded() {
@@ -156,6 +173,11 @@ final class CatCanvasView: NSView {
             let zone = CatRenderer.hitTest(point: pt, physics: physics, showPermissionPill: showPill)
             if zone == .permissionPill {
                 onRequestPermission?()
+                return
+            }
+            if let hit = breakReminderHit(at: pt) {
+                if case .button(let button) = hit { BreakReminderCenter.shared.tap(button) }
+                needsDisplay = true
                 return
             }
             if let id = claudeAlertID(at: pt) {

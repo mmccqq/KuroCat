@@ -44,6 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async {
                 self?.overlayWindow.catView.physics.triggerKeyDown(key)
                 self?.catLink.noteKeyDown(key)
+                BreakReminderCenter.shared.noteInput()
             }
         }
         engine.onKeyUp = { [weak self] key in
@@ -55,12 +56,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             DispatchQueue.main.async {
                 self?.overlayWindow.catView.physics.triggerMouseClick(button: button, isDown: isDown)
                 self?.catLink.noteClick(button: button, isDown: isDown)
+                if isDown { BreakReminderCenter.shared.noteInput() }
             }
         }
         engine.onScroll = { [weak self] delta in
             DispatchQueue.main.async {
                 self?.overlayWindow.catView.physics.triggerScroll(delta: delta)
                 self?.catLink.noteScroll(delta)
+                BreakReminderCenter.shared.noteInput()
             }
         }
         engine.start()
@@ -85,6 +88,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             if alert.kind == .done { self?.overlayWindow.catView.physics.cheer() }
         }
         claude.start()
+
+        // Break reminder: the cat suggests a break after a long stretch of work (local only)
+        catView.showsBreakReminder = true
+        BreakReminderCenter.shared.start()
 
         // Cat Link: show a friend's cat, and ours on their screen
         catLink.menuProvider = { [weak self] in self?.buildMenu() ?? NSMenu() }
@@ -190,7 +197,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
             let claude = ClaudeAlertCenter.shared
             claude.step(now: now)
-            self.overlayWindow.catView.physics.wantsAttention = claude.needsAttention
+            let breaks = BreakReminderCenter.shared
+            breaks.step()
+            self.overlayWindow.catView.physics.wantsAttention = claude.needsAttention || breaks.isWaving
             if self.isPetVisible {
                 let view = self.overlayWindow.catView
                 view.physics.step(dt: dt, windowFrameInScreen: self.overlayWindow.frame)
@@ -343,6 +352,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         menu.addItem(mosquitoDemo)
 
         menu.addItem(ClaudeAlertCenter.shared.menuItem())
+        menu.addItem(BreakReminderCenter.shared.menuItem())
 
         menu.addItem(.separator())
         menu.addItem(catLink.menuItem())
