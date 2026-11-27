@@ -2495,7 +2495,8 @@ int renderPreviewSheet(const std::wstring& outPath) {
         breaks::Center c;
         double t0 = breaks::clock();
         c.begin(60, t0);
-        c.logic = breaks::Logic(3600.0, t0 - 3601);
+        c.logic = breaks::Logic(3600.0, t0 - 3601);   // worked an hour...
+        c.logic.lastInput = t0;                       // ...without a break
         c.logic.tick(t0);
         CatPhysics p; InputEngine eng = feed();
         auto sync = [&] { p.wantsAttention = c.isWaving(breaks::clock()); };
