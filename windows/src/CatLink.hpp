@@ -1,7 +1,7 @@
 #pragma once
-// Cat Link (Windows): two Whiskerkeys show each other's cat. Mirrors Sources/CatLink.swift; the wire
+// Cat Link (Windows): two Whiskus show each other's cat. Mirrors Sources/CatLink.swift; the wire
 // format is docs/cat-link-protocol.md. Only built-in Windows APIs are used: BCrypt (HKDF via HMAC,
-// AES-GCM), WinHTTP (secure WebSocket) and a tiny JSON reader/writer, so Whiskerkey.exe stays one file.
+// AES-GCM), WinHTTP (secure WebSocket) and a tiny JSON reader/writer, so Whisku.exe stays one file.
 #define NOMINMAX
 #include <windows.h>
 #include <winhttp.h>
@@ -840,8 +840,8 @@ private:
     }
 
     static HINTERNET openWebSocket(const std::shared_ptr<Shared>& sh, HINTERNET& session, std::wstring& error) {
-        session = WinHttpOpen(L"Whiskerkey", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
-        if (!session) session = WinHttpOpen(L"Whiskerkey", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        session = WinHttpOpen(L"Whisku", WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+        if (!session) session = WinHttpOpen(L"Whisku", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
         if (!session) { error = L"WinHttpOpen failed"; return nullptr; }
         WinHttpSetTimeouts(session, 10000, 10000, 10000, 10000);
         HINTERNET connect = WinHttpConnect(session, sh->host.c_str(), 8084, 0);

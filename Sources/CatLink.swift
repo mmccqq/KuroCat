@@ -3,7 +3,7 @@ import AppKit
 import CryptoKit
 import Carbon   // IsSecureEventInputEnabled
 
-// Cat Link: two Whiskerkeys show each other's cat (Whiskerkey has its own protocol: it doesn't link with KuroCat). Each app sends small, anonymized activity events
+// Cat Link: two Whiskus show each other's cat (Whisku has its own protocol: it doesn't link with KuroCat). Each app sends small, anonymized activity events
 // (which paw typed — never which key —, mouse movement, clicks, scrolls, headphones, petting) through
 // a public MQTT server over secure WebSocket. Every message is encrypted with a key derived from the
 // pairing code, so the server (and anyone else on it) only sees random bytes on a random topic.

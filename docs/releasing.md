@@ -1,14 +1,20 @@
-# Releasing Whiskerkey
+# Releasing Whisku
 
 The apps update themselves from this repository's **latest GitHub release** (never from upstream):
 
 | | Looks for | Installs it only if |
 |---|---|---|
-| macOS | `Whiskerkey-macOS-universal.zip` | it has exactly the listed size, and `Whiskerkey.app` inside is signed as `com.whiskerkey.app` with the same certificate as the running app |
-| Windows | `Whiskerkey-Windows-x64.exe` | it has exactly the listed size and is a Windows program (`MZ`) |
+| macOS | `Whisku-macOS-universal.zip` | it has exactly the listed size, and `Whisku.app` inside is signed as `com.whiskerkey.app` with the same certificate as the running app |
+| Windows | `Whisku-Windows-x64.exe` | it has exactly the listed size and is a Windows program (`MZ`) |
+
+Whisku was called Whiskerkey up to v1.0.2, and the apps still accept the old file names
+(`Whiskerkey-macOS-universal.zip` with `Whiskerkey.app`, `Whiskerkey-Windows-x64.exe`). The app ID
+(`com.whiskerkey.app`), the "Whiskerkey Code Signing" certificate, the settings (`Whiskerkey.*` on Mac,
+`HKCU\Software\Whiskerkey` on Windows) and Cat Link's protocol keep the old name on purpose: changing
+them would make macOS forget the Input Monitoring permission, lose people's settings, or break links.
 
 A release is "newer" when its tag has larger numbers: `v1.0.1` > `v1.0.0`. KuroCat's old releases
-(`v1.3.3-mmccqq.N`) are never offered to Whiskerkey, even though their numbers are higher.
+(`v1.3.3-mmccqq.N`) are never offered to Whisku, even though their numbers are higher.
 
 ## Making a release
 
@@ -28,7 +34,7 @@ A release is "newer" when its tag has larger numbers: `v1.0.1` > `v1.0.0`. KuroC
 
    It builds and checks the Mac app, pushes the tag `v<version>`, waits for
    `.github/workflows/release.yml` to build and test the Windows exe, downloads it, and publishes the
-   release with both files. Then it moves the `Whiskerkey.app` it built to the Trash, so the installed
+   release with both files. Then it moves the `Whisku.app` it built to the Trash, so the installed
    app downloads the update instead of offering to switch to that copy. Try `scripts/release.sh --dry-run`
    first: it runs every check and the Mac build without tagging or publishing.
 

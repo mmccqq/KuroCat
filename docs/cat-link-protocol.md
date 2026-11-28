@@ -1,6 +1,6 @@
 # Cat Link protocol (v1)
 
-Cat Link lets two Whiskerkeys show each other's cat. (KuroCat used the same design with `kurocat` names instead of `whiskerkey`, so the two don't link.)
+Cat Link lets two Whisku apps show each other's cat. The protocol names below say `whiskerkey`, Whisku's name until v1.1.0; they stay that way so links keep working. (KuroCat used the same design with `kurocat` names instead of `whiskerkey`, so the two don't link.)
 
 Cat Link uses EMQX's public servers (`broker-cn.emqx.io` and `broker.emqx.io`). They're open to anyone with no sign-up, no username and no password. EMQX runs them free so developers can test MQTT apps, a bit like a public Wi-Fi hotspot.
 

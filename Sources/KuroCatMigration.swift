@@ -58,16 +58,51 @@ enum KuroCatMigration {
         settings.contains("KuroCat.app/Contents/MacOS/KuroCat")
     }
 
-    /// `settings` (Claude Code's settings.json text) with every KuroCat hook program replaced by `exe`.
-    /// Only the program path changes; ` --claude-hook` and everything else stay as they are.
-    static func pointClaudeHooks(_ settings: String, at exe: String) -> String {
-        // KuroCat wrote '…/KuroCat.app/Contents/MacOS/KuroCat' (shell-quoted) into a JSON string.
+    /// Matches a hook program `…/<app>.app/Contents/MacOS/<app>`, shell-quoted ('…') or not.
+    private static func hookProgramRegex(_ app: String) -> NSRegularExpression? {
+        let tail = "/\(app)\\.app/Contents/MacOS/\(app)"
+        return try? NSRegularExpression(pattern: "'[^'\"]*\(tail)'|[^\\s\"']*\(tail)")
+    }
+
+    /// `settings` (Claude Code's settings.json text) with every hook program of the app called `app`
+    /// (KuroCat, or Whiskerkey before it became Whisku) replaced by `exe`. Only the program path
+    /// changes; ` --claude-hook` and everything else stay as they are.
+    static func pointClaudeHooks(_ settings: String, at exe: String, from app: String = "KuroCat") -> String {
+        // The hooks hold '…/App.app/Contents/MacOS/App' (shell-quoted) inside a JSON string.
         let quoted = "'" + exe.replacingOccurrences(of: "'", with: "'\\''") + "'"
         let json = quoted.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
-        let pattern = #"'[^'"]*/KuroCat\.app/Contents/MacOS/KuroCat'|[^\s"']*/KuroCat\.app/Contents/MacOS/KuroCat"#
-        guard let regex = try? NSRegularExpression(pattern: pattern) else { return settings }
+        guard let regex = hookProgramRegex(app) else { return settings }
         let range = NSRange(settings.startIndex..., in: settings)
         return regex.stringByReplacingMatches(in: settings, range: range, withTemplate: NSRegularExpression.escapedTemplate(for: json))
+    }
+
+    /// The programs that hooks of the app called `app` start, without shell quotes.
+    static func claudeHookPrograms(_ settings: String, from app: String) -> [String] {
+        guard let regex = hookProgramRegex(app) else { return [] }
+        return regex.matches(in: settings, range: NSRange(settings.startIndex..., in: settings)).compactMap {
+            Range($0.range, in: settings).map { String(settings[$0]).trimmingCharacters(in: CharacterSet(charactersIn: "'")) }
+        }
+    }
+
+    /// Whiskerkey became Whisku in 1.1.0, so Claude Code's hooks may still start
+    /// …/Whiskerkey.app/Contents/MacOS/Whiskerkey. Once no such app is left, they're pointed at this app
+    /// (the old file is kept as settings.json.before-whisku). Returns true if the hooks were changed.
+    @discardableResult
+    static func repointRenamedClaudeHooks(settingsURL: URL = claudeSettingsURL,
+                                          exe: String? = Bundle.main.executableURL?.path) -> Bool {
+        guard let exe, !exe.hasSuffix("/Whiskerkey"),
+              let settings = try? String(contentsOf: settingsURL, encoding: .utf8) else { return false }
+        let old = claudeHookPrograms(settings, from: "Whiskerkey")
+        guard !old.isEmpty, !old.contains(where: { FileManager.default.fileExists(atPath: $0) }) else { return false }
+        let updated = pointClaudeHooks(settings, at: exe, from: "Whiskerkey")
+        let backup = settingsURL.deletingLastPathComponent().appendingPathComponent("settings.json.before-whisku")
+        let fm = FileManager.default
+        do {
+            if fm.fileExists(atPath: backup.path) { try fm.removeItem(at: backup) }
+            try fm.copyItem(at: settingsURL, to: backup)
+            try updated.write(to: settingsURL, atomically: true, encoding: .utf8)
+            return true
+        } catch { return false }
     }
 
     /// Points Claude Code's hooks at this app, keeping the old file as settings.json.before-whiskerkey.
@@ -93,17 +128,17 @@ enum KuroCatMigration {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = tr("KuroCat 现在叫 Whiskerkey 了", "KuroCat is now Whiskerkey")
+        alert.messageText = tr("KuroCat 现在叫 Whisku 了", "KuroCat is now Whisku")
         var parts = [tr("你的小猫、猫咪连线和设置都已经带过来了。", "Your cats, Cat Link and settings came along.")]
         if !apps.isEmpty {
             parts.append(tr("把旧的 KuroCat 移到废纸篓：", "Move the old KuroCat to the Trash:") + "\n" + apps.map(\.path).joined(separator: "\n"))
         }
         if hooksStartKuroCat {
-            parts.append(tr("Claude Code 的提醒钩子改为启动 Whiskerkey（原文件保留为 ~/.claude/settings.json.before-whiskerkey）。",
-                            "Point Claude Code's hooks at Whiskerkey (the old file is kept as ~/.claude/settings.json.before-whiskerkey)."))
+            parts.append(tr("Claude Code 的提醒钩子改为启动 Whisku（原文件保留为 ~/.claude/settings.json.before-whiskerkey）。",
+                            "Point Claude Code's hooks at Whisku (the old file is kept as ~/.claude/settings.json.before-whiskerkey)."))
         }
-        parts.append(tr("macOS 会请你再允许一次 Whiskerkey 的「输入监控」，小猫才能看到键盘。",
-                        "macOS will ask you once to allow Input Monitoring for Whiskerkey, so the cat can see the keyboard."))
+        parts.append(tr("macOS 会请你再允许一次 Whisku 的「输入监控」，小猫才能看到键盘。",
+                        "macOS will ask you once to allow Input Monitoring for Whisku, so the cat can see the keyboard."))
         alert.informativeText = parts.joined(separator: "\n\n")
         alert.addButton(withTitle: tr("好的，整理一下", "Tidy up"))
         alert.addButton(withTitle: tr("先不要", "Not now"))

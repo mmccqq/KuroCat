@@ -36,8 +36,8 @@
 
 namespace {
 
-// Whiskerkey's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
-constexpr const wchar_t* APP_VERSION = L"1.0.2";
+// Whisku's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
+constexpr const wchar_t* APP_VERSION = L"1.1.0";
 constexpr const wchar_t* VERSION_PROP = L"WhiskerkeyVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskerkeyTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
@@ -45,7 +45,7 @@ constexpr const wchar_t* FRIEND_CLASS = L"WhiskerkeyFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
 constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whisku/releases/latest";
-/// The Windows download, newest name first: Whiskerkey is being renamed Whisku, and 1.0.2 accepts both.
+/// The Windows download, newest name first: Whiskerkey became Whisku in 1.1.0 (1.0.2 was the first to accept both).
 constexpr const char* UPDATE_WIN_ASSET_NAMES[] = { "Whisku-Windows-x64.exe", "Whiskerkey-Windows-x64.exe" };
 constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
@@ -161,7 +161,7 @@ struct AppState {
     std::wstring availableUpdateUrl;
     std::wstring availableAssetUrl;   // the .exe on the release
     long long availableAssetSize = 0; // its exact size, as GitHub lists it
-    std::wstring availableAssetName;  // Whiskerkey-Windows-x64.exe
+    std::wstring availableAssetName;  // Whisku-Windows-x64.exe
     double nextUpdateCheckTime = 0.0;
     bool isUpdating = false;
 
@@ -283,13 +283,19 @@ std::wstring getCurrentExeQuotedPath() {
     return L"\"" + std::wstring(buf, len) + L"\"";
 }
 
+/// The "start with Windows" entry (HKCU\...\Run): "Whisku", or "Whiskerkey" from before the rename.
+constexpr const wchar_t* AUTO_START_NAMES[] = { L"Whisku", L"Whiskerkey" };
+
 bool isAutoStartEnabled() {
     HKEY hKey = nullptr;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
         return false;
     }
-    DWORD type = 0, size = 0;
-    bool exists = (RegQueryValueExW(hKey, L"Whiskerkey", nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size > 0);
+    bool exists = false;
+    for (const wchar_t* name : AUTO_START_NAMES) {
+        DWORD type = 0, size = 0;
+        exists = exists || (RegQueryValueExW(hKey, name, nullptr, &type, nullptr, &size) == ERROR_SUCCESS && size > 0);
+    }
     RegCloseKey(hKey);
     return exists;
 }
@@ -303,11 +309,15 @@ bool setAutoStartEnabled(bool enable) {
     if (enable) {
         std::wstring cmd = getCurrentExeQuotedPath();
         if (!cmd.empty()) {
-            ok = (RegSetValueExW(hKey, L"Whiskerkey", 0, REG_SZ, (const BYTE*)cmd.c_str(), (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS);
+            ok = (RegSetValueExW(hKey, AUTO_START_NAMES[0], 0, REG_SZ, (const BYTE*)cmd.c_str(), (DWORD)((cmd.size() + 1) * sizeof(wchar_t))) == ERROR_SUCCESS);
+            if (ok) RegDeleteValueW(hKey, AUTO_START_NAMES[1]);   // the entry from before the rename
         }
     } else {
-        LSTATUS st = RegDeleteValueW(hKey, L"Whiskerkey");
-        ok = (st == ERROR_SUCCESS || st == ERROR_FILE_NOT_FOUND);
+        ok = true;
+        for (const wchar_t* name : AUTO_START_NAMES) {
+            LSTATUS st = RegDeleteValueW(hKey, name);
+            ok = ok && (st == ERROR_SUCCESS || st == ERROR_FILE_NOT_FOUND);
+        }
     }
     RegCloseKey(hKey);
     return ok;
@@ -328,7 +338,7 @@ void showTrayBalloon(AppState& app, const wchar_t* title, const wchar_t* body) {
 // User Interface Privilege Isolation then refuses to deliver that window's keystrokes to normal
 // programs — Raw Input, GetAsyncKeyState and low-level hooks all go silent — while mouse movement
 // is still visible. That is exactly the "cat only sees the mouse in games" report. The only fix
-// is for Whiskerkey to run at the same level, so we detect it and offer an admin relaunch.
+// is for Whisku to run at the same level, so we detect it and offer an admin relaunch.
 
 bool isCurrentProcessElevated() {
     HANDLE tok = nullptr;
@@ -473,7 +483,7 @@ std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeou
     uc.lpszHostName = host; uc.dwHostNameLength = 255;
     uc.lpszUrlPath = path;  uc.dwUrlPathLength = 2047;
     if (!WinHttpCrackUrl(url.c_str(), 0, 0, &uc) || uc.nScheme != INTERNET_SCHEME_HTTPS) return body;
-    std::wstring ua = std::wstring(L"Whiskerkey/") + APP_VERSION;
+    std::wstring ua = std::wstring(L"Whisku/") + APP_VERSION;
     HINTERNET hSession = WinHttpOpen(ua.c_str(), WINHTTP_ACCESS_TYPE_AUTOMATIC_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
     if (!hSession) return body;
     WinHttpSetTimeouts(hSession, 10000, 10000, 15000, (int)receiveTimeoutMs);
@@ -502,7 +512,7 @@ std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeou
     return body;
 }
 
-/// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whiskerkey, even though their numbers are
+/// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whisku, even though their numbers are
 /// higher than 1.x.
 bool isWhiskerkeyRelease(const std::wstring& tag) { return tag.find(L"mmccqq") == std::wstring::npos; }
 
@@ -560,7 +570,7 @@ struct UpdateDownloadResult {
 
 /// Where a downloaded update goes: <name>.exe in the running exe's folder, where <name> is the
 /// download's app name (Whisku-Windows-x64.exe -> Whisku.exe). If the running exe has another name (a
-/// browser's "Whisku (1).exe", or the old Whiskerkey.exe), that one is removed afterwards. If the folder
+/// browser's "Whisku (1).exe", or the old Whisku.exe), that one is removed afterwards. If the folder
 /// can't be written, the update goes to %LOCALAPPDATA%\Programs\<name> instead.
 struct UpdateTarget { std::wstring exe; bool renamed = false; std::wstring fallbackDir; std::wstring fallbackExe; };
 UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetName, const std::wstring& localAppData, const std::wstring& tempDir) {
@@ -568,8 +578,8 @@ UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetN
     size_t slash = curExe.find_last_of(L"\\/");
     std::wstring dir = slash == std::wstring::npos ? L"." : curExe.substr(0, slash);
     std::wstring file = slash == std::wstring::npos ? curExe : curExe.substr(slash + 1);
-    std::wstring name = assetName.rfind(L"Whisku-", 0) == 0 ? L"Whisku" : L"Whiskerkey";
-    bool known = assetName.rfind(L"Whisku-", 0) == 0 || assetName.rfind(L"Whiskerkey", 0) == 0;
+    std::wstring name = assetName.rfind(L"Whisku-", 0) == 0 ? L"Whisku" : L"Whisku";
+    bool known = assetName.rfind(L"Whisku-", 0) == 0 || assetName.rfind(L"Whisku", 0) == 0;
     t.renamed = known && _wcsicmp(file.c_str(), (name + L".exe").c_str()) != 0;
     t.exe = t.renamed ? dir + L"\\" + name + L".exe" : curExe;
     t.fallbackDir = !localAppData.empty() ? localAppData + L"\\Programs\\" + name : tempDir + name;
@@ -643,7 +653,7 @@ void startInAppUpdate(AppState& app) {
                 : curExeStr + L".update.exe";
             HANDLE hNew = CreateFileW(newExePath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
             if (hNew == INVALID_HANDLE_VALUE) {
-                newExePath = std::wstring(tempDir) + L"Whiskerkey_update.exe";
+                newExePath = std::wstring(tempDir) + L"Whisku_update.exe";
                 hNew = CreateFileW(newExePath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
             }
             if (hNew != INVALID_HANDLE_VALUE) {
@@ -698,7 +708,7 @@ void registerTrayIcon(AppState& app) {
     app.nid.uFlags = NIF_ICON | NIF_MESSAGE | NIF_TIP;
     app.nid.uCallbackMessage = WM_TRAYICON;
     app.nid.hIcon = app.trayIcon;
-    wcscpy_s(app.nid.szTip, tr(L"Whiskerkey \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)", L"Whiskerkey keyboard cat (click for the menu)"));
+    wcscpy_s(app.nid.szTip, tr(L"Whisku \u9ED1\u732B\u952E\u76D8\u684C\u5BA0 (\u53F3\u952E/\u5DE6\u952E\u6253\u5F00\u83DC\u5355)", L"Whisku keyboard cat (click for the menu)"));
     Shell_NotifyIconW(NIM_ADD, &app.nid);
 }
 
@@ -844,7 +854,7 @@ void housekeeping(AppState& app) {
             if (fullscreenFg && !app.warnedElevatedForeground) {
                 app.warnedElevatedForeground = true;
                 showTrayBalloon(app,
-                    tr(L"Whiskerkey 听不到这个游戏的键盘", L"Whiskerkey can't hear this game's keyboard"),
+                    tr(L"Whisku 听不到这个游戏的键盘", L"Whisku can't hear this game's keyboard"),
                     tr(L"该游戏以管理员权限运行，Windows 会拦截它的键盘输入。右键小猫/托盘图标 →「以管理员身份重新启动」即可恢复。", L"This game runs as administrator, so Windows hides its keyboard input. Right-click the cat or the tray icon \u2192 \u201CRestart as administrator\u201D to fix it."));
             }
         }
@@ -1136,10 +1146,10 @@ void setTrayTip(AppState& app, const wchar_t* tip) {
 const wchar_t* linkTrayTip(AppState& app) {
     catlink::Status st = app.link.status();
     if (st != catlink::Status::Linked && st != catlink::Status::FriendPaused) {
-        return tr(L"Whiskerkey 黑猫键盘桌宠 (右键/左键打开菜单)", L"Whiskerkey keyboard cat (click for the menu)");
+        return tr(L"Whisku 黑猫键盘桌宠 (右键/左键打开菜单)", L"Whisku keyboard cat (click for the menu)");
     }
-    return app.link.paused() ? tr(L"Whiskerkey 黑猫桌宠 · 猫咪连线中（暂停分享）", L"Whiskerkey \u00B7 Cat Link on (sharing paused)")
-                             : tr(L"Whiskerkey 黑猫桌宠 · 猫咪连线中", L"Whiskerkey \u00B7 Cat Link on");
+    return app.link.paused() ? tr(L"Whisku 黑猫桌宠 · 猫咪连线中（暂停分享）", L"Whisku \u00B7 Cat Link on (sharing paused)")
+                             : tr(L"Whisku 黑猫桌宠 · 猫咪连线中", L"Whisku \u00B7 Cat Link on");
 }
 
 void showFriendWindow(AppState& app, bool show) {
@@ -1165,7 +1175,7 @@ void ensureFriendCat(AppState& app) {
         if (x + w < vx + 40 || x > vx + vw - 40 || y + h < vy + 40 || y > vy + vh - 40) { x = mr.left - w - 12; y = mr.top; }
         DWORD exStyle = WS_EX_LAYERED | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE | WS_EX_TRANSPARENT
                       | (app.settings.alwaysOnTop ? WS_EX_TOPMOST : 0);
-        f.hwnd = CreateWindowExW(exStyle, FRIEND_CLASS, L"Whiskerkey Friend", WS_POPUP, x, y, w, h,
+        f.hwnd = CreateWindowExW(exStyle, FRIEND_CLASS, L"Whisku Friend", WS_POPUP, x, y, w, h,
                                  nullptr, nullptr, GetModuleHandleW(nullptr), nullptr);
     }
     showFriendWindow(app, true);
@@ -1386,20 +1396,20 @@ void handleLinkCommand(AppState& app, UINT cmd) {
             startLink(app, code);
             writeClipboardText(owner, code.display());
             std::wstring msg = tr(L"配对码已复制到剪贴板：\n\n    ", L"The pairing code is copied to the clipboard:\n\n    ") + code.display()
-                + tr(L"\n\n把它发给你的朋友（比如用微信）。朋友在 Whiskerkey 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。", L"\n\nSend it to your friend (for example on WeChat). When they paste it in Whiskerkey's Cat Link menu, your cats appear on each other's screens.")
+                + tr(L"\n\n把它发给你的朋友（比如用微信）。朋友在 Whisku 菜单「猫咪连线」里粘贴它，你们的猫就会出现在对方的屏幕上。", L"\n\nSend it to your friend (for example on WeChat). When they paste it in Whisku's Cat Link menu, your cats appear on each other's screens.")
                 + tr(L"\n配对码就是你们的密钥，请只发给这位朋友。\n\n", L"\nThe code is your shared key, so send it only to this friend.\n\n") + linkWhatIsShared();
-            MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+            MessageBoxW(nullptr, msg.c_str(), tr(L"Whisku 猫咪连线", L"Whisku Cat Link"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
             break;
         }
         case CMD_LINK_JOIN: {
             auto code = catlink::Code::parse(readClipboardText(owner));
             if (!code) {
                 MessageBoxW(nullptr, tr(L"剪贴板里没有找到配对码。\n\n请先复制朋友发来的配对码（形如 WK-C-XXXX-XXXX-XXXX-XXXX-XXXX），再点这里。", L"No pairing code found on the clipboard.\n\nCopy the code your friend sent you (it looks like WK-C-XXXX-XXXX-XXXX-XXXX-XXXX), then click here."),
-                            tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                            tr(L"Whisku 猫咪连线", L"Whisku Cat Link"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                 break;
             }
             std::wstring msg = tr(L"要和这个配对码连线吗？\n\n    ", L"Link with this pairing code?\n\n    ") + code->display() + L"\n\n" + linkWhatIsShared();
-            if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 猫咪连线", L"Whiskerkey Cat Link"), MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
+            if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whisku 猫咪连线", L"Whisku Cat Link"), MB_OKCANCEL | MB_ICONQUESTION | MB_TOPMOST) == IDOK) {
                 startLink(app, *code);
             }
             break;
@@ -1598,7 +1608,7 @@ void showContextMenu(AppState& app, POINT screenPt) {
         AppendMenuW(menu, MF_STRING, CMD_CHECK_UPDATE, chkTxt.c_str());
     }
     AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
-    AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA Whiskerkey", L"Quit Whiskerkey"));
+    AppendMenuW(menu, MF_STRING, CMD_QUIT, tr(L"\u9000\u51FA Whisku", L"Quit Whisku"));
 
     HWND menuOwner = app.menuOwnerHwnd ? app.menuOwnerHwnd : app.hwnd;
     SetForegroundWindow(menuOwner);
@@ -1626,8 +1636,8 @@ void showContextMenu(AppState& app, POINT screenPt) {
             app.settings.saveToRegistry();
             if (app.settings.fullClickThrough) {
                 showTrayBalloon(app,
-                    tr(L"Whiskerkey \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is on"),
-                    tr(L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB Whiskerkey.exe", L"To turn it off: press Ctrl+Alt+Shift+P, hold Alt and right-click the cat, click the cat in the tray, or open Whiskerkey.exe again"));
+                    tr(L"Whisku \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whisku full click-through is on"),
+                    tr(L"\u53D6\u6D88\u65B9\u5F0F\uFF1A\u6309 Ctrl+Alt+Shift+P\uFF0C\u6216\u6309\u4F4F Alt \u952E\u53F3\u952E\u5C0F\u732B\uFF0C\u6216\u70B9\u53F3\u4E0B\u89D2\u6258\u76D8\u5C0F\u732B\u56FE\u6807\uFF0C\u6216\u518D\u6B21\u53CC\u51FB Whisku.exe", L"To turn it off: press Ctrl+Alt+Shift+P, hold Alt and right-click the cat, click the cat in the tray, or open Whisku.exe again"));
             }
             break;
         case CMD_TOGGLE_TOPMOST:
@@ -1748,10 +1758,10 @@ void showContextMenu(AppState& app, POINT screenPt) {
             regWrite(L"ClaudeAlertSound", nullptr, app.claude.sound ? 1 : 0);
             break;
         case CMD_CLAUDE_TEST_DONE:
-            onClaudeAlert(app, app.claude.receive(claude::Kind::Done, L"Whiskerkey", L"menu-test-done", nullptr, nowSeconds()));
+            onClaudeAlert(app, app.claude.receive(claude::Kind::Done, L"Whisku", L"menu-test-done", nullptr, nowSeconds()));
             break;
         case CMD_CLAUDE_TEST_NEEDS:
-            onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"Whiskerkey", L"menu-test-needs", nullptr, nowSeconds()));
+            onClaudeAlert(app, app.claude.receive(claude::Kind::NeedsYou, L"Whisku", L"menu-test-needs", nullptr, nowSeconds()));
             break;
         case CMD_BREAK_OFF: case CMD_BREAK_30: case CMD_BREAK_60: case CMD_BREAK_120: case CMD_BREAK_180: {
             int m = cmd == CMD_BREAK_OFF ? 0 : cmd == CMD_BREAK_30 ? 30 : cmd == CMD_BREAK_60 ? 60 : cmd == CMD_BREAK_120 ? 120 : 180;
@@ -1769,10 +1779,10 @@ void showContextMenu(AppState& app, POINT screenPt) {
             MessageBoxW(app.menuOwnerHwnd,
                 tr(L"把它合并到 %USERPROFILE%\\.claude\\settings.json 的 \"hooks\" 里，然后重新打开 Claude Code。\n\n"
                    L"之后每当一个会话完成，或者 Claude 等你确认时，小猫都会提醒你。只在本机，不会通过猫咪连线发给朋友。\n\n"
-                   L"如果以后移动了 Whiskerkey.exe，需要重新复制一次。",
+                   L"如果以后移动了 Whisku.exe，需要重新复制一次。",
                    L"Merge it into the \"hooks\" section of %USERPROFILE%\\.claude\\settings.json, then reopen Claude Code.\n\n"
                    L"From then on, the cat tells you whenever a session finishes or Claude needs your OK. It stays on this computer and never goes over Cat Link.\n\n"
-                   L"If you move Whiskerkey.exe later, copy the settings again."),
+                   L"If you move Whisku.exe later, copy the settings again."),
                 tr(L"已复制 Claude Code 钩子设置", L"Claude Code hook settings copied"), MB_OK | MB_ICONINFORMATION);
             break;
         }
@@ -2144,7 +2154,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
             if (app) quitApp(*app);
             return 0;
 
-        case WM_COPYDATA: {   // from `Whiskerkey.exe --claude-hook` (a Claude Code hook)
+        case WM_COPYDATA: {   // from `Whisku.exe --claude-hook` (a Claude Code hook)
             const auto* cds = reinterpret_cast<const COPYDATASTRUCT*>(lParam);
             if (!app || !cds || cds->dwData != claude::COPYDATA_ID || !cds->lpData || cds->cbData < sizeof(wchar_t) || cds->cbData > 8192) return FALSE;
             std::wstring payload((const wchar_t*)cds->lpData, cds->cbData / sizeof(wchar_t));
@@ -2236,11 +2246,11 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 app->settings.saveToRegistry();
                 if (app->settings.fullClickThrough) {
                     showTrayBalloon(*app,
-                        tr(L"Whiskerkey \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is on"),
+                        tr(L"Whisku \u5DF2\u5F00\u542F\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whisku full click-through is on"),
                         tr(L"\u518D\u6B21\u6309 Ctrl+Alt+Shift+P \u6216\u6309\u4F4F Alt \u53F3\u952E\u5C0F\u732B\u5373\u53EF\u53D6\u6D88", L"Press Ctrl+Alt+Shift+P again, or hold Alt and right-click the cat, to turn it off"));
                 } else {
                     showTrayBalloon(*app,
-                        tr(L"Whiskerkey \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whiskerkey full click-through is off"),
+                        tr(L"Whisku \u5DF2\u53D6\u6D88\u5B8C\u5168\u9F20\u6807\u7A7F\u900F", L"Whisku full click-through is off"),
                         tr(L"\u73B0\u5728\u53EF\u4EE5\u6B63\u5E38\u62D6\u52A8\u3001\u6478\u5934\u548C\u53F3\u952E\u6253\u5F00\u83DC\u5355\u4E86", L"You can drag, pet and right-click the cat again"));
                 }
             }
@@ -2248,7 +2258,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
 
         case WM_WAKE_EXISTING:
             if (app) {
-                // Re-launching Whiskerkey.exe unlocks click-through, restores visibility & opens settings menu!
+                // Re-launching Whisku.exe unlocks click-through, restores visibility & opens settings menu!
                 if (app->settings.fullClickThrough) {
                     app->settings.fullClickThrough = false;
                     app->settings.saveToRegistry();
@@ -2280,12 +2290,12 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 if (app && res->ok && res->hasUpdate && askNow) {
                     // Show WHICH exe is running: the usual cause of "I already updated but it still
                     // says there's a new version" is an old copy (Desktop / autostart) still running.
-                    std::wstring msg = tr(L"\u53D1\u73B0 Whiskerkey \u65B0\u7248\u672C ", L"A new Whiskerkey version is available: ") + res->latestTag
+                    std::wstring msg = tr(L"\u53D1\u73B0 Whisku \u65B0\u7248\u672C ", L"A new Whisku version is available: ") + res->latestTag
                         + tr(L"\n\u5F53\u524D\u7248\u672C\uFF1Av", L"\nCurrent version: v") + APP_VERSION
                         + tr(L"\n\u5F53\u524D\u8FD0\u884C\u7684\u7A0B\u5E8F\uFF1A", L"\nRunning from: ") + currentExePath()
                         + tr(L"\n\n\u5982\u679C\u4F60\u5DF2\u7ECF\u4E0B\u8F7D\u8FC7\u65B0\u7248\uFF0C\u76F4\u63A5\u53CC\u51FB\u65B0\u7248 exe \u5373\u53EF\u81EA\u52A8\u66FF\u6362\u6389\u8FD9\u4E2A\u65E7\u7248\u3002", L"\n\nIf you've already downloaded the new version, just open the new exe and it replaces this old one.")
                         + tr(L"\n\n\u662F\u5426\u7ACB\u5373\u5728\u8F6F\u4EF6\u5185\u81EA\u52A8\u4E0B\u8F7D\u5E76\u66F4\u65B0\u91CD\u542F\uFF1F", L"\n\nDownload and install it now, then restart?");
-                    if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey \u66F4\u65B0\u63D0\u9192", L"Whiskerkey update"),
+                    if (MessageBoxW(nullptr, msg.c_str(), tr(L"Whisku \u66F4\u65B0\u63D0\u9192", L"Whisku update"),
                                     MB_YESNO | MB_ICONINFORMATION | MB_TOPMOST) == IDYES) {
                         startInAppUpdate(*app);
                     }
@@ -2294,13 +2304,13 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 } else if (res->manual) {
                     if (res->noRelease) {
                         std::wstring msg = std::wstring(tr(L"当前版本 v", L"Version v")) + APP_VERSION + tr(L"，还没有发布更新的版本。", L". No newer version has been published yet.");
-                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey 检查更新", L"Whiskerkey updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whisku 检查更新", L"Whisku updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else if (res->ok) {
                         std::wstring msg = std::wstring(tr(L"\u5F53\u524D\u7248\u672C v", L"Version v")) + APP_VERSION + tr(L" \u5DF2\u662F\u6700\u65B0\u7248\u672C\u3002", L" is the latest version.");
-                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whiskerkey \u68C0\u67E5\u66F4\u65B0", L"Whiskerkey updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
+                        MessageBoxW(nullptr, msg.c_str(), tr(L"Whisku \u68C0\u67E5\u66F4\u65B0", L"Whisku updates"), MB_OK | MB_ICONINFORMATION | MB_TOPMOST);
                     } else {
                         MessageBoxW(nullptr, tr(L"无法连接到 GitHub，请稍后重试或检查网络连接。", L"Couldn't reach GitHub. Please try again later or check your network connection."),
-                                    tr(L"Whiskerkey \u68C0\u67E5\u66F4\u65B0", L"Whiskerkey updates"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
+                                    tr(L"Whisku \u68C0\u67E5\u66F4\u65B0", L"Whisku updates"), MB_OK | MB_ICONWARNING | MB_TOPMOST);
                     }
                 }
                 delete res;
@@ -2318,7 +2328,7 @@ LRESULT CALLBACK wndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam) {
                 } else {
                     if (MessageBoxW(nullptr,
                                     tr(L"\u81EA\u52A8\u4E0B\u8F7D\u6216\u66FF\u6362\u5B89\u88C5\u5305\u5931\u8D25\uFF0C\u662F\u5426\u6253\u5F00\u4E0B\u8F7D\u9875\u624B\u52A8\u4E0B\u8F7D\uFF1F", L"Downloading or installing the update failed. Open the download page to download it manually?"),
-                                    tr(L"Whiskerkey \u81EA\u52A8\u66F4\u65B0", L"Whiskerkey update"), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
+                                    tr(L"Whisku \u81EA\u52A8\u66F4\u65B0", L"Whisku update"), MB_YESNO | MB_ICONWARNING | MB_TOPMOST) == IDYES) {
                         const wchar_t* url = (app && !app->availableUpdateUrl.empty())
                             ? app->availableUpdateUrl.c_str()
                             : UPDATE_PAGE_URL;
@@ -2374,7 +2384,7 @@ void CALLBACK onForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD,
     if (g_app) g_app->pendingTopmostTime = nowSeconds() + 0.4;
 }
 
-/// Asks the already-running Whiskerkey to exit and waits for it. Builds <= 1.3.2 do not know
+/// Asks the already-running Whisku to exit and waits for it. Builds <= 1.3.2 do not know
 /// WM_REQUEST_QUIT, but they shut down cleanly when their overlay window receives WM_CLOSE.
 bool shutDownRunningInstance(HWND owner, DWORD timeoutMs) {
     DWORD pid = 0;
@@ -2919,6 +2929,16 @@ int runClaudeSelfTest() {
     }
     std::wstring snippet = claude::settingsSnippet(L"C:\\Users\\a\\Whiskerkey.exe");
     check(snippet.find(L"\"command\": \"C:/Users/a/Whiskerkey.exe\", \"args\": [\"--claude-hook\"]") != std::wstring::npos, "settings snippet uses exec form");
+    {   // After the rename to Whisku.exe, hooks that start Whiskerkey.exe are pointed at the new exe.
+        std::string before = catlink::narrow(snippet) + R"({"x": "C:\\Users\\a\\whiskerkey.EXE", "keep": "D:/Other/Whiskerkey.exe"})";
+        std::string after = claude::pointHooks(before, "C:\\Users\\a\\Whiskerkey.exe", "C:\\Users\\a\\Whisku.exe");
+        size_t n = 0;
+        for (size_t p = 0; (p = after.find("\"C:/Users/a/Whisku.exe\", \"args\": [\"--claude-hook\"]", p)) != std::string::npos; ++p) ++n;
+        check(n == 3 && after.find("C:/Users/a/Whiskerkey.exe") == std::string::npos, "renamed exe: all three hooks point at Whisku.exe");
+        check(after.find(R"("C:\\Users\\a\\Whisku.exe")") != std::string::npos, "renamed exe: escaped backslash path, any case, replaced too");
+        check(after.find("D:/Other/Whiskerkey.exe") != std::string::npos, "renamed exe: another folder's exe is left alone");
+        check(claude::pointHooks("{}", "C:\\a\\Whiskerkey.exe", "C:\\a\\Whisku.exe") == "{}", "renamed exe: nothing to change -> unchanged");
+    }
     check(catlink::JsonReader::parse(catlink::narrow(snippet)).has_value(), "settings snippet is valid JSON");
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();
@@ -3247,7 +3267,8 @@ int runUpdateSelfTest() {
     DWORD moved = 0;   // 1.0.1 and older still ask the repo's old name; GitHub redirects it to whiskerkey/whisku
     std::string movedBody = httpsGet(L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest", moved, 15000, 1u << 20);
     UpdateCheckResult viaOldName;
-    check(moved == 200 && parseLatestRelease(movedBody, viaOldName) && !viaOldName.latestTag.empty(),
+    bool movedParsed = moved == 200 && parseLatestRelease(movedBody, viaOldName);   // before the message reads the tag
+    check(movedParsed && !viaOldName.latestTag.empty(),
           "the repo's old name still answers (HTTP " + std::to_string(moved) + ", " + catlink::narrow(viaOldName.latestTag) + ")");
     DWORD missing = 0;
     httpsGet(L"https://api.github.com/repos/whiskerkey/whisku/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
@@ -3290,6 +3311,34 @@ void migrateFromKuroCat() {
         if (HWND overlay = FindWindowW(L"KuroCatOverlayWindowClass", nullptr)) PostMessageW(overlay, WM_CLOSE, 0, 0);
         if (proc) { WaitForSingleObject(proc, 5000); CloseHandle(proc); }
     }
+}
+
+/// Whiskerkey became Whisku in 1.1.0, so Claude Code's hooks may still start Whiskerkey.exe next to this
+/// exe. Once that file is gone, they're pointed at this exe (the old file is kept as settings.json.before-whisku).
+void repointClaudeHooksAfterRename() {
+    std::wstring cur = currentExePath();
+    size_t slash = cur.find_last_of(L"\\/");
+    if (slash == std::wstring::npos || _wcsicmp(cur.c_str() + slash + 1, L"Whiskerkey.exe") == 0) return;
+    std::wstring old = cur.substr(0, slash) + L"\\Whiskerkey.exe";
+    if (GetFileAttributesW(old.c_str()) != INVALID_FILE_ATTRIBUTES) return;   // still there: leave the hooks alone
+    wchar_t profile[MAX_PATH] = {};
+    DWORD n = GetEnvironmentVariableW(L"USERPROFILE", profile, MAX_PATH);
+    if (n == 0 || n >= MAX_PATH) return;
+    std::wstring settingsPath = std::wstring(profile) + L"\\.claude\\settings.json";
+    HANDLE f = CreateFileW(settingsPath.c_str(), GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    std::string text;
+    char buf[4096];
+    for (DWORD got = 0; ReadFile(f, buf, sizeof(buf), &got, nullptr) && got > 0 && text.size() < (4u << 20);) text.append(buf, got);
+    CloseHandle(f);
+    std::string updated = claude::pointHooks(text, catlink::narrow(old), catlink::narrow(cur));
+    if (updated == text) return;
+    if (!CopyFileW(settingsPath.c_str(), (settingsPath + L".before-whisku").c_str(), FALSE)) return;
+    f = CreateFileW(settingsPath.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+    if (f == INVALID_HANDLE_VALUE) return;
+    DWORD written = 0;
+    WriteFile(f, updated.data(), (DWORD)updated.size(), &written, nullptr);
+    CloseHandle(f);
 }
 
 int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
@@ -3391,10 +3440,11 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     ULONG_PTR gdipToken = 0;
     Gdiplus::GdiplusStartup(&gdipToken, &gdipInput, nullptr);
 
-    // Refresh auto-start exe path if user enabled auto-start and moved Whiskerkey.exe
+    // Refresh auto-start exe path if user enabled auto-start and moved Whisku.exe
     if (isAutoStartEnabled()) {
         setAutoStartEnabled(true);
     }
+    repointClaudeHooksAfterRename();
 
     app.input.onKeyDown = [&](PhysicalKey k) {
         app.physics.triggerKeyDown(k, app.settings);
@@ -3443,7 +3493,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     if (app.menuOwnerHwnd) {
         SetPropW(app.menuOwnerHwnd, VERSION_PROP, (HANDLE)(INT_PTR)myVersion);
         // When elevated, UIPI would drop messages from the (non-elevated) taskbar and from a
-        // re-launched Whiskerkey. Explicitly allow the few messages we rely on.
+        // re-launched Whisku. Explicitly allow the few messages we rely on.
         const UINT allowed[] = { WM_TRAYICON, WM_WAKE_EXISTING, WM_REQUEST_QUIT, WM_COPYDATA };
         for (UINT m : allowed) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, m, MSGFLT_ALLOW, nullptr);
         if (g_msgTaskbarCreated) ChangeWindowMessageFilterEx(app.menuOwnerHwnd, g_msgTaskbarCreated, MSGFLT_ALLOW, nullptr);
@@ -3464,7 +3514,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.hwnd = CreateWindowExW(
         exStyle,
         wc.lpszClassName,
-        L"Whiskerkey",
+        L"Whisku",
         WS_POPUP,
         initX, initY, initW, initH,
         nullptr, nullptr, hInst, nullptr

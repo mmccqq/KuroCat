@@ -1,7 +1,7 @@
 name: Release (Windows build)
 
-# A version tag (pushed by scripts/release.sh) builds Whiskerkey.exe on Windows, runs the self-tests,
-# and stores it as the build artifact "Whiskerkey-Windows-x64". The script downloads it and creates the
+# A version tag (pushed by scripts/release.sh) builds Whisku.exe on Windows, runs the self-tests,
+# and stores it as the build artifact "Whisku-Windows-x64". The script downloads it and creates the
 # release itself, with the macOS build (signed on the maintainer's Mac) and the Windows exe together.
 # Only the script creates releases: GitHub can't look up a draft by its tag, so two creators would
 # make two drafts.
@@ -30,7 +30,7 @@ jobs:
           echo "APP_VERSION=$v tag=$GITHUB_REF_NAME"
           test "v$v" = "$GITHUB_REF_NAME"
 
-      - name: Build Whiskerkey.exe
+      - name: Build Whisku.exe
         shell: cmd
         run: |
           cd windows
@@ -40,18 +40,18 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --claude-selftest
+          start "" /wait Whisku.exe --claude-selftest
           if errorlevel 1 (type whiskerkey-claude-selftest.txt & exit /b 1)
-          start "" /wait Whiskerkey.exe --update-selftest
+          start "" /wait Whisku.exe --update-selftest
           if errorlevel 1 (type whiskerkey-update-selftest.txt & exit /b 1)
           echo self-tests passed
 
       - name: Store the Windows build
         shell: bash
-        run: cp windows/Whiskerkey.exe Whiskerkey-Windows-x64.exe
+        run: cp windows/Whisku.exe Whisku-Windows-x64.exe
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Whiskerkey-Windows-x64
-          path: Whiskerkey-Windows-x64.exe
+          name: Whisku-Windows-x64
+          path: Whisku-Windows-x64.exe
           if-no-files-found: error

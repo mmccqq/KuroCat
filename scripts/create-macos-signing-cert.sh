@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Creates Whiskerkey's stable signing certificate once (self-signed, free, no Apple developer account).
-# 一次性创建 Whiskerkey 的「固定签名证书」（自签名，免费，不需要苹果开发者账号）。
+# Creates Whisku's stable signing certificate once (self-signed, free, no Apple developer account).
+# It keeps Whisku's old name, "Whiskerkey Code Signing": renaming it would break updates.
+# 一次性创建 Whisku 的「固定签名证书」（自签名，免费，不需要苹果开发者账号）。
+# 证书沿用旧名「Whiskerkey Code Signing」：改名会让更新失效。
 #
 # 为什么需要：macOS 按「代码签名」记住输入监控 / 辅助功能权限。之前 Mac 版用临时（ad-hoc）签名，
 # 每编译一次签名就变，系统把每个新版本当成新 App —— 用户每次更新都要重新开一次「输入监控」，

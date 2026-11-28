@@ -2,7 +2,7 @@ import AppKit
 import ImageIO
 import UniformTypeIdentifiers
 
-// Makes Whiskerkey's app icons from the app's own cat (CatRenderer), so the icon is exactly the cat on
+// Makes Whisku's app icons from the app's own cat (CatRenderer), so the icon is exactly the cat on
 // screen: Whisku at rest, rising from the bottom of a sky-blue tile. Run scripts/make-icons.sh.
 //   <out>/AppIcon.iconset/…   for iconutil (macOS: 824 px tile on a 1024 px canvas, with a shadow)
 //   <out>/app.ico             for the Windows exe (the tile fills more of the square, lighter shadow)

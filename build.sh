@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")" && pwd)"
-APP_NAME="Whiskerkey"
+APP_NAME="Whisku"
 APP_BUNDLE="$ROOT/${APP_NAME}.app"
 CONTENTS="$APP_BUNDLE/Contents"
 MACOS_DIR="$CONTENTS/MacOS"
@@ -158,7 +158,7 @@ else
     echo "    Run scripts/create-macos-signing-cert.sh once to fix this." >&2
     codesign --force --deep --sign - --identifier "com.whiskerkey.app" "$APP_BUNDLE"
 fi
-echo "==> Designated requirement (what macOS uses to recognise Whiskerkey across rebuilds):"
+echo "==> Designated requirement (what macOS uses to recognise Whisku across rebuilds):"
 codesign -d -r- "$APP_BUNDLE" 2>&1 | grep -i designated || true
 
 echo "==> Built successfully: $APP_BUNDLE"

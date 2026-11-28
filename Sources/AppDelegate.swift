@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private var isHandingOverToNewerCopy = false
     private let catLink = CatLinkController()
 
-    /// Whiskerkey's version, e.g. "1.0.0" (Info.plist CFBundleShortVersionString); release tags are "v" + it.
+    /// Whisku's version, e.g. "1.0.0" (Info.plist CFBundleShortVersionString); release tags are "v" + it.
     private var currentAppVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     }
@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         if resolveDuplicateRunningCopies() { return }
-        // Whiskerkey replaces KuroCat: two cats would both react to the keyboard.
+        // Whisku replaces KuroCat: two cats would both react to the keyboard.
         KuroCatMigration.quitRunningKuroCat()
 
         overlayWindow = OverlayWindow()
@@ -102,17 +102,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         setupStatusItem()
         if KuroCatMigration.removeKuroCatLoginItem() {
-            // KuroCat started at login: Whiskerkey does now.
+            // KuroCat started at login: Whisku does now.
             _ = setAutoStartEnabled(true)
         }
         if isAutoStartEnabled() {
-            // Keep LaunchAgent path updated if user moved Whiskerkey.app into /Applications
+            // Keep LaunchAgent path updated if user moved Whisku.app into /Applications
             _ = setAutoStartEnabled(true)
         }
         startRenderLoop()
 
         // Check this fork's GitHub Releases shortly after launch, then every few hours
         startUpdateChecks()
+        KuroCatMigration.repointRenamedClaudeHooks()
         DispatchQueue.main.asyncAfter(deadline: .now() + 4) { KuroCatMigration.offerCleanup() }
     }
 
@@ -125,9 +126,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         InputEngine.shared.stop()
     }
 
-    // MARK: - One Whiskerkey at a time (newest copy wins)
+    // MARK: - One Whisku at a time (newest copy wins)
 
-    /// Users often download a new Whiskerkey.app while an older copy is still running (or is started
+    /// Users often download a new Whisku.app while an older copy is still running (or is started
     /// by the login item from another folder). That old process kept running and kept announcing
     /// "new version available" even though they had already updated. Keep only the newest copy:
     /// quit older ones, or hand over to an already-running newer one. Returns true if THIS process quits.
@@ -166,7 +167,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return dict["CFBundleShortVersionString"] as? String
     }
 
-    /// A newer Whiskerkey.app that is already on disk (e.g. downloaded to ~/Downloads but never
+    /// A newer Whisku.app that is already on disk (e.g. downloaded to ~/Downloads but never
     /// launched because LaunchServices just re-activated this running copy).
     private func newestDownloadedCopy() -> (url: URL, version: String)? {
         guard let bundleID = Bundle.main.bundleIdentifier else { return nil }
@@ -228,7 +229,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         if let button = statusItem.button {
             button.image = makeMenuBarCatIcon()
-            button.toolTip = tr("Whiskerkey 黑猫键盘桌宠", "Whiskerkey keyboard cat")
+            button.toolTip = tr("Whisku 黑猫键盘桌宠", "Whisku keyboard cat")
         }
         let menu = NSMenu()
         menu.delegate = self
@@ -241,9 +242,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         statusItem.length = linked ? NSStatusItem.variableLength : NSStatusItem.squareLength
         button.title = linked ? "🔗" : ""
         button.imagePosition = linked ? .imageLeft : .imageOnly
-        button.toolTip = !linked ? tr("Whiskerkey 黑猫键盘桌宠", "Whiskerkey keyboard cat")
-            : catLink.isSharingPaused ? tr("Whiskerkey 黑猫键盘桌宠 · 猫咪连线中（暂停分享）", "Whiskerkey keyboard cat · Cat Link on (sharing paused)")
-            : tr("Whiskerkey 黑猫键盘桌宠 · 猫咪连线中", "Whiskerkey keyboard cat · Cat Link on")
+        button.toolTip = !linked ? tr("Whisku 黑猫键盘桌宠", "Whisku keyboard cat")
+            : catLink.isSharingPaused ? tr("Whisku 黑猫键盘桌宠 · 猫咪连线中（暂停分享）", "Whisku keyboard cat · Cat Link on (sharing paused)")
+            : tr("Whisku 黑猫键盘桌宠 · 猫咪连线中", "Whisku keyboard cat · Cat Link on")
     }
 
     func menuNeedsUpdate(_ menu: NSMenu) {
@@ -434,7 +435,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         resetPosItem.target = self
         menu.addItem(resetPosItem)
 
-        let relaunchItem = NSMenuItem(title: tr("重启 Whiskerkey (授权后刷新)", "Restart Whiskerkey (after granting permission)"), action: #selector(relaunchApp), keyEquivalent: "")
+        let relaunchItem = NSMenuItem(title: tr("重启 Whisku (授权后刷新)", "Restart Whisku (after granting permission)"), action: #selector(relaunchApp), keyEquivalent: "")
         relaunchItem.target = self
         menu.addItem(relaunchItem)
 
@@ -469,7 +470,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         menu.addItem(.separator())
 
-        let quitItem = NSMenuItem(title: tr("退出 Whiskerkey", "Quit Whiskerkey"), action: #selector(quitApp), keyEquivalent: "q")
+        let quitItem = NSMenuItem(title: tr("退出 Whisku", "Quit Whisku"), action: #selector(quitApp), keyEquivalent: "q")
         quitItem.target = self
         menu.addItem(quitItem)
 
@@ -682,12 +683,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
     private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
     /// The update's file, the app inside it, and the app ID it must be signed with (by this app's certificate).
-    /// Whiskerkey is being renamed Whisku: 1.0.2 accepts both names, so it can update to Whisku.app.
+    /// Whiskerkey became Whisku in 1.1.0: both names are accepted (1.0.2 was the first to know Whisku.app).
     static let macAssetNames = ["Whisku-macOS-universal.zip", "Whiskerkey-macOS-universal.zip"]
     static let updateAppNames = ["Whisku", "Whiskerkey"]
     static let updateIdentifiers = ["com.whiskerkey.app"]
 
-    /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whiskerkey, even though their numbers
+    /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whisku, even though their numbers
     /// are higher than 1.x.
     static func isWhiskerkeyRelease(_ tag: String) -> Bool { !tag.contains("mmccqq") }
     private static let updateCheckInterval: TimeInterval = 6 * 3600
@@ -736,7 +737,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
     private func fetchLatestRelease(completion: @escaping (UpdateCheckOutcome) -> Void) {
         var req = URLRequest(url: URL(string: Self.latestReleaseAPI)!, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 15)
-        req.setValue("Whiskerkey/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("Whisku/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
         req.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
         URLSession.shared.dataTask(with: req) { data, response, error in
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
@@ -844,7 +845,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return requirement
     }
 
-    /// The app inside an extracted update (Whiskerkey.app).
+    /// The app inside an extracted update (Whisku.app).
     static func updatedApp(in folder: URL) -> URL? {
         for name in updateAppNames {
             let app = folder.appendingPathComponent("\(name).app")
@@ -898,8 +899,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
         let alert = NSAlert()
         alert.alertStyle = .informational
-        alert.messageText = tr("发现 Whiskerkey 新版本 \(latestTag)", "Whiskerkey \(latestTag) is available")
-        alert.informativeText = tr("当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。", "Current version: v\(currentAppVersion)\nLatest version: \(latestTag)\nRunning from: \(Bundle.main.bundlePath)\n\n“Update now” downloads it in the background and restarts Whiskerkey.")
+        alert.messageText = tr("发现 Whisku 新版本 \(latestTag)", "Whisku \(latestTag) is available")
+        alert.informativeText = tr("当前版本：v\(currentAppVersion)\n最新版本：\(latestTag)\n当前运行位置：\(Bundle.main.bundlePath)\n\n点击「立即更新」将在后台自动下载安装包并重启应用。", "Current version: v\(currentAppVersion)\nLatest version: \(latestTag)\nRunning from: \(Bundle.main.bundlePath)\n\n“Update now” downloads it in the background and restarts Whisku.")
         alert.addButton(withTitle: tr("立即更新", "Update now"))
         alert.addButton(withTitle: tr("打开下载页", "Open download page"))
         alert.addButton(withTitle: tr("稍后再说", "Later"))
@@ -917,7 +918,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         let alert = NSAlert()
         alert.alertStyle = .warning
         alert.messageText = tr("没有安装这个更新", "This update wasn't installed")
-        alert.informativeText = tr("下载的新版本和当前 Whiskerkey 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。", "The downloaded version isn't signed with the same certificate as this Whiskerkey, so for safety it wasn't installed. You can download it from the download page instead.")
+        alert.informativeText = tr("下载的新版本和当前 Whisku 的签名证书不一致，为了安全没有替换。可以打开下载页手动下载。", "The downloaded version isn't signed with the same certificate as this Whisku, so for safety it wasn't installed. You can download it from the download page instead.")
         alert.addButton(withTitle: tr("打开下载页", "Open download page"))
         alert.addButton(withTitle: tr("取消", "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
@@ -936,7 +937,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         isUpdating = true
 
         var req = URLRequest(url: assetURL, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 60)
-        req.setValue("Whiskerkey/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
+        req.setValue("Whisku/\(currentAppVersion)", forHTTPHeaderField: "User-Agent")
 
         URLSession.shared.downloadTask(with: req) { [weak self] tempURL, response, error in
             guard let self else { return }
@@ -950,7 +951,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
             }
 
             let fm = FileManager.default
-            let workDir = fm.temporaryDirectory.appendingPathComponent("WhiskerkeyUpdate-\(UUID().uuidString)")
+            let workDir = fm.temporaryDirectory.appendingPathComponent("WhiskuUpdate-\(UUID().uuidString)")
             let zipURL = workDir.appendingPathComponent("update.zip")
             let extractDir = workDir.appendingPathComponent("extracted")
             do {
@@ -960,7 +961,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 let fileSize = (attrs[.size] as? NSNumber)?.intValue ?? 0
                 // Must be complete: exactly the size GitHub lists for this file.
                 guard fileSize > 50_000, expectedSize == nil || fileSize == expectedSize else {
-                    throw NSError(domain: "WhiskerkeyUpdate", code: 1)
+                    throw NSError(domain: "WhiskuUpdate", code: 1)
                 }
 
                 let unzip = Process()
@@ -969,14 +970,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
                 try unzip.run()
                 unzip.waitUntilExit()
                 guard unzip.terminationStatus == 0 else {
-                    throw NSError(domain: "WhiskerkeyUpdate", code: 2)
+                    throw NSError(domain: "WhiskuUpdate", code: 2)
                 }
 
                 guard let newAppURL = Self.updatedApp(in: extractDir) else {
-                    throw NSError(domain: "WhiskerkeyUpdate", code: 3)
+                    throw NSError(domain: "WhiskuUpdate", code: 3)
                 }
                 guard Self.isSignedLikeThisApp(newAppURL) else {
-                    throw NSError(domain: "WhiskerkeyUpdate", code: 4)
+                    throw NSError(domain: "WhiskuUpdate", code: 4)
                 }
 
                 let currentAppURL = Bundle.main.bundleURL

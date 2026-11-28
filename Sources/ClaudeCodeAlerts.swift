@@ -1,8 +1,8 @@
 import Foundation
 import AppKit
 
-// Claude Code alerts: Claude Code hooks run `Whiskerkey --claude-hook`, which reads the hook's JSON
-// from stdin and tells the running Whiskerkey through a local distributed notification. The cat then
+// Claude Code alerts: Claude Code hooks run `Whisku --claude-hook`, which reads the hook's JSON
+// from stdin and tells the running Whisku through a local distributed notification. The cat then
 // shows a bubble: "done" when a session finishes (Stop), "needs you" when Claude waits for an
 // approval (Notification / PermissionRequest). Nothing leaves this computer and nothing goes over
 // Cat Link; only the project folder name, the event kind and the app to bring back are passed.
@@ -16,7 +16,7 @@ enum ClaudeHook {
 
     /// The command Claude Code runs (shell form, works with every Claude Code version).
     static var hookCommand: String {
-        let exe = Bundle.main.executableURL?.path ?? "/Applications/Whiskerkey.app/Contents/MacOS/Whiskerkey"
+        let exe = Bundle.main.executableURL?.path ?? "/Applications/Whisku.app/Contents/MacOS/Whisku"
         return "'\(exe.replacingOccurrences(of: "'", with: "'\\''"))' --claude-hook"
     }
 
@@ -35,13 +35,13 @@ enum ClaudeHook {
         """
     }
 
-    /// Hook mode: read the hook input, post it to the running Whiskerkey, exit 0 (never block Claude Code).
+    /// Hook mode: read the hook input, post it to the running Whisku, exit 0 (never block Claude Code).
     static func runFromCommandLine(arguments: [String]) -> Never {
         var input = Data()
         if isatty(STDIN_FILENO) == 0 {
             input = FileHandle.standardInput.readDataToEndOfFile()
         } else if let i = arguments.firstIndex(of: "--claude-hook"), i + 1 < arguments.count {
-            // Manual test from a terminal: `Whiskerkey --claude-hook done` or `--claude-hook needs`
+            // Manual test from a terminal: `Whisku --claude-hook done` or `--claude-hook needs`
             let event = arguments[i + 1] == "needs" ? "PermissionRequest" : "Stop"
             input = (try? JSONSerialization.data(withJSONObject: ["hook_event_name": event,
                                                                  "cwd": FileManager.default.currentDirectoryPath,
@@ -298,8 +298,8 @@ final class ClaudeAlertCenter {
 
     @objc func toggleEnabled() { center.enabled.toggle() }
     @objc func toggleSound() { center.soundEnabled.toggle() }
-    @objc func testDone() { center.receive(["kind": "done", "project": "Whiskerkey", "session": "menu-test-done"]) }
-    @objc func testNeeds() { center.receive(["kind": "needsYou", "project": "Whiskerkey", "session": "menu-test-needs"]) }
+    @objc func testDone() { center.receive(["kind": "done", "project": "Whisku", "session": "menu-test-done"]) }
+    @objc func testNeeds() { center.receive(["kind": "needsYou", "project": "Whisku", "session": "menu-test-needs"]) }
     @objc func copySettings() {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(ClaudeHook.settingsSnippet, forType: .string)

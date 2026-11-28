@@ -1,7 +1,7 @@
 import Foundation
 import AppKit
 
-// `Whiskerkey --verify-update <Whiskerkey.app>`: exit 0 if that app is signed like this one, so the
+// `Whisku --verify-update <Whisku.app>`: exit 0 if that app is signed like this one, so the
 // in-app updater would install it (used by scripts/release.sh before publishing).
 if let idx = CommandLine.arguments.firstIndex(of: "--verify-update"), idx + 1 < CommandLine.arguments.count {
     let ok = AppDelegate.isSignedLikeThisApp(URL(fileURLWithPath: CommandLine.arguments[idx + 1]))
@@ -9,7 +9,7 @@ if let idx = CommandLine.arguments.firstIndex(of: "--verify-update"), idx + 1 < 
     exit(ok ? 0 : 1)
 }
 
-// Claude Code hook: tell the running Whiskerkey that a session finished or needs you, then exit.
+// Claude Code hook: tell the running Whisku that a session finished or needs you, then exit.
 if CommandLine.arguments.contains("--claude-hook") {
     ClaudeHook.runFromCommandLine(arguments: CommandLine.arguments)
 }

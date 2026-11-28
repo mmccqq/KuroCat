@@ -1,6 +1,6 @@
 name: Cat Link self-test (Windows)
 
-# Builds Whiskerkey.exe on a real Windows machine and runs `Whiskerkey.exe --link-selftest`:
+# Builds Whisku.exe on a real Windows machine and runs `Whisku.exe --link-selftest`:
 # crypto/JSON against the macOS test vectors, two sessions over the public relay, and
 # (optionally) a conversation with a macOS peer that joined the given pairing code.
 on:
@@ -27,7 +27,7 @@ jobs:
         with:
           arch: x64
 
-      - name: Build Whiskerkey.exe
+      - name: Build Whisku.exe
         shell: cmd
         run: |
           cd windows
@@ -39,7 +39,7 @@ jobs:
           PEER_CODE: ${{ github.event.inputs.code }}
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --link-selftest %PEER_CODE%
+          start "" /wait Whisku.exe --link-selftest %PEER_CODE%
           set RC=%ERRORLEVEL%
           type whiskerkey-selftest.txt
           exit /b %RC%
@@ -49,7 +49,7 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --claude-selftest
+          start "" /wait Whisku.exe --claude-selftest
           set RC=%ERRORLEVEL%
           if exist whiskerkey-claude-selftest.txt type whiskerkey-claude-selftest.txt
           exit /b %RC%
@@ -59,7 +59,7 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --break-selftest
+          start "" /wait Whisku.exe --break-selftest
           set RC=%ERRORLEVEL%
           if exist whiskerkey-break-selftest.txt type whiskerkey-break-selftest.txt
           exit /b %RC%
@@ -69,7 +69,7 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --update-selftest
+          start "" /wait Whisku.exe --update-selftest
           set RC=%ERRORLEVEL%
           if exist whiskerkey-update-selftest.txt type whiskerkey-update-selftest.txt
           exit /b %RC%
@@ -79,16 +79,16 @@ jobs:
         shell: cmd
         run: |
           cd windows
-          start "" /wait Whiskerkey.exe --render-preview preview.png
+          start "" /wait Whisku.exe --render-preview preview.png
           dir preview.png
 
-      - name: Upload Whiskerkey.exe and the self-test log
+      - name: Upload Whisku.exe and the self-test log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Whiskerkey-Windows-x64-selftest
+          name: Whisku-Windows-x64-selftest
           path: |
-            windows/Whiskerkey.exe
+            windows/Whisku.exe
             windows/whiskerkey-selftest.txt
             windows/whiskerkey-claude-selftest.txt
             windows/whiskerkey-break-selftest.txt

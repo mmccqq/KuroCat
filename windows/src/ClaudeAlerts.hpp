@@ -1,8 +1,8 @@
 #pragma once
 // Claude Code alerts, same behaviour as macOS (Sources/ClaudeCodeAlerts.swift).
 //
-// Claude Code hooks run `Whiskerkey.exe --claude-hook`. That short-lived process reads the hook's JSON
-// from stdin and hands the running Whiskerkey a tiny WM_COPYDATA message; the cat then shows a bubble:
+// Claude Code hooks run `Whisku.exe --claude-hook`. That short-lived process reads the hook's JSON
+// from stdin and hands the running Whisku a tiny WM_COPYDATA message; the cat then shows a bubble:
 // "done" when a session finishes (Stop), "needs you" when Claude waits for an approval
 // (Notification / PermissionRequest). Everything stays on this computer: nothing is sent over Cat Link.
 
@@ -96,7 +96,7 @@ inline HWND findSessionWindow() {
     return nullptr;
 }
 
-/// `Whiskerkey.exe --claude-hook`: read the hook input, tell the running Whiskerkey, exit 0 (never block
+/// `Whisku.exe --claude-hook`: read the hook input, tell the running Whisku, exit 0 (never block
 /// Claude Code). From a terminal, `--claude-hook done` / `--claude-hook needs` sends a test event.
 inline int runHook(const wchar_t* ownerClass, const std::wstring& manualKind) {
     std::string json;
@@ -345,6 +345,32 @@ inline std::wstring settingsSnippet(const std::wstring& exePath) {
                          L"\", \"args\": [\"--claude-hook\"], \"async\": true, \"timeout\": 5 }] }]";
     return L"{\r\n  \"hooks\": {\r\n    \"Stop\": " + entry + L",\r\n    \"Notification\": " + entry +
            L",\r\n    \"PermissionRequest\": " + entry + L"\r\n  }\r\n}\r\n";
+}
+
+/// `settings` (Claude Code's settings.json, UTF-8) with every hook that starts `oldExe` pointed at `newExe`
+/// (both UTF-8 Windows paths). Paths are found as settingsSnippet writes them (forward slashes) or with
+/// JSON-escaped backslashes, ignoring case, and replaced in the same form.
+inline std::string pointHooks(const std::string& settings, const std::string& oldExe, const std::string& newExe) {
+    auto form = [](const std::string& p, bool slashes) {
+        std::string out;
+        for (char c : p) {
+            if (c == '\\') out += slashes ? "/" : "\\\\";
+            else out += c;
+        }
+        return out;
+    };
+    auto lower = [](std::string s) { for (char& c : s) if (c >= 'A' && c <= 'Z') c = char(c - 'A' + 'a'); return s; };
+    std::string result = settings;
+    for (bool slashes : { true, false }) {
+        std::string from = form(oldExe, slashes), to = form(newExe, slashes);
+        std::string hay = lower(result), needle = lower(from);
+        std::string out;
+        size_t pos = 0;
+        for (size_t hit; !needle.empty() && (hit = hay.find(needle, pos)) != std::string::npos; pos = hit + needle.size())
+            out += result.substr(pos, hit - pos) + to;
+        result = out + result.substr(pos);
+    }
+    return result;
 }
 
 }  // namespace claude

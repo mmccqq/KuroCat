@@ -1,4 +1,4 @@
-name: Build Whiskerkey (macOS, Windows & Linux/UOS)
+name: Build Whisku (macOS, Windows & Linux/UOS)
 
 on:
   push:
@@ -23,18 +23,18 @@ jobs:
         with:
           arch: x64
 
-      - name: Build standalone Whiskerkey.exe
+      - name: Build standalone Whisku.exe
         shell: cmd
         run: |
           cd windows
           call build.bat
-          dir Whiskerkey.exe
+          dir Whisku.exe
 
       - name: Upload Windows binary artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Whiskerkey-Windows-x64
-          path: windows/Whiskerkey.exe
+          name: Whisku-Windows-x64
+          path: windows/Whisku.exe
 
   build-macos:
     runs-on: macos-latest
@@ -50,18 +50,18 @@ jobs:
       - name: Check covered eye pixels
         run: bash scripts/check-eye-closure.sh
 
-      - name: Build Universal Whiskerkey.app (Apple Silicon + Intel)
+      - name: Build Universal Whisku.app (Apple Silicon + Intel)
         run: |
           chmod +x build.sh
           ./build.sh
-          ditto -c -k --sequesterRsrc --keepParent Whiskerkey.app Whiskerkey-macOS-universal.zip
-          ls -lh Whiskerkey-macOS-universal.zip
+          ditto -c -k --sequesterRsrc --keepParent Whisku.app Whisku-macOS-universal.zip
+          ls -lh Whisku-macOS-universal.zip
 
       - name: Upload macOS universal app artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Whiskerkey-macOS-universal
-          path: Whiskerkey-macOS-universal.zip
+          name: Whisku-macOS-universal
+          path: Whisku-macOS-universal.zip
 
   build-linux:
     strategy:

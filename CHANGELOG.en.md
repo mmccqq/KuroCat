@@ -2,7 +2,16 @@
 
 English | [中文](CHANGELOG.md)
 
-What changed in each version of Whiskerkey, newest first. Whiskerkey started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
+What changed in each version of Whisku, newest first. Whisku was called Whiskerkey until v1.0.2. It started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
+
+## v1.1.0 — 2026-11-27
+
+macOS and Windows. **Whiskerkey is now Whisku**, named after its cat.
+
+- **It updates itself**: Whiskerkey 1.0.2 installs this version as Whisku.app (Mac) or Whisku.exe (Windows) and removes the old Whiskerkey app. Your settings, cats, Cat Link pairing code and the Mac's keyboard permission all stay: only the name changed. If you have Whiskerkey 1.0.1 or older, update to 1.0.2 first, or download Whisku from the [release page](https://github.com/whiskerkey/whisku/releases/latest).
+- **Claude Code alerts keep working**: once the old app is gone, Whisku points Claude Code's hooks at itself. The previous settings file is kept as `~/.claude/settings.json.before-whisku`.
+- **Windows**: "start with Windows" moves to the new name too.
+- **Unchanged on purpose**: the app ID `com.whiskerkey.app`, the "Whiskerkey Code Signing" certificate, where settings are stored, and Cat Link (codes still start with `WK-`, and Whisku links with Whiskerkey 1.0 or later).
 
 ## v1.0.2 — 2026-11-27
 

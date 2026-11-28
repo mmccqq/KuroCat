@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Remakes Whiskerkey's app icons from the app's own cat (see scripts/icon/main.swift):
+# Remakes Whisku's app icons from the app's own cat (see scripts/icon/main.swift):
 #   Resources/AppIcon.icns   (macOS app icon)
 #   windows/app.ico          (Windows exe icon, embedded through windows/app.rc)
 set -euo pipefail

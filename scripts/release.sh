@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Publish a Whiskerkey release that the apps' auto-update picks up (macOS + Windows).
+# Publish a Whisku release that the apps' auto-update picks up (macOS + Windows).
 #
 #   scripts/release.sh             publish
 #   scripts/release.sh --dry-run   run every check and the macOS build, but don't tag or publish
@@ -7,12 +7,12 @@
 # Publishes the version in Resources/Info.plist (CFBundleShortVersionString), which must equal APP_VERSION
 # in windows/src/main.cpp and have a "## v<version>" section in CHANGELOG.md and CHANGELOG.en.md
 # (used as the release notes). Run it on main, with everything committed and pushed. It:
-#   1. builds Whiskerkey.app here, signed with "Whiskerkey Code Signing" (the certificate never leaves
+#   1. builds Whisku.app here, signed with "Whiskerkey Code Signing" (the certificate never leaves
 #      this Mac; it is what lets updates keep macOS's Input Monitoring permission),
-#   2. checks that the installed Whiskerkey would accept this build as an update,
+#   2. checks that the installed Whisku (or Whiskerkey, its old name) would accept this build as an update,
 #   3. tags and pushes v<version>; .github/workflows/release.yml then builds and tests the Windows .exe,
 #   4. downloads that .exe and publishes the release with both files (only this script creates releases),
-#   5. moves the Whiskerkey.app it built to the Trash: a newer copy left here would make the installed
+#   5. moves the Whisku.app it built to the Trash: a newer copy left here would make the installed
 #      app offer "switch to the copy you already downloaded" instead of downloading the update.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -20,9 +20,9 @@ cd "$(dirname "$0")/.."
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
 REPO="whiskerkey/whisku"
-APP="Whiskerkey.app"
-MAC_ZIP="dist/Whiskerkey-macOS-universal.zip"
-WIN_ASSET="Whiskerkey-Windows-x64.exe"
+APP="Whisku.app"
+MAC_ZIP="dist/Whisku-macOS-universal.zip"
+WIN_ASSET="Whisku-Windows-x64.exe"
 die() { echo "release: $*" >&2; exit 1; }
 # A dry run reports these problems instead of stopping, so it can still check the rest.
 must() { if [ "$DRY_RUN" = 1 ]; then echo "release (dry run would stop here): $*" >&2; else die "$@"; fi; }
@@ -48,12 +48,13 @@ case "$SIGN_INFO" in
 esac
 # The installed app accepts an update only if it meets the installed app's designated requirement
 # (same identifier and certificate). Check that with codesign, which works for any installed version.
-if [ -d "/Applications/$APP" ]; then
-    REQ="$(codesign -d -r- "/Applications/$APP" 2>/dev/null | sed -n 's/^designated => //p')"
-    [ -n "$REQ" ] || die "could not read the installed Whiskerkey's signature requirement"
+for INSTALLED in "/Applications/$APP" "/Applications/Whiskerkey.app"; do
+    [ -d "$INSTALLED" ] || continue
+    REQ="$(codesign -d -r- "$INSTALLED" 2>/dev/null | sed -n 's/^designated => //p')"
+    [ -n "$REQ" ] || die "could not read the signature requirement of $INSTALLED"
     codesign --verify --deep --strict -R="$REQ" "$APP" \
-        || die "the installed Whiskerkey would refuse this build as an update"
-fi
+        || die "$INSTALLED would refuse this build as an update"
+done
 mkdir -p dist
 rm -f "$MAC_ZIP"
 ditto -c -k --keepParent "$APP" "$MAC_ZIP"
@@ -75,7 +76,7 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 echo "==> Tagging $TAG"
-git tag -a "$TAG" -m "Whiskerkey $TAG"
+git tag -a "$TAG" -m "Whisku $TAG"
 git push -q origin "$TAG"
 
 echo "==> Waiting for the Windows build"
@@ -92,7 +93,7 @@ gh run watch "$RUN" -R "$REPO" --exit-status --interval 20 >/dev/null || die "th
 
 WIN_DIR="dist/windows"
 rm -rf "$WIN_DIR"
-gh run download "$RUN" -R "$REPO" -n Whiskerkey-Windows-x64 -D "$WIN_DIR"
+gh run download "$RUN" -R "$REPO" -n Whisku-Windows-x64 -D "$WIN_DIR"
 WIN_EXE="$WIN_DIR/$WIN_ASSET"
 [ "$(head -c 2 "$WIN_EXE")" = "MZ" ] || die "the downloaded Windows build is not a Windows program"
 python3 -I -c 'import sys; sys.exit(0 if sys.argv[2].encode("utf-16-le") in open(sys.argv[1], "rb").read() else 1)' "$WIN_EXE" "$VERSION" \
@@ -100,9 +101,9 @@ python3 -I -c 'import sys; sys.exit(0 if sys.argv[2].encode("utf-16-le") in open
 
 echo "==> Publishing the release"
 if gh release view "$TAG" -R "$REPO" >/dev/null 2>&1; then die "a release for $TAG already exists"; fi
-gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "Whiskerkey $TAG" --notes "$NOTES" "$MAC_ZIP" "$WIN_EXE"
+gh release create "$TAG" -R "$REPO" --verify-tag --latest --title "Whisku $TAG" --notes "$NOTES" "$MAC_ZIP" "$WIN_EXE"
 ASSETS="$(gh release view "$TAG" -R "$REPO" --json assets -q '.assets[].name')"
 grep -qx "$(basename "$MAC_ZIP")" <<<"$ASSETS" || die "the release has no macOS zip"
 grep -qx "$WIN_ASSET" <<<"$ASSETS" || die "the release has no Windows exe"
 echo "==> Published $TAG: https://github.com/$REPO/releases/tag/$TAG"
-mv "$APP" "$HOME/.Trash/Whiskerkey-$VERSION-build-$(date +%H%M%S).app" && echo "==> Moved the local $APP build to the Trash"
+mv "$APP" "$HOME/.Trash/Whisku-$VERSION-build-$(date +%H%M%S).app" && echo "==> Moved the local $APP build to the Trash"
