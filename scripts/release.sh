@@ -9,7 +9,7 @@
 # (used as the release notes). Run it on main, with everything committed and pushed. It:
 #   1. builds Whisku.app here, signed with "Whiskerkey Code Signing" (the certificate never leaves
 #      this Mac; it is what lets updates keep macOS's Input Monitoring permission),
-#   2. checks that the installed Whisku (or Whiskerkey, its old name) would accept this build as an update,
+#   2. asks the installed Whisku (or Whiskerkey, its old name) whether it would accept this build as an update,
 #   3. tags and pushes v<version>; .github/workflows/release.yml then builds and tests the Windows .exe,
 #   4. downloads that .exe and publishes the release with both files (only this script creates releases),
 #   5. moves the Whisku.app it built to the Trash: a newer copy left here would make the installed
@@ -46,14 +46,12 @@ case "$SIGN_INFO" in
     *"Authority=Whiskerkey Code Signing"*) ;;
     *) die "$APP is not signed with \"Whiskerkey Code Signing\" (updates would lose Input Monitoring)" ;;
 esac
-# The installed app accepts an update only if it meets the installed app's designated requirement
-# (same identifier and certificate). Check that with codesign, which works for any installed version.
+# Ask the installed app itself (`--verify-update`, the same check its updater makes) whether it would
+# install this build. That also covers a certificate change it was told to trust.
 for INSTALLED in "/Applications/$APP" "/Applications/Whiskerkey.app"; do
     [ -d "$INSTALLED" ] || continue
-    REQ="$(codesign -d -r- "$INSTALLED" 2>/dev/null | sed -n 's/^designated => //p')"
-    [ -n "$REQ" ] || die "could not read the signature requirement of $INSTALLED"
-    codesign --verify --deep --strict -R="$REQ" "$APP" \
-        || die "$INSTALLED would refuse this build as an update"
+    EXE="$INSTALLED/Contents/MacOS/$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$INSTALLED/Contents/Info.plist")"
+    "$EXE" --verify-update "$APP" || die "$INSTALLED would refuse this build as an update"
 done
 mkdir -p dist
 rm -f "$MAC_ZIP"

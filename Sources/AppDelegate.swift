@@ -686,7 +686,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Whiskerkey became Whisku in 1.1.0: both names are accepted (1.0.2 was the first to know Whisku.app).
     static let macAssetNames = ["Whisku-macOS-universal.zip", "Whiskerkey-macOS-universal.zip"]
     static let updateAppNames = ["Whisku", "Whiskerkey"]
-    static let updateIdentifiers = ["com.whiskerkey.app"]
+    static let updateIdentifiers = ["com.whiskerkey.app", "app.whisku"]
+    /// Certificates trusted for updates besides the running app's own (SHA-1 of the certificate):
+    /// "Whisku Code Signing", which signs Whisku from 1.2.0 on (app ID app.whisku).
+    static let nextCertificates = ["9c5de6422feafa52e6ef1cecc30634354e56495a"]
 
     /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whisku, even though their numbers
     /// are higher than 1.x.
@@ -831,7 +834,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return SecStaticCodeCheckValidity(newCode, flags, requirement) == errSecSuccess
     }
 
-    /// `certificate leaf = H"<the reference's leaf certificate>" and (identifier "…" or identifier "…")`.
+    /// `(certificate leaf = H"<the reference's leaf>" or <nextCertificates>) and (identifier "…" or …)`.
+    /// An ad-hoc signed reference has no certificate, so it accepts nothing.
     static func updateRequirement(likeApp reference: SecStaticCode) -> SecRequirement? {
         var info: CFDictionary?
         guard SecCodeCopySigningInformation(reference, SecCSFlags(rawValue: kSecCSSigningInformation), &info) == errSecSuccess,
@@ -840,8 +844,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
               let leaf = certificates.first else { return nil }
         let hash = Insecure.SHA1.hash(data: SecCertificateCopyData(leaf) as Data).map { String(format: "%02x", $0) }.joined()
         let identifiers = updateIdentifiers.map { "identifier \"\($0)\"" }.joined(separator: " or ")
+        let trusted = ([hash] + nextCertificates.filter { $0 != hash }).map { "certificate leaf = H\"\($0)\"" }.joined(separator: " or ")
         var requirement: SecRequirement?
-        guard SecRequirementCreateWithString("certificate leaf = H\"\(hash)\" and (\(identifiers))" as CFString, [], &requirement) == errSecSuccess else { return nil }
+        guard SecRequirementCreateWithString("(\(trusted)) and (\(identifiers))" as CFString, [], &requirement) == errSecSuccess else { return nil }
         return requirement
     }
 

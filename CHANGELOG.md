@@ -4,7 +4,7 @@
 
 Whisku 每个版本的改动，最新的在最上面。Whisku 在 v1.0.2 之前叫 Whiskerkey，基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3，v1.3.3-mmccqq.8 之前叫 KuroCat：那些版本列在 Whiskerkey 1.0 下面，版本号形如 `v1.3.3-mmccqq.5`（前面是上游版本，最后的数字是本项目的第几个版本）。
 
-## v1.1.0 — 2026-11-27
+## v1.1.0 — 2026-11-28
 
 macOS 和 Windows。**Whiskerkey 现在叫 Whisku**，和小猫同名。
 
@@ -12,7 +12,8 @@ macOS 和 Windows。**Whiskerkey 现在叫 Whisku**，和小猫同名。
 - **新地址**：项目搬到了 [github.com/whisku-app/whisku](https://github.com/whisku-app/whisku)。旧链接和旧版本的更新检查都仍然有效。
 - **Claude Code 提醒继续可用**：旧程序删掉后，Whisku 会把 Claude Code 的提醒钩子改为启动自己，原设置文件保留为 `~/.claude/settings.json.before-whisku`。
 - **Windows**：「开机自动启动」也换成新名字。
-- **有意不变**：程序 ID `com.whiskerkey.app`、「Whiskerkey Code Signing」证书、设置的保存位置，以及猫咪连线（配对码仍以 `WK-` 开头，Whisku 能和 Whiskerkey 1.0 及以上连线）。
+- **猫咪连线不变**：配对码仍以 `WK-` 开头，Whisku 能和 Whiskerkey 1.0 及以上连线。
+- **为 1.2.0 做准备**：1.2.0 会在 Mac 上给 Whisku 换成自己的程序 ID 和签名证书。这个版本已经信任它们，所以 1.2.0 能自动更新上来。
 
 ## v1.0.2 — 2026-11-27
 
