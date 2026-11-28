@@ -19,7 +19,7 @@ cd "$(dirname "$0")/.."
 
 DRY_RUN=0
 [ "${1:-}" = "--dry-run" ] && DRY_RUN=1
-REPO="whiskerkey/whisku"
+REPO="whisku-app/whisku"
 APP="Whisku.app"
 MAC_ZIP="dist/Whisku-macOS-universal.zip"
 WIN_ASSET="Whisku-Windows-x64.exe"

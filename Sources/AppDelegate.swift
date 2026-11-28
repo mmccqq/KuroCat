@@ -679,7 +679,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Updates (only from this fork's own GitHub Releases, never from upstream)
 
     private static let updateChecksEnabled = true
-    private static let updateRepo = "whiskerkey/whisku"
+    private static let updateRepo = "whisku-app/whisku"
     private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
     private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
     /// The update's file, the app inside it, and the app ID it must be signed with (by this app's certificate).

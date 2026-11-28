@@ -20,9 +20,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/whiskerkey/whisku/releases/latest/download/Whisku-macOS-universal.zip"><b>下载 Mac 版</b></a>（macOS 13 及以上，Apple 芯片和 Intel 都支持）
+  <a href="https://github.com/whisku-app/whisku/releases/latest/download/Whisku-macOS-universal.zip"><b>下载 Mac 版</b></a>（macOS 13 及以上，Apple 芯片和 Intel 都支持）
   &nbsp;·&nbsp;
-  <a href="https://github.com/whiskerkey/whisku/releases/latest/download/Whisku-Windows-x64.exe"><b>下载 Windows 版</b></a>（Windows 10 或 11，64 位）
+  <a href="https://github.com/whisku-app/whisku/releases/latest/download/Whisku-Windows-x64.exe"><b>下载 Windows 版</b></a>（Windows 10 或 11，64 位）
 </p>
 
 ## 它能做什么

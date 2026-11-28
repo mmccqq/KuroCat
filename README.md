@@ -20,9 +20,9 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/whiskerkey/whisku/releases/latest/download/Whisku-macOS-universal.zip"><b>Download for Mac</b></a> (macOS 13 or later, Apple Silicon and Intel)
+  <a href="https://github.com/whisku-app/whisku/releases/latest/download/Whisku-macOS-universal.zip"><b>Download for Mac</b></a> (macOS 13 or later, Apple Silicon and Intel)
   &nbsp;·&nbsp;
-  <a href="https://github.com/whiskerkey/whisku/releases/latest/download/Whisku-Windows-x64.exe"><b>Download for Windows</b></a> (Windows 10 or 11, 64-bit)
+  <a href="https://github.com/whisku-app/whisku/releases/latest/download/Whisku-Windows-x64.exe"><b>Download for Windows</b></a> (Windows 10 or 11, 64-bit)
 </p>
 
 ## What it does

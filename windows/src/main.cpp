@@ -44,12 +44,12 @@ constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
 constexpr const wchar_t* FRIEND_CLASS = L"WhiskerkeyFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
-constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whisku/releases/latest";
+constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whisku-app/whisku/releases/latest";
 /// The Windows download, newest name first: Whiskerkey became Whisku in 1.1.0 (1.0.2 was the first to accept both).
 constexpr const char* UPDATE_WIN_ASSET_NAMES[] = { "Whisku-Windows-x64.exe", "Whiskerkey-Windows-x64.exe" };
 constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
-constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whiskerkey/whisku/releases/latest";
+constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whisku-app/whisku/releases/latest";
 constexpr UINT WM_TRAYICON = WM_APP + 1;
 constexpr UINT WM_WAKE_EXISTING = WM_APP + 2;
 constexpr UINT WM_UPDATE_CHECK_DONE = WM_APP + 3;
@@ -3264,14 +3264,19 @@ int runUpdateSelfTest() {
     l10n::cachedChinese() = -1;
     check(zh && en, std::string("language switch works; this machine's display language -> ") + (l10n::isChinese() ? "Chinese" : "English"));
 
-    DWORD moved = 0;   // 1.0.1 and older still ask the repo's old name; GitHub redirects it to whiskerkey/whisku
-    std::string movedBody = httpsGet(L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest", moved, 15000, 1u << 20);
-    UpdateCheckResult viaOldName;
-    bool movedParsed = moved == 200 && parseLatestRelease(movedBody, viaOldName);   // before the message reads the tag
-    check(movedParsed && !viaOldName.latestTag.empty(),
-          "the repo's old name still answers (HTTP " + std::to_string(moved) + ", " + catlink::narrow(viaOldName.latestTag) + ")");
+    // Older versions still ask the repo's old addresses (1.0.1: whiskerkey/whiskerkey, 1.0.2: whiskerkey/whisku);
+    // GitHub redirects both to whisku-app/whisku.
+    for (const wchar_t* old : { L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest",
+                                L"https://api.github.com/repos/whiskerkey/whisku/releases/latest" }) {
+        DWORD moved = 0;
+        std::string movedBody = httpsGet(old, moved, 15000, 1u << 20);
+        UpdateCheckResult viaOldName;
+        bool movedParsed = moved == 200 && parseLatestRelease(movedBody, viaOldName);   // before the message reads the tag
+        check(movedParsed && !viaOldName.latestTag.empty(), "old address " + catlink::narrow(old).substr(29) + " still answers (HTTP "
+              + std::to_string(moved) + ", " + catlink::narrow(viaOldName.latestTag) + ")");
+    }
     DWORD missing = 0;
-    httpsGet(L"https://api.github.com/repos/whiskerkey/whisku/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
+    httpsGet(L"https://api.github.com/repos/whisku-app/whisku/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
     check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();
