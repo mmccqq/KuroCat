@@ -37,7 +37,7 @@
 namespace {
 
 // Whiskerkey's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
-constexpr const wchar_t* APP_VERSION = L"1.0.0";
+constexpr const wchar_t* APP_VERSION = L"1.0.1";
 constexpr const wchar_t* VERSION_PROP = L"WhiskerkeyVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskerkeyTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
@@ -3203,6 +3203,7 @@ int runUpdateSelfTest() {
     }
     UpdateCheckResult none;
     check(!parseLatestRelease(R"({"message":"Not Found"})", none) && !parseLatestRelease("garbage", none), "404 body and garbage rejected");
+    check(ExtractIconExW(currentExePath().c_str(), -1, nullptr, nullptr, 0) >= 1, "the exe carries its icon (windows/app.rc)");
 
     DWORD status = 0;
     std::string body = httpsGet(L"https://api.github.com/repos/chanke17/KuroCat/releases/latest", status, 15000, 1u << 20);

@@ -1,0 +1,2 @@
+// The exe's icon (File Explorer, taskbar, shortcuts). Made by scripts/make-icons.sh.
+1 ICON "app.ico"

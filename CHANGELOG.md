@@ -4,6 +4,12 @@
 
 Whiskerkey 每个版本的改动，最新的在最上面。Whiskerkey 基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3，v1.3.3-mmccqq.8 之前叫 KuroCat：那些版本列在 Whiskerkey 1.0 下面，版本号形如 `v1.3.3-mmccqq.5`（前面是上游版本，最后的数字是本项目的第几个版本）。
 
+## v1.0.1 — 2026-11-27
+
+macOS 和 Windows。
+
+- **新图标**：天蓝色背景里探出头的 Whisku，就是程序里画的那只小猫。Windows 的 exe 现在也有这个图标了（以前是系统默认的程序图标）。`scripts/make-icons.sh` 会根据程序画出的小猫重新生成两个平台的图标。
+
 ## v1.0.0 — 2026-11-27
 
 macOS 和 Windows。**KuroCat 现在叫 Whiskerkey**，小猫叫 **Whisku**（读作 WHIS-koo）。

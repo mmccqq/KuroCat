@@ -4,6 +4,12 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of Whiskerkey, newest first. Whiskerkey started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
 
+## v1.0.1 — 2026-11-27
+
+macOS and Windows.
+
+- **New icon**: Whisku, the app's own cat, rising from the bottom of a sky-blue tile. The Windows exe now has this icon too (it showed the generic program icon before). `scripts/make-icons.sh` remakes both icons from the cat the app draws.
+
 ## v1.0.0 — 2026-11-27
 
 macOS and Windows. **KuroCat is now Whiskerkey**, and its cat is called **Whisku** (WHIS-koo).

@@ -5,6 +5,8 @@ LiveDemos/
 windows/*.exe
 windows/build/
 windows/*.obj
+windows/*.res
+windows/*.o
 windows/*.pdb
 linux/kurocat
 linux/*.deb
