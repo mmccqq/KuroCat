@@ -4,6 +4,12 @@
 
 Whiskerkey 每个版本的改动，最新的在最上面。Whiskerkey 基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3，v1.3.3-mmccqq.8 之前叫 KuroCat：那些版本列在 Whiskerkey 1.0 下面，版本号形如 `v1.3.3-mmccqq.5`（前面是上游版本，最后的数字是本项目的第几个版本）。
 
+## v1.0.2 — 2026-11-27
+
+macOS 和 Windows。
+
+- **Whiskerkey 即将改名为 Whisku**：程序改用小猫的名字。项目现在位于 [github.com/whiskerkey/whisku](https://github.com/whiskerkey/whisku)（旧链接仍然有效）。这个版本为新名字做准备：它到新地址检查更新，更新程序也能用改名后的程序（Mac 上的 Whisku.app、Windows 上的 Whisku.exe）替换 Whiskerkey。你的设置、猫咪连线和键盘权限都保持不变。
+
 ## v1.0.1 — 2026-11-27
 
 macOS 和 Windows。

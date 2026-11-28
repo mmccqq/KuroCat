@@ -4,6 +4,12 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of Whiskerkey, newest first. Whiskerkey started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
 
+## v1.0.2 — 2026-11-27
+
+macOS and Windows.
+
+- **Whiskerkey is becoming Whisku**: the app takes its cat's name. The project now lives at [github.com/whiskerkey/whisku](https://github.com/whiskerkey/whisku) (old links still work). This version gets ready for the new name: it checks for updates at the new address, and its updater can install the renamed app (Whisku.app on Mac, Whisku.exe on Windows) in place of Whiskerkey. Your settings, Cat Link and keyboard permission stay as they are.
+
 ## v1.0.1 — 2026-11-27
 
 macOS and Windows.

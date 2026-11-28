@@ -37,18 +37,19 @@
 namespace {
 
 // Whiskerkey's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
-constexpr const wchar_t* APP_VERSION = L"1.0.1";
+constexpr const wchar_t* APP_VERSION = L"1.0.2";
 constexpr const wchar_t* VERSION_PROP = L"WhiskerkeyVersion"; // set on the tray owner window so newer builds can take over older ones
 constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskerkeyTrayOwnerClass";
 constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
 constexpr const wchar_t* FRIEND_CLASS = L"WhiskerkeyFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
-constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest";
-constexpr const char* UPDATE_WIN_ASSET_NAME = "Whiskerkey-Windows-x64.exe";
+constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whiskerkey/whisku/releases/latest";
+/// The Windows download, newest name first: Whiskerkey is being renamed Whisku, and 1.0.2 accepts both.
+constexpr const char* UPDATE_WIN_ASSET_NAMES[] = { "Whisku-Windows-x64.exe", "Whiskerkey-Windows-x64.exe" };
 constexpr double UPDATE_CHECK_INTERVAL = 6.0 * 3600.0;
 constexpr double FRAME_INTERVAL = 1.0 / 60.0;
-constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whiskerkey/whiskerkey/releases/latest";
+constexpr const wchar_t* UPDATE_PAGE_URL = L"https://github.com/whiskerkey/whisku/releases/latest";
 constexpr UINT WM_TRAYICON = WM_APP + 1;
 constexpr UINT WM_WAKE_EXISTING = WM_APP + 2;
 constexpr UINT WM_UPDATE_CHECK_DONE = WM_APP + 3;
@@ -505,8 +506,9 @@ std::string httpsGet(const std::wstring& url, DWORD& status, DWORD receiveTimeou
 /// higher than 1.x.
 bool isWhiskerkeyRelease(const std::wstring& tag) { return tag.find(L"mmccqq") == std::wstring::npos; }
 
-/// GitHub's "latest release" JSON -> tag, release page and the Windows .exe (URL + exact size).
-bool parseLatestRelease(const std::string& json, UpdateCheckResult& out, const char* assetName = UPDATE_WIN_ASSET_NAME) {
+/// GitHub's "latest release" JSON -> tag, release page and the Windows .exe (URL + exact size). The first
+/// of UPDATE_WIN_ASSET_NAMES found wins; `assetName` (tests) looks for that one name only.
+bool parseLatestRelease(const std::string& json, UpdateCheckResult& out, const char* assetName = nullptr) {
     auto v = catlink::JsonReader::parse(json);
     if (!v || v->type != catlink::JsonReader::Value::Object) return false;
     auto str = [](const catlink::JsonReader::Value* x) { return x && x->type == catlink::JsonReader::Value::String ? x->str : std::string(); };
@@ -515,12 +517,18 @@ bool parseLatestRelease(const std::string& json, UpdateCheckResult& out, const c
     out.latestTag = utf8ToWide(tag);
     std::string page = str(v->get("html_url"));
     out.releaseUrl = page.empty() ? UPDATE_PAGE_URL : utf8ToWide(page);
-    if (const auto* assets = v->get("assets"); assets && assets->type == catlink::JsonReader::Value::Array) {
+    const auto* assets = v->get("assets");
+    if (!assets || assets->type != catlink::JsonReader::Value::Array) return true;
+    std::vector<const char*> names;
+    if (assetName) names.push_back(assetName);
+    else names.assign(std::begin(UPDATE_WIN_ASSET_NAMES), std::end(UPDATE_WIN_ASSET_NAMES));
+    for (const char* name : names) {
         for (const auto& asset : assets->items) {
-            if (str(asset.get("name")) != assetName) continue;
-            out.assetName = utf8ToWide(assetName);
+            if (str(asset.get("name")) != name) continue;
+            out.assetName = utf8ToWide(name);
             out.assetUrl = utf8ToWide(str(asset.get("browser_download_url")));
             if (const auto* size = asset.get("size"); size && size->type == catlink::JsonReader::Value::Number) out.assetSize = (long long)size->number;
+            return true;
         }
     }
     return true;
@@ -550,19 +558,20 @@ struct UpdateDownloadResult {
     std::wstring batPath;
 };
 
-/// Where a downloaded update goes: Whiskerkey.exe in the running exe's folder. If the running exe has
-/// another name (a browser's "Whiskerkey (1).exe"), that one is removed afterwards. If the folder can't
-/// be written, the update goes to %LOCALAPPDATA%\Programs\Whiskerkey instead.
+/// Where a downloaded update goes: <name>.exe in the running exe's folder, where <name> is the
+/// download's app name (Whisku-Windows-x64.exe -> Whisku.exe). If the running exe has another name (a
+/// browser's "Whisku (1).exe", or the old Whiskerkey.exe), that one is removed afterwards. If the folder
+/// can't be written, the update goes to %LOCALAPPDATA%\Programs\<name> instead.
 struct UpdateTarget { std::wstring exe; bool renamed = false; std::wstring fallbackDir; std::wstring fallbackExe; };
 UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetName, const std::wstring& localAppData, const std::wstring& tempDir) {
     UpdateTarget t;
     size_t slash = curExe.find_last_of(L"\\/");
     std::wstring dir = slash == std::wstring::npos ? L"." : curExe.substr(0, slash);
     std::wstring file = slash == std::wstring::npos ? curExe : curExe.substr(slash + 1);
-    bool whiskerkey = assetName.rfind(L"Whiskerkey", 0) == 0;
-    t.renamed = whiskerkey && _wcsicmp(file.c_str(), L"Whiskerkey.exe") != 0;
-    t.exe = t.renamed ? dir + L"\\Whiskerkey.exe" : curExe;
-    std::wstring name = L"Whiskerkey";
+    std::wstring name = assetName.rfind(L"Whisku-", 0) == 0 ? L"Whisku" : L"Whiskerkey";
+    bool known = assetName.rfind(L"Whisku-", 0) == 0 || assetName.rfind(L"Whiskerkey", 0) == 0;
+    t.renamed = known && _wcsicmp(file.c_str(), (name + L".exe").c_str()) != 0;
+    t.exe = t.renamed ? dir + L"\\" + name + L".exe" : curExe;
     t.fallbackDir = !localAppData.empty() ? localAppData + L"\\Programs\\" + name : tempDir + name;
     t.fallbackExe = t.fallbackDir + L"\\" + name + L".exe";
     return t;
@@ -3151,6 +3160,12 @@ int runUpdateSelfTest() {
     UpdateCheckResult kuroOnly;
     check(parseLatestRelease(R"({"tag_name":"v1.3.3-mmccqq.8","assets":[{"name":"KuroCat-Windows-x64.exe","size":1,"browser_download_url":"https://a/old.exe"}]})", kuroOnly)
           && kuroOnly.assetUrl.empty(), "a KuroCat exe is not a Whiskerkey download");
+    UpdateCheckResult both;
+    check(parseLatestRelease(R"({"tag_name":"v1.1.0","assets":[{"name":"Whiskerkey-Windows-x64.exe","size":1,"browser_download_url":"https://a/old.exe"},{"name":"Whisku-Windows-x64.exe","size":2,"browser_download_url":"https://a/new.exe"}]})", both)
+          && both.assetName == L"Whisku-Windows-x64.exe" && both.assetUrl == L"https://a/new.exe", "a Whisku exe is preferred over a Whiskerkey one");
+    UpdateCheckResult whiskuOnly;
+    check(parseLatestRelease(R"({"tag_name":"v1.1.0","assets":[{"name":"Whisku-Windows-x64.exe","size":2,"browser_download_url":"https://a/new.exe"}]})", whiskuOnly)
+          && whiskuOnly.assetUrl == L"https://a/new.exe", "a Whisku-only release is a download (the rename)");
     {
         UpdateTarget a = updateTarget(L"C:\\Users\\a\\Downloads\\Whiskerkey (1).exe", L"Whiskerkey-Windows-x64.exe", L"C:\\Users\\a\\AppData\\Local", L"C:\\T\\");
         check(a.renamed && a.exe == L"C:\\Users\\a\\Downloads\\Whiskerkey.exe" && a.fallbackExe == L"C:\\Users\\a\\AppData\\Local\\Programs\\Whiskerkey\\Whiskerkey.exe",
@@ -3159,6 +3174,11 @@ int runUpdateSelfTest() {
         check(!b.renamed && b.exe == L"C:\\Users\\a\\Downloads\\Whiskerkey.exe" && b.fallbackExe == L"C:\\T\\Whiskerkey\\Whiskerkey.exe", "an update replaces Whiskerkey.exe");
         UpdateTarget c = updateTarget(L"D:\\Apps\\whiskerkey.EXE", L"Whiskerkey-Windows-x64.exe", L"C:\\L", L"C:\\T\\");
         check(!c.renamed && c.exe == L"D:\\Apps\\whiskerkey.EXE", "Whiskerkey.exe updates in place");
+        UpdateTarget d = updateTarget(L"C:\\Users\\a\\Downloads\\Whiskerkey.exe", L"Whisku-Windows-x64.exe", L"C:\\Users\\a\\AppData\\Local", L"C:\\T\\");
+        check(d.renamed && d.exe == L"C:\\Users\\a\\Downloads\\Whisku.exe" && d.fallbackExe == L"C:\\Users\\a\\AppData\\Local\\Programs\\Whisku\\Whisku.exe",
+              "Whiskerkey.exe + Whisku update -> Whisku.exe in the same folder, Whiskerkey.exe removed");
+        UpdateTarget e = updateTarget(L"C:\\Apps\\Whisku.exe", L"Whisku-Windows-x64.exe", L"C:\\L", L"C:\\T\\");
+        check(!e.renamed && e.exe == L"C:\\Apps\\Whisku.exe", "Whisku.exe updates in place");
     }
     {   // Run the real batch file on throwaway files (`rem` instead of starting anything; PID 99999999 isn't running)
         wchar_t tmpW[MAX_PATH] = {};
@@ -3224,8 +3244,13 @@ int runUpdateSelfTest() {
     l10n::cachedChinese() = -1;
     check(zh && en, std::string("language switch works; this machine's display language -> ") + (l10n::isChinese() ? "Chinese" : "English"));
 
+    DWORD moved = 0;   // 1.0.1 and older still ask the repo's old name; GitHub redirects it to whiskerkey/whisku
+    std::string movedBody = httpsGet(L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/latest", moved, 15000, 1u << 20);
+    UpdateCheckResult viaOldName;
+    check(moved == 200 && parseLatestRelease(movedBody, viaOldName) && !viaOldName.latestTag.empty(),
+          "the repo's old name still answers (HTTP " + std::to_string(moved) + ", " + catlink::narrow(viaOldName.latestTag) + ")");
     DWORD missing = 0;
-    httpsGet(L"https://api.github.com/repos/whiskerkey/whiskerkey/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
+    httpsGet(L"https://api.github.com/repos/whiskerkey/whisku/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
     check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));
     report += failures == 0 ? "RESULT: all passed\r\n" : "RESULT: " + std::to_string(failures) + " failed\r\n";
     save();

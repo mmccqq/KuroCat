@@ -678,12 +678,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     // MARK: - Updates (only from this fork's own GitHub Releases, never from upstream)
 
     private static let updateChecksEnabled = true
-    private static let updateRepo = "whiskerkey/whiskerkey"
+    private static let updateRepo = "whiskerkey/whisku"
     private static let latestReleaseAPI = "https://api.github.com/repos/\(updateRepo)/releases/latest"
     private static let updatePageURLString = "https://github.com/\(updateRepo)/releases/latest"
     /// The update's file, the app inside it, and the app ID it must be signed with (by this app's certificate).
-    static let macAssetNames = ["Whiskerkey-macOS-universal.zip"]
-    static let updateAppNames = ["Whiskerkey"]
+    /// Whiskerkey is being renamed Whisku: 1.0.2 accepts both names, so it can update to Whisku.app.
+    static let macAssetNames = ["Whisku-macOS-universal.zip", "Whiskerkey-macOS-universal.zip"]
+    static let updateAppNames = ["Whisku", "Whiskerkey"]
     static let updateIdentifiers = ["com.whiskerkey.app"]
 
     /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whiskerkey, even though their numbers
