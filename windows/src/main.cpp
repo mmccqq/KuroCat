@@ -578,8 +578,8 @@ UpdateTarget updateTarget(const std::wstring& curExe, const std::wstring& assetN
     size_t slash = curExe.find_last_of(L"\\/");
     std::wstring dir = slash == std::wstring::npos ? L"." : curExe.substr(0, slash);
     std::wstring file = slash == std::wstring::npos ? curExe : curExe.substr(slash + 1);
-    std::wstring name = assetName.rfind(L"Whisku-", 0) == 0 ? L"Whisku" : L"Whisku";
-    bool known = assetName.rfind(L"Whisku-", 0) == 0 || assetName.rfind(L"Whisku", 0) == 0;
+    std::wstring name = assetName.rfind(L"Whisku-", 0) == 0 ? L"Whisku" : L"Whiskerkey";
+    bool known = assetName.rfind(L"Whisku-", 0) == 0 || assetName.rfind(L"Whiskerkey", 0) == 0;
     t.renamed = known && _wcsicmp(file.c_str(), (name + L".exe").c_str()) != 0;
     t.exe = t.renamed ? dir + L"\\" + name + L".exe" : curExe;
     t.fallbackDir = !localAppData.empty() ? localAppData + L"\\Programs\\" + name : tempDir + name;
