@@ -4,6 +4,14 @@
 
 Whisku 每个版本的改动，最新的在最上面。Whisku 在 v1.0.2 之前叫 Whiskerkey，基于 chanke17 的 [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3，v1.3.3-mmccqq.8 之前叫 KuroCat：那些版本列在 Whiskerkey 1.0 下面，版本号形如 `v1.3.3-mmccqq.5`（前面是上游版本，最后的数字是本项目的第几个版本）。
 
+## v1.2.0 — 2026-11-28
+
+macOS 和 Windows。Whisku 的内部也改用了自己的名字。
+
+- **Mac**：Whisku 有了自己的程序 ID（`app.whisku`）和签名证书（「Whisku Code Signing」）。Whisku 1.1.0 会自动更新上来。第一次打开时，你的设置、小猫和猫咪连线配对码都会带过来，「开机自动启动」也会接管，旧设置随后删除。**macOS 会请你再允许一次「输入监控」**：点小猫下方的「点击开启全局/游戏键盘监听 🔑」。「输入监控」里旧的 Whisku 开关可以用 − 按钮删掉。
+- **Windows**：设置搬到 `HKEY_CURRENT_USER\Software\Whisku`，旧的 `Software\Whiskerkey` 会被删除。
+- **猫咪连线不变**：配对码仍以 `WK-` 开头，和使用 Whiskerkey 1.0 及以上的朋友保持连线。
+
 ## v1.1.0 — 2026-11-28
 
 macOS 和 Windows。**Whiskerkey 现在叫 Whisku**，和小猫同名。

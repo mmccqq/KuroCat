@@ -547,13 +547,13 @@ final class InputEngine {
     private func loadStats() {
         let today = todayString()
         statsDayString = today
-        let savedDay = UserDefaults.standard.string(forKey: "Whiskerkey.StatsDay") ?? ""
+        let savedDay = UserDefaults.standard.string(forKey: "Whisku.StatsDay") ?? ""
         if savedDay == today {
-            totalKeystrokesToday = UserDefaults.standard.integer(forKey: "Whiskerkey.TodayKeys")
+            totalKeystrokesToday = UserDefaults.standard.integer(forKey: "Whisku.TodayKeys")
         } else {
             totalKeystrokesToday = 0
-            UserDefaults.standard.set(today, forKey: "Whiskerkey.StatsDay")
-            UserDefaults.standard.set(0, forKey: "Whiskerkey.TodayKeys")
+            UserDefaults.standard.set(today, forKey: "Whisku.StatsDay")
+            UserDefaults.standard.set(0, forKey: "Whisku.TodayKeys")
         }
     }
 
@@ -562,16 +562,16 @@ final class InputEngine {
         if today != statsDayString {
             statsDayString = today
             totalKeystrokesToday = 0
-            UserDefaults.standard.set(today, forKey: "Whiskerkey.StatsDay")
+            UserDefaults.standard.set(today, forKey: "Whisku.StatsDay")
         }
         totalKeystrokesToday += 1
         if totalKeystrokesToday % 10 == 0 {
-            UserDefaults.standard.set(totalKeystrokesToday, forKey: "Whiskerkey.TodayKeys")
+            UserDefaults.standard.set(totalKeystrokesToday, forKey: "Whisku.TodayKeys")
         }
     }
 
     func flushStats() {
-        UserDefaults.standard.set(statsDayString, forKey: "Whiskerkey.StatsDay")
-        UserDefaults.standard.set(totalKeystrokesToday, forKey: "Whiskerkey.TodayKeys")
+        UserDefaults.standard.set(statsDayString, forKey: "Whisku.StatsDay")
+        UserDefaults.standard.set(totalKeystrokesToday, forKey: "Whisku.TodayKeys")
     }
 }

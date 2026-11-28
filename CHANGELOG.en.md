@@ -4,6 +4,14 @@ English | [中文](CHANGELOG.md)
 
 What changed in each version of Whisku, newest first. Whisku was called Whiskerkey until v1.0.2. It started from [KuroCat](https://github.com/chanke17/KuroCat) v1.3.3 by chanke17 and was called KuroCat until v1.3.3-mmccqq.8: those versions are listed below Whiskerkey 1.0, with version numbers like `v1.3.3-mmccqq.5` (the upstream version, then this project's release number).
 
+## v1.2.0 — 2026-11-28
+
+macOS and Windows. Whisku now uses its own name inside too.
+
+- **Mac**: Whisku has its own app ID (`app.whisku`) and signing certificate ("Whisku Code Signing"). Whisku 1.1.0 updates to it by itself. On the first launch your settings, cats and Cat Link pairing code come along, "start at login" moves over, and the old settings are removed. **macOS asks once for Input Monitoring again**: click the "Allow keyboard access" pill under the cat. The old "Whisku" switch in Input Monitoring can be removed with the − button.
+- **Windows**: settings move to `HKEY_CURRENT_USER\Software\Whisku`; the old `Software\Whiskerkey` key is removed.
+- **Cat Link is unchanged**: codes still start with `WK-`, and you stay linked with friends on Whiskerkey 1.0 or later.
+
 ## v1.1.0 — 2026-11-28
 
 macOS and Windows. **Whiskerkey is now Whisku**, named after its cat.

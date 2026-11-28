@@ -7,7 +7,7 @@
 # Publishes the version in Resources/Info.plist (CFBundleShortVersionString), which must equal APP_VERSION
 # in windows/src/main.cpp and have a "## v<version>" section in CHANGELOG.md and CHANGELOG.en.md
 # (used as the release notes). Run it on main, with everything committed and pushed. It:
-#   1. builds Whisku.app here, signed with "Whiskerkey Code Signing" (the certificate never leaves
+#   1. builds Whisku.app here, signed with "Whisku Code Signing" (the certificate never leaves
 #      this Mac; it is what lets updates keep macOS's Input Monitoring permission),
 #   2. asks the installed Whisku (or Whiskerkey, its old name) whether it would accept this build as an update,
 #   3. tags and pushes v<version>; .github/workflows/release.yml then builds and tests the Windows .exe,
@@ -43,8 +43,8 @@ echo "==> Building $TAG for macOS"
 # pipe once grep has its match, which `set -o pipefail` reports as a failure.
 SIGN_INFO="$(codesign -dvv "$APP" 2>&1 || true)"
 case "$SIGN_INFO" in
-    *"Authority=Whiskerkey Code Signing"*) ;;
-    *) die "$APP is not signed with \"Whiskerkey Code Signing\" (updates would lose Input Monitoring)" ;;
+    *"Authority=Whisku Code Signing"*) ;;
+    *) die "$APP is not signed with \"Whisku Code Signing\" (updates would lose Input Monitoring)" ;;
 esac
 # Ask the installed app itself (`--verify-update`, the same check its updater makes) whether it would
 # install this build. That also covers a certificate change it was told to trust.

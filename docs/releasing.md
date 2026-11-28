@@ -4,14 +4,15 @@ The apps update themselves from this repository's **latest GitHub release** (nev
 
 | | Looks for | Installs it only if |
 |---|---|---|
-| macOS | `Whisku-macOS-universal.zip` | it has exactly the listed size, and `Whisku.app` inside is signed as `com.whiskerkey.app` with the same certificate as the running app |
+| macOS | `Whisku-macOS-universal.zip` | it has exactly the listed size, and `Whisku.app` inside is signed as `app.whisku` with the same certificate as the running app |
 | Windows | `Whisku-Windows-x64.exe` | it has exactly the listed size and is a Windows program (`MZ`) |
 
 Whisku was called Whiskerkey up to v1.0.2, and the apps still accept the old file names
-(`Whiskerkey-macOS-universal.zip` with `Whiskerkey.app`, `Whiskerkey-Windows-x64.exe`). The app ID
-(`com.whiskerkey.app`), the "Whiskerkey Code Signing" certificate, the settings (`Whiskerkey.*` on Mac,
-`HKCU\Software\Whiskerkey` on Windows) and Cat Link's protocol keep the old name on purpose: changing
-them would make macOS forget the Input Monitoring permission, lose people's settings, or break links.
+(`Whiskerkey-macOS-universal.zip` with `Whiskerkey.app`, `Whiskerkey-Windows-x64.exe`). Up to v1.1.0 the
+Mac app was `com.whiskerkey.app`, signed with "Whiskerkey Code Signing"; v1.1.0 also trusted the new
+"Whisku Code Signing" certificate and `app.whisku` (`nextCertificates` in `Sources/AppDelegate.swift`),
+so it could update itself to v1.2.0. To change the certificate again, use the same two steps. Only Cat
+Link's protocol still says `whiskerkey` (and codes start with `WK-`), so links keep working.
 
 A release is "newer" when its tag has larger numbers: `v1.0.1` > `v1.0.0`. KuroCat's old releases
 (`v1.3.3-mmccqq.N`) are never offered to Whisku, even though their numbers are higher.
@@ -26,7 +27,7 @@ A release is "newer" when its tag has larger numbers: `v1.0.1` > `v1.0.0`. KuroC
    「打开下载页」 in the update prompt. The README lists only the key features, so put the details here.
    If the section is already there as `— unreleased` (`— 未发布`), replace that with the date.
 3. Commit, merge to `main` and push.
-4. On the Mac that holds the "Whiskerkey Code Signing" certificate, run:
+4. On the Mac that holds the "Whisku Code Signing" certificate, run:
 
    ```bash
    scripts/release.sh
@@ -39,6 +40,6 @@ A release is "newer" when its tag has larger numbers: `v1.0.1` > `v1.0.0`. KuroC
    first: it runs every check and the Mac build without tagging or publishing.
 
 The signing certificate (created by `scripts/create-macos-signing-cert.sh`, backup in
-`~/Whiskerkey-signing`) must never be uploaded. That's why the Mac build is made locally: an update
+`~/Whisku-signing`) must never be uploaded. That's why the Mac build is made locally: an update
 signed any other way would make macOS forget the Input Monitoring permission, and the app refuses to
 install it.

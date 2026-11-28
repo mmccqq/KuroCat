@@ -62,7 +62,7 @@
 2. If Windows says **Windows protected your PC**, click **More info → Run anyway**. The exe isn't code-signed yet.
 3. Whisku lives in the system tray (in the **^** area of the taskbar). Right-click the cat or its tray icon for the menu.
 
-**Using Whiskerkey?** That was Whisku's name until v1.0.2. It updates itself to Whisku and keeps your settings, Cat Link and keyboard permission.
+**Using Whiskerkey?** That was Whisku's name until v1.0.2. It updates itself to Whisku and keeps your settings and Cat Link. On Mac, Whisku 1.2.0 asks once more for Input Monitoring.
 
 **Moving from KuroCat?** Install Whisku once by hand. On its first launch it brings over your settings, cats and Cat Link pairing code, and quits KuroCat. Details are in the [changelog](CHANGELOG.en.md).
 
@@ -81,7 +81,7 @@ Right-click the cat, or click its icon in the menu bar or the tray, for the menu
 Whisku sees every key you press, so here is exactly what it does with that.
 
 - **What it reads.** Key presses, mouse movement, clicks and scrolling, only to move the cat. It never records which keys you type. On Mac it also saves two numbers: today's keystroke count, and how many times you've petted the cat. On Windows, the keystroke count is kept only while the app runs.
-- **What it stores.** Your settings and your Cat Link pairing code and nickname (plus those two numbers on Mac), only on your computer: in `~/Library/Preferences/com.whiskerkey.app.plist` on Mac, and under `HKEY_CURRENT_USER\Software\Whiskerkey` in the Windows registry. (Whiskerkey is Whisku's old name; these places keep it so your settings stay put.)
+- **What it stores.** Your settings and your Cat Link pairing code and nickname (plus those two numbers on Mac), only on your computer: in `~/Library/Preferences/app.whisku.plist` on Mac, and under `HKEY_CURRENT_USER\Software\Whisku` in the Windows registry.
 - **No tracking.** No analytics, no accounts, no ads.
 - **When it goes online:**
   - **Update checks.** It asks GitHub for this repository's latest release, and downloads it only after you agree to update.
@@ -94,8 +94,8 @@ Whisku sees every key you press, so here is exactly what it does with that.
   - **Claude Code alerts and the break reminder** never leave your computer.
 - **Permissions.** On Mac, Input Monitoring, so the cat can see the keyboard while you work in other apps. On Windows, the standard way to read raw keyboard and mouse input. It doesn't need administrator rights, except to see keys in games that themselves run as administrator. To stop sending typing activity during passwords, the Windows version checks whether the active text box is a password field, but never reads what's in it.
 - **Removing everything.** First turn off **Start at login** (Mac) or **Start with Windows** in the menu, and quit Whisku.
-  - **Mac:** delete the app, then run `defaults delete com.whiskerkey.app` in Terminal.
-  - **Windows:** delete the exe, then run `reg delete HKCU\Software\Whiskerkey /f` in Command Prompt.
+  - **Mac:** delete the app, then run `defaults delete app.whisku` in Terminal.
+  - **Windows:** delete the exe, then run `reg delete HKCU\Software\Whisku /f` in Command Prompt.
 - **Check it yourself.** All the code is in this repository.
 
 ## Troubleshooting
@@ -107,7 +107,7 @@ Whisku sees every key you press, so here is exactly what it does with that.
 
 ## Build from source
 
-- **Mac:** `./build.sh`, then `open Whisku.app`. To keep the Input Monitoring permission across rebuilds, first run `bash scripts/create-macos-signing-cert.sh` once. It creates a free self-signed signing certificate in your login keychain, with a private backup in `~/Whiskerkey-signing`. Never upload that backup.
+- **Mac:** `./build.sh`, then `open Whisku.app`. To keep the Input Monitoring permission across rebuilds, first run `bash scripts/create-macos-signing-cert.sh` once. It creates a free self-signed signing certificate in your login keychain, with a private backup in `~/Whisku-signing`. Never upload that backup.
 - **Windows:** `cd windows`, then `build.bat` (MSVC or MinGW), or `cmake -B build && cmake --build build --config Release`.
 - **More:**
   - how releases are made: [docs/releasing.md](docs/releasing.md)

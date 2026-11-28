@@ -18,18 +18,18 @@ final class CatLinkController: NSObject {
     var isSharingPaused: Bool { link.isPaused }
 
     private let defaults = UserDefaults.standard
-    private var savedCode: CatLinkCode? { defaults.string(forKey: "Whiskerkey.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
-    private var nickname: String { defaults.string(forKey: "Whiskerkey.LinkNickname") ?? "" }
+    private var savedCode: CatLinkCode? { defaults.string(forKey: "Whisku.LinkCode").flatMap { CatLinkCode(parsing: $0) } }
+    private var nickname: String { defaults.string(forKey: "Whisku.LinkNickname") ?? "" }
     /// Whether the friend's cat is shown (independent of our own cat).
     var showFriendCat: Bool {
-        get { defaults.object(forKey: "Whiskerkey.LinkShowFriend") as? Bool ?? true }
+        get { defaults.object(forKey: "Whisku.LinkShowFriend") as? Bool ?? true }
         set {
-            defaults.set(newValue, forKey: "Whiskerkey.LinkShowFriend")
+            defaults.set(newValue, forKey: "Whisku.LinkShowFriend")
             if shouldShowRemote { remoteWindow?.orderFrontRegardless() } else { remoteWindow?.orderOut(nil) }
         }
     }
     private var newCodeServer: CatLinkCode.Server {
-        CatLinkCode.Server(rawValue: defaults.string(forKey: "Whiskerkey.LinkServer") ?? "") ?? .china
+        CatLinkCode.Server(rawValue: defaults.string(forKey: "Whisku.LinkServer") ?? "") ?? .china
     }
     private var isDemo: Bool { CACurrentMediaTime() < demoUntil }
 
@@ -67,8 +67,8 @@ final class CatLinkController: NSObject {
                 self?.applyFriend(event)
             }
         }
-        link.setPaused(defaults.bool(forKey: "Whiskerkey.LinkPaused"))
-        if defaults.bool(forKey: "Whiskerkey.LinkEnabled"), let code = savedCode {
+        link.setPaused(defaults.bool(forKey: "Whisku.LinkPaused"))
+        if defaults.bool(forKey: "Whisku.LinkEnabled"), let code = savedCode {
             link.start(code: code)
         }
     }
@@ -129,7 +129,7 @@ final class CatLinkController: NSObject {
 
     private func ensureRemoteWindow() {
         if remoteWindow == nil, let main = mainWindow {
-            let window = OverlayWindow(positionKey: "Whiskerkey.FriendPos", defaultShiftX: -(main.frame.width + 12))
+            let window = OverlayWindow(positionKey: "Whisku.FriendPos", defaultShiftX: -(main.frame.width + 12))
             window.catView.isRemote = true
             window.catView.onPetStroke = { [weak self] pt, delta, isHead in
                 guard let self, !self.isDemo else { return }
@@ -245,8 +245,8 @@ final class CatLinkController: NSObject {
     // MARK: Actions
 
     private func start(_ code: CatLinkCode) {
-        defaults.set(code.display, forKey: "Whiskerkey.LinkCode")
-        defaults.set(true, forKey: "Whiskerkey.LinkEnabled")
+        defaults.set(code.display, forKey: "Whisku.LinkCode")
+        defaults.set(true, forKey: "Whisku.LinkEnabled")
         link.start(code: code)
     }
 
@@ -298,19 +298,19 @@ final class CatLinkController: NSObject {
     }
 
     @objc private func disconnect() {
-        defaults.set(false, forKey: "Whiskerkey.LinkEnabled")
+        defaults.set(false, forKey: "Whisku.LinkEnabled")
         link.stop()
     }
 
     @objc private func togglePause() {
         let paused = !link.isPaused
-        defaults.set(paused, forKey: "Whiskerkey.LinkPaused")
+        defaults.set(paused, forKey: "Whisku.LinkPaused")
         link.setPaused(paused)
         onIndicatorChange?(isLinkIndicatorOn)
     }
 
     @objc private func selectServer(_ sender: NSMenuItem) {
-        defaults.set(sender.representedObject as? String, forKey: "Whiskerkey.LinkServer")
+        defaults.set(sender.representedObject as? String, forKey: "Whisku.LinkServer")
     }
 
     @objc private func setNickname() {
@@ -325,7 +325,7 @@ final class CatLinkController: NSObject {
         NSApp.activate(ignoringOtherApps: true)
         alert.window.initialFirstResponder = field
         guard alert.runModal() == .alertFirstButtonReturn else { return }
-        defaults.set(String(field.stringValue.trimmingCharacters(in: .whitespaces).prefix(16)), forKey: "Whiskerkey.LinkNickname")
+        defaults.set(String(field.stringValue.trimmingCharacters(in: .whitespaces).prefix(16)), forKey: "Whisku.LinkNickname")
         link.profileChanged()
     }
 

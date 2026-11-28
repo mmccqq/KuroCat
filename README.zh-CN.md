@@ -62,7 +62,7 @@
 2. 如果 Windows 提示「Windows 已保护你的电脑」，点 **更多信息 → 仍要运行**。这个 exe 暂时还没有代码签名。
 3. Whisku 常驻在系统托盘（任务栏右下角的 **^** 里）。右键小猫或托盘图标打开菜单。
 
-**在用 Whiskerkey？** 那是 Whisku 在 v1.0.2 之前的名字。它会自动更新成 Whisku，设置、猫咪连线和键盘权限都保留。
+**在用 Whiskerkey？** 那是 Whisku 在 v1.0.2 之前的名字。它会自动更新成 Whisku，设置和猫咪连线都保留。Mac 上更新到 Whisku 1.2.0 时，需要再允许一次「输入监控」。
 
 **从 KuroCat 换过来？** 手动安装一次 Whisku。第一次打开时，它会带上你的设置、小猫和猫咪连线配对码，并关掉 KuroCat。详见[更新记录](CHANGELOG.md)。
 
@@ -81,7 +81,7 @@
 Whisku 能看到你按的每一个键，所以这里写清楚它怎么处理这些信息。
 
 - **它读取什么**：按键、鼠标移动、点击和滚动，只用来让小猫动起来。它从不记录你按了哪些键。Mac 版还会保存两个数字：今天的按键次数，以及你摸过小猫多少次；Windows 版的按键次数只在程序运行时记着，不保存。
-- **它保存什么**：你的设置、猫咪连线配对码和昵称（Mac 版还有上面那两个数字），只保存在你的电脑上：Mac 上在 `~/Library/Preferences/com.whiskerkey.app.plist`，Windows 上在注册表的 `HKEY_CURRENT_USER\Software\Whiskerkey` 里。（Whiskerkey 是 Whisku 的旧名字，这些位置沿用旧名，你的设置才不会丢。）
+- **它保存什么**：你的设置、猫咪连线配对码和昵称（Mac 版还有上面那两个数字），只保存在你的电脑上：Mac 上在 `~/Library/Preferences/app.whisku.plist`，Windows 上在注册表的 `HKEY_CURRENT_USER\Software\Whisku` 里。
 - **没有任何追踪**：没有统计分析，没有账号，没有广告。
 - **什么时候联网**：
   - **检查更新**：向 GitHub 查询本仓库的最新版本，只有你同意更新后才会下载。
@@ -94,8 +94,8 @@ Whisku 能看到你按的每一个键，所以这里写清楚它怎么处理这�
   - **Claude Code 提醒和休息提醒**从不离开你的电脑。
 - **需要的权限**：Mac 上需要「输入监控」，这样你在其他程序里打字时小猫也能看到键盘。Windows 上用系统标准的方式读取键盘和鼠标的原始输入，不需要管理员权限；只有当游戏本身以管理员身份运行时，才需要管理员权限才能看到它的按键。为了在输入密码时停止发送打字动作，Windows 版会检查当前的输入框是不是密码框，但从不读取里面的内容。
 - **彻底删除**：先在菜单里关掉「开机自动启动」，再退出 Whisku。
-  - **Mac**：删除程序，然后在「终端」里运行 `defaults delete com.whiskerkey.app`。
-  - **Windows**：删除 exe，然后在「命令提示符」里运行 `reg delete HKCU\Software\Whiskerkey /f`。
+  - **Mac**：删除程序，然后在「终端」里运行 `defaults delete app.whisku`。
+  - **Windows**：删除 exe，然后在「命令提示符」里运行 `reg delete HKCU\Software\Whisku /f`。
 - **自己检查**：全部代码都在这个仓库里。
 
 ## 常见问题
@@ -107,7 +107,7 @@ Whisku 能看到你按的每一个键，所以这里写清楚它怎么处理这�
 
 ## 从源码构建
 
-- **Mac**：运行 `./build.sh`，然后 `open Whisku.app`。想让「输入监控」权限在重新构建后保留，请先运行一次 `bash scripts/create-macos-signing-cert.sh`。它会在「登录」钥匙串里创建一张免费的自签名签名证书，备份在 `~/Whiskerkey-signing`。不要上传这份备份。
+- **Mac**：运行 `./build.sh`，然后 `open Whisku.app`。想让「输入监控」权限在重新构建后保留，请先运行一次 `bash scripts/create-macos-signing-cert.sh`。它会在「登录」钥匙串里创建一张免费的自签名签名证书，备份在 `~/Whisku-signing`。不要上传这份备份。
 - **Windows**：`cd windows`，然后运行 `build.bat`（MSVC 或 MinGW），或者 `cmake -B build && cmake --build build --config Release`。
 - **更多**：
   - 发布流程：[docs/releasing.md](docs/releasing.md)

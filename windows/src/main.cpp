@@ -37,11 +37,11 @@
 namespace {
 
 // Whisku's version; release tags are "v" + it (keep in step with Resources/Info.plist CFBundleShortVersionString).
-constexpr const wchar_t* APP_VERSION = L"1.1.0";
-constexpr const wchar_t* VERSION_PROP = L"WhiskerkeyVersion"; // set on the tray owner window so newer builds can take over older ones
-constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskerkeyTrayOwnerClass";
-constexpr const wchar_t* OVERLAY_CLASS = L"WhiskerkeyOverlayWindowClass";
-constexpr const wchar_t* FRIEND_CLASS = L"WhiskerkeyFriendWindowClass";
+constexpr const wchar_t* APP_VERSION = L"1.2.0";
+constexpr const wchar_t* VERSION_PROP = L"WhiskuVersion"; // set on the tray owner window so newer builds can take over older ones
+constexpr const wchar_t* TRAY_OWNER_CLASS = L"WhiskuTrayOwnerClass";
+constexpr const wchar_t* OVERLAY_CLASS = L"WhiskuOverlayWindowClass";
+constexpr const wchar_t* FRIEND_CLASS = L"WhiskuFriendWindowClass";
 // Updates come only from this fork's own GitHub Releases, never from upstream.
 constexpr bool UPDATE_CHECKS_ENABLED = true;
 constexpr const wchar_t* UPDATE_API_URL = L"https://api.github.com/repos/whisku-app/whisku/releases/latest";
@@ -661,7 +661,7 @@ void startInAppUpdate(AppState& app) {
                 BOOL okWrite = WriteFile(hNew, exeBytes.data(), (DWORD)exeBytes.size(), &written, nullptr);
                 CloseHandle(hNew);
                 if (okWrite && written == (DWORD)exeBytes.size()) {
-                    std::wstring batPath = std::wstring(tempDir) + L"whiskerkey_update.bat";
+                    std::wstring batPath = std::wstring(tempDir) + L"whisku_update.bat";
                     // Use local ANSI codepage for cmd.exe .bat compatibility
                     auto wideToAcp = [](const std::wstring& w) -> std::string {
                         if (w.empty()) return "";
@@ -1048,7 +1048,7 @@ const wchar_t* linkPauseAndDisconnect() {
 
 std::wstring regReadString(const wchar_t* name) {
     HKEY k = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &k) != ERROR_SUCCESS) return L"";
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whisku", 0, KEY_READ, &k) != ERROR_SUCCESS) return L"";
     wchar_t buf[128] = {};
     DWORD size = sizeof(buf) - sizeof(wchar_t), type = 0;
     std::wstring out;
@@ -1059,7 +1059,7 @@ std::wstring regReadString(const wchar_t* name) {
 
 DWORD regReadDword(const wchar_t* name, DWORD def) {
     HKEY k = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &k) != ERROR_SUCCESS) return def;
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whisku", 0, KEY_READ, &k) != ERROR_SUCCESS) return def;
     DWORD val = def, size = sizeof(val);
     if (RegQueryValueExW(k, name, nullptr, nullptr, (LPBYTE)&val, &size) != ERROR_SUCCESS) val = def;
     RegCloseKey(k);
@@ -1068,7 +1068,7 @@ DWORD regReadDword(const wchar_t* name, DWORD def) {
 
 void regWrite(const wchar_t* name, const std::wstring* str, DWORD dword) {
     HKEY k = nullptr;
-    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, nullptr, 0, KEY_WRITE, nullptr, &k, nullptr) != ERROR_SUCCESS) return;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whisku", 0, nullptr, 0, KEY_WRITE, nullptr, &k, nullptr) != ERROR_SUCCESS) return;
     if (str) RegSetValueExW(k, name, 0, REG_SZ, (const BYTE*)str->c_str(), (DWORD)((str->size() + 1) * sizeof(wchar_t)));
     else RegSetValueExW(k, name, 0, REG_DWORD, (const BYTE*)&dword, sizeof(dword));
     RegCloseKey(k);
@@ -2608,7 +2608,7 @@ catlink::Event testHello(const char* name, const char* coat) {
 
 /// `Whiskerkey.exe --link-selftest [pairing code]`: checks crypto + JSON against macOS test vectors,
 /// runs two sessions against the real relay, and (with a code) talks to a macOS peer. Writes
-/// whiskerkey-selftest.txt and returns the number of failures.
+/// whisku-selftest.txt and returns the number of failures.
 int runLinkSelfTest(const std::wstring& joinCode) {
     std::string log;
     int failures = 0;
@@ -2623,7 +2623,7 @@ int runLinkSelfTest(const std::wstring& joinCode) {
     };
     auto save = [&] {
         FILE* f = nullptr;
-        if (fopen_s(&f, "whiskerkey-selftest.txt", "wb") == 0 && f) { fwrite(log.data(), 1, log.size(), f); fclose(f); }
+        if (fopen_s(&f, "whisku-selftest.txt", "wb") == 0 && f) { fwrite(log.data(), 1, log.size(), f); fclose(f); }
     };
 
     // 1. macOS test vectors
@@ -2857,7 +2857,7 @@ DWORD runHookProcess(const std::string& json, double& seconds) {
 }
 
 /// `Whiskerkey.exe --claude-selftest`: hook parsing, bubble rules, and the real hook process talking to a
-/// stand-in Whiskerkey window over WM_COPYDATA. Writes whiskerkey-claude-selftest.txt; exit code 0 = pass.
+/// stand-in Whiskerkey window over WM_COPYDATA. Writes whisku-claude-selftest.txt; exit code 0 = pass.
 int runClaudeSelfTest() {
     // Bubbles measure their text with GDI+, which must be started first (as the app does at launch).
     Gdiplus::GdiplusStartupInput gdipInput;
@@ -2866,7 +2866,7 @@ int runClaudeSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {   // after every check, so a crash still leaves a log that shows where
-        HANDLE f = CreateFileW(L"whiskerkey-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whisku-claude-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -2947,7 +2947,7 @@ int runClaudeSelfTest() {
 }
 
 /// `Whiskerkey.exe --break-selftest`: the break reminder rules (same cases as the macOS test), the
-/// tiny-movement filter, and the bubble's buttons. Writes whiskerkey-break-selftest.txt; exit code 0 = pass.
+/// tiny-movement filter, and the bubble's buttons. Writes whisku-break-selftest.txt; exit code 0 = pass.
 int runBreakSelfTest() {
     Gdiplus::GdiplusStartupInput gdipInput;
     ULONG_PTR gdipToken = 0;
@@ -2955,7 +2955,7 @@ int runBreakSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {
-        HANDLE f = CreateFileW(L"whiskerkey-break-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whisku-break-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -3150,12 +3150,12 @@ int runBreakSelfTest() {
 }
 
 /// `Whiskerkey.exe --update-selftest`: version rules, release parsing, and a real download through
-/// GitHub (upstream's latest release has the same file names). Writes whiskerkey-update-selftest.txt.
+/// GitHub (upstream's latest release has the same file names). Writes whisku-update-selftest.txt.
 int runUpdateSelfTest() {
     std::string report;
     int failures = 0;
     auto save = [&] {
-        HANDLE f = CreateFileW(L"whiskerkey-update-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
+        HANDLE f = CreateFileW(L"whisku-update-selftest.txt", GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr);
         if (f != INVALID_HANDLE_VALUE) { DWORD n = 0; WriteFile(f, report.data(), (DWORD)report.size(), &n, nullptr); CloseHandle(f); }
     };
     auto check = [&](bool ok, const std::string& what) {
@@ -3226,7 +3226,7 @@ int runUpdateSelfTest() {
             CloseHandle(pi.hThread); CloseHandle(pi.hProcess);
             return done;
         };
-        std::string dir = tmp + "whiskerkey-update-test";
+        std::string dir = tmp + "whisku-update-test";
         CreateDirectoryA(dir.c_str(), nullptr);
         std::string oldExe = dir + "\\Whiskerkey (1).exe", src = dir + "\\Whiskerkey.update.exe", dst = dir + "\\Whiskerkey.exe", bat = dir + "\\u.bat";
         DeleteFileA(dst.c_str());
@@ -3275,6 +3275,27 @@ int runUpdateSelfTest() {
         check(movedParsed && !viaOldName.latestTag.empty(), "old address " + catlink::narrow(old).substr(29) + " still answers (HTTP "
               + std::to_string(moved) + ", " + catlink::narrow(viaOldName.latestTag) + ")");
     }
+    {   // Moving settings to HKCU\Software\Whisku (throwaway keys, removed afterwards)
+        const wchar_t* oldK = L"Software\\WhiskuSelfTestOld";
+        const wchar_t* newK = L"Software\\WhiskuSelfTestNew";
+        RegDeleteTreeW(HKEY_CURRENT_USER, oldK); RegDeleteTreeW(HKEY_CURRENT_USER, newK);
+        const wchar_t code[] = L"WK-C-TEST";
+        DWORD scale = 150;
+        RegSetKeyValueW(HKEY_CURRENT_USER, oldK, L"CatLinkCode", REG_SZ, code, sizeof(code));
+        RegSetKeyValueW(HKEY_CURRENT_USER, oldK, L"Scale", REG_DWORD, &scale, sizeof(scale));
+        bool copied = copySettingsKey(oldK, newK, true);
+        wchar_t got[64] = {}; DWORD gotSize = sizeof(got), gotScale = 0, scaleSize = sizeof(gotScale);
+        bool haveCode = RegGetValueW(HKEY_CURRENT_USER, newK, L"CatLinkCode", RRF_RT_REG_SZ, nullptr, got, &gotSize) == ERROR_SUCCESS;
+        bool haveScale = RegGetValueW(HKEY_CURRENT_USER, newK, L"Scale", RRF_RT_REG_DWORD, nullptr, &gotScale, &scaleSize) == ERROR_SUCCESS;
+        HKEY probe = nullptr;
+        bool oldGone = RegOpenKeyExW(HKEY_CURRENT_USER, oldK, 0, KEY_READ, &probe) != ERROR_SUCCESS;
+        if (probe) RegCloseKey(probe);
+        check(copied && haveCode && wcscmp(got, code) == 0 && haveScale && gotScale == 150 && oldGone, "settings moved to the new key, old key removed");
+        RegSetKeyValueW(HKEY_CURRENT_USER, oldK, L"Scale", REG_DWORD, &scale, sizeof(scale));
+        check(!copySettingsKey(oldK, newK, true), "settings are never copied over an existing key");
+        check(!copySettingsKey(L"Software\\WhiskuSelfTestMissing", L"Software\\WhiskuSelfTestNew2", false), "nothing to copy -> false");
+        RegDeleteTreeW(HKEY_CURRENT_USER, oldK); RegDeleteTreeW(HKEY_CURRENT_USER, newK);
+    }
     DWORD missing = 0;
     httpsGet(L"https://api.github.com/repos/whisku-app/whisku/releases/tags/no-such-release-tag", missing, 15000, 1u << 16);
     check(missing == 404, "a missing release answers 404 (shown as 'no release yet'): HTTP " + std::to_string(missing));
@@ -3283,22 +3304,44 @@ int runUpdateSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
-/// Whiskerkey 1.0 replaces KuroCat (this project's earlier name). On the first launch it copies
-/// KuroCat's settings (HKCU\\Software\\KuroCat, incl. the Cat Link pairing code and nickname), moves
-/// "start with Windows" over, and asks a KuroCat that is still running to quit: two cats would both
-/// react to the keyboard. The old KuroCat.exe stays where it is; it can simply be deleted.
-void migrateFromKuroCat() {
+/// Copies an earlier app's settings (HKCU\<from>) to HKCU\<to> if <to> doesn't exist yet. With
+/// `deleteOld`, the old key is removed once the copy worked. Returns true if it copied.
+bool copySettingsKey(const wchar_t* from, const wchar_t* to, bool deleteOld) {
     HKEY key = nullptr;
-    if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-        RegCloseKey(key);   // already has its own settings
-    } else if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\KuroCat", 0, KEY_READ, &key) == ERROR_SUCCESS) {
-        HKEY created = nullptr;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &created, nullptr) == ERROR_SUCCESS) {
-            RegCopyTreeW(key, nullptr, created);
-            RegCloseKey(created);
-        }
-        RegCloseKey(key);
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, to, 0, KEY_READ, &key) == ERROR_SUCCESS) { RegCloseKey(key); return false; }
+    if (RegOpenKeyExW(HKEY_CURRENT_USER, from, 0, KEY_READ, &key) != ERROR_SUCCESS) return false;
+    HKEY created = nullptr;
+    bool copied = false;
+    if (RegCreateKeyExW(HKEY_CURRENT_USER, to, 0, nullptr, 0, KEY_ALL_ACCESS, nullptr, &created, nullptr) == ERROR_SUCCESS) {
+        copied = RegCopyTreeW(key, nullptr, created) == ERROR_SUCCESS;
+        RegCloseKey(created);
     }
+    RegCloseKey(key);
+    if (copied && deleteOld) RegDeleteTreeW(HKEY_CURRENT_USER, from);
+    return copied;
+}
+
+/// Asks a running copy of an earlier app (found by its window class names) to quit and waits for it:
+/// two cats would both react to the keyboard. Same WM_REQUEST_QUIT number in all versions.
+void quitEarlierApp(const wchar_t* trayClass, const wchar_t* overlayClass) {
+    HWND tray = FindWindowW(trayClass, nullptr);
+    if (!tray) return;
+    DWORD pid = 0;
+    GetWindowThreadProcessId(tray, &pid);
+    HANDLE proc = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : nullptr;
+    PostMessageW(tray, WM_REQUEST_QUIT, 0, 0);
+    if (HWND overlay = FindWindowW(overlayClass, nullptr)) PostMessageW(overlay, WM_CLOSE, 0, 0);
+    if (proc) { WaitForSingleObject(proc, 5000); CloseHandle(proc); }
+}
+
+/// Whisku was called Whiskerkey up to 1.1.0 and KuroCat before that. On the first launch of 1.2.0 it
+/// moves Whiskerkey's settings (HKCU\Software\Whiskerkey, incl. the Cat Link pairing code and nickname)
+/// to HKCU\Software\Whisku, or copies KuroCat's (HKCU\Software\KuroCat) if there's no Whiskerkey; moves
+/// "start with Windows" over; and asks a Whiskerkey or KuroCat that is still running to quit. Old exes
+/// stay where they are; they can simply be deleted.
+void migrateFromKuroCat() {
+    if (!copySettingsKey(L"Software\\Whiskerkey", L"Software\\Whisku", true))
+        copySettingsKey(L"Software\\KuroCat", L"Software\\Whisku", false);
     HKEY run = nullptr;
     bool kuroCatStartedWithWindows = false;
     if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Microsoft\\Windows\\CurrentVersion\\Run", 0, KEY_READ | KEY_SET_VALUE, &run) == ERROR_SUCCESS) {
@@ -3307,15 +3350,9 @@ void migrateFromKuroCat() {
         if (kuroCatStartedWithWindows) RegDeleteValueW(run, L"KuroCat");
         RegCloseKey(run);
     }
-    if (kuroCatStartedWithWindows) setAutoStartEnabled(true);
-    if (HWND kuroCat = FindWindowW(L"KuroCatTrayOwnerClass", nullptr)) {
-        DWORD pid = 0;
-        GetWindowThreadProcessId(kuroCat, &pid);
-        HANDLE proc = pid ? OpenProcess(SYNCHRONIZE, FALSE, pid) : nullptr;
-        PostMessageW(kuroCat, WM_REQUEST_QUIT, 0, 0);   // same message number in KuroCat
-        if (HWND overlay = FindWindowW(L"KuroCatOverlayWindowClass", nullptr)) PostMessageW(overlay, WM_CLOSE, 0, 0);
-        if (proc) { WaitForSingleObject(proc, 5000); CloseHandle(proc); }
-    }
+    if (kuroCatStartedWithWindows) setAutoStartEnabled(true);   // a "Whiskerkey" entry is renamed by setAutoStartEnabled
+    quitEarlierApp(L"WhiskerkeyTrayOwnerClass", L"WhiskerkeyOverlayWindowClass");
+    quitEarlierApp(L"KuroCatTrayOwnerClass", L"KuroCatOverlayWindowClass");
 }
 
 /// Whiskerkey became Whisku in 1.1.0, so Claude Code's hooks may still start Whiskerkey.exe next to this
@@ -3384,7 +3421,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     const int myVersion = versionToNumber(APP_VERSION);
     const bool forceTakeover = commandLineHasFlag(L"--takeover");   // admin relaunch
     const bool noElevate = commandLineHasFlag(L"--no-elevate");
-    const wchar_t* kMutexName = L"Local\\WhiskerkeyDesktopPetSingleInstance";
+    const wchar_t* kMutexName = L"Local\\WhiskuDesktopPetSingleInstance";
 
     // Single-instance guard. Re-launching the SAME version wakes the existing cat (cancels full
     // click-through and pops the menu so users never get stuck). Launching a NEWER version (e.g. a
@@ -3490,7 +3527,7 @@ int WINAPI wWinMain(HINSTANCE hInst, HINSTANCE, PWSTR, int) {
     app.menuOwnerHwnd = CreateWindowExW(
         WS_EX_TOOLWINDOW,
         trayWc.lpszClassName,
-        L"WhiskerkeyTray",
+        L"WhiskuTray",
         WS_POPUP,
         0, 0, 0, 0,
         nullptr, nullptr, hInst, nullptr

@@ -10,7 +10,8 @@ import AppKit
 enum ClaudeAlertKind: String { case done, needsYou }
 
 enum ClaudeHook {
-    static let notificationName = Notification.Name("com.whiskerkey.ClaudeCodeEvent")
+    static let notificationName = Notification.Name("app.whisku.ClaudeCodeEvent")
+    static let whiskerkeyNotificationName = Notification.Name("com.whiskerkey.ClaudeCodeEvent")
     /// Sent by KuroCat's hook, in case Claude Code still starts the old app.
     static let kuroCatNotificationName = Notification.Name("com.kurocat.ClaudeCodeEvent")
 
@@ -122,8 +123,8 @@ final class ClaudeAlertCenter {
     /// Whether our cat is on screen (sounds play only then).
     var isCatVisible: () -> Bool = { true }
 
-    private let enabledKey = "Whiskerkey.ClaudeAlerts"
-    private let soundKey = "Whiskerkey.ClaudeAlertSound"
+    private let enabledKey = "Whisku.ClaudeAlerts"
+    private let soundKey = "Whisku.ClaudeAlertSound"
     var enabled: Bool {
         get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
         set { UserDefaults.standard.set(newValue, forKey: enabledKey); if !newValue { alerts.removeAll() } }
@@ -136,7 +137,7 @@ final class ClaudeAlertCenter {
     var needsAttention: Bool { alerts.contains { $0.kind == .needsYou } }
 
     func start() {
-        for name in [ClaudeHook.notificationName, ClaudeHook.kuroCatNotificationName] {
+        for name in [ClaudeHook.notificationName, ClaudeHook.whiskerkeyNotificationName, ClaudeHook.kuroCatNotificationName] {
             DistributedNotificationCenter.default().addObserver(forName: name, object: nil, queue: .main) { [weak self] note in
                 guard let info = note.userInfo as? [String: String] else { return }
                 self?.receive(info)

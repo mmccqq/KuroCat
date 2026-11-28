@@ -1,7 +1,7 @@
 #pragma once
 // UI language (same as macOS Sources/Localization.swift): follow the Windows display language
 // (Chinese on a Chinese system, English otherwise), or a fixed choice from the 「语言 / Language」
-// menu, saved as HKCU\Software\Whiskerkey\Language (0 = system, 1 = 中文, 2 = English).
+// menu, saved as HKCU\Software\Whisku\Language (0 = system, 1 = 中文, 2 = English).
 // Every visible text is written as tr(L"中文", L"English"), both languages side by side.
 
 #include <windows.h>
@@ -13,7 +13,7 @@ enum class Language : DWORD { System = 0, Chinese = 1, English = 2 };
 
 inline Language readSetting() {
     DWORD value = 0, size = sizeof(value);
-    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", L"Language", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS) {
+    if (RegGetValueW(HKEY_CURRENT_USER, L"Software\\Whisku", L"Language", RRF_RT_REG_DWORD, nullptr, &value, &size) != ERROR_SUCCESS) {
         return Language::System;
     }
     return value <= 2 ? static_cast<Language>(value) : Language::System;
@@ -46,7 +46,7 @@ inline void set(Language language) {
     current() = language;
     cachedChinese() = resolve(language) ? 1 : 0;
     DWORD value = static_cast<DWORD>(language);
-    RegSetKeyValueW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", L"Language", REG_DWORD, &value, sizeof(value));
+    RegSetKeyValueW(HKEY_CURRENT_USER, L"Software\\Whisku", L"Language", REG_DWORD, &value, sizeof(value));
 }
 
 }  // namespace l10n

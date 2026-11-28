@@ -41,9 +41,9 @@ jobs:
         run: |
           cd windows
           start "" /wait Whisku.exe --claude-selftest
-          if errorlevel 1 (type whiskerkey-claude-selftest.txt & exit /b 1)
+          if errorlevel 1 (type whisku-claude-selftest.txt & exit /b 1)
           start "" /wait Whisku.exe --update-selftest
-          if errorlevel 1 (type whiskerkey-update-selftest.txt & exit /b 1)
+          if errorlevel 1 (type whisku-update-selftest.txt & exit /b 1)
           echo self-tests passed
 
       - name: Store the Windows build

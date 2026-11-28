@@ -41,7 +41,7 @@ jobs:
           cd windows
           start "" /wait Whisku.exe --link-selftest %PEER_CODE%
           set RC=%ERRORLEVEL%
-          type whiskerkey-selftest.txt
+          type whisku-selftest.txt
           exit /b %RC%
 
       - name: Run Claude Code hook self-test
@@ -51,7 +51,7 @@ jobs:
           cd windows
           start "" /wait Whisku.exe --claude-selftest
           set RC=%ERRORLEVEL%
-          if exist whiskerkey-claude-selftest.txt type whiskerkey-claude-selftest.txt
+          if exist whisku-claude-selftest.txt type whisku-claude-selftest.txt
           exit /b %RC%
 
       - name: Run break reminder self-test
@@ -61,7 +61,7 @@ jobs:
           cd windows
           start "" /wait Whisku.exe --break-selftest
           set RC=%ERRORLEVEL%
-          if exist whiskerkey-break-selftest.txt type whiskerkey-break-selftest.txt
+          if exist whisku-break-selftest.txt type whisku-break-selftest.txt
           exit /b %RC%
 
       - name: Run update self-test
@@ -71,7 +71,7 @@ jobs:
           cd windows
           start "" /wait Whisku.exe --update-selftest
           set RC=%ERRORLEVEL%
-          if exist whiskerkey-update-selftest.txt type whiskerkey-update-selftest.txt
+          if exist whisku-update-selftest.txt type whisku-update-selftest.txt
           exit /b %RC%
 
       - name: Render preview sheet
@@ -89,8 +89,8 @@ jobs:
           name: Whisku-Windows-x64-selftest
           path: |
             windows/Whisku.exe
-            windows/whiskerkey-selftest.txt
-            windows/whiskerkey-claude-selftest.txt
-            windows/whiskerkey-break-selftest.txt
-            windows/whiskerkey-update-selftest.txt
+            windows/whisku-selftest.txt
+            windows/whisku-claude-selftest.txt
+            windows/whisku-break-selftest.txt
+            windows/whisku-update-selftest.txt
             windows/preview.png

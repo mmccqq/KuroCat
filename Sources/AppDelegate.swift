@@ -24,7 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         if resolveDuplicateRunningCopies() { return }
-        // Whisku replaces KuroCat: two cats would both react to the keyboard.
+        // Whisku replaces KuroCat and Whiskerkey (earlier app IDs): two cats would both react to the keyboard.
         KuroCatMigration.quitRunningKuroCat()
 
         overlayWindow = OverlayWindow()
@@ -102,7 +102,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
 
         setupStatusItem()
         if KuroCatMigration.removeKuroCatLoginItem() {
-            // KuroCat started at login: Whisku does now.
+            // KuroCat or Whiskerkey (earlier app IDs) started at login: Whisku does now.
             _ = setAutoStartEnabled(true)
         }
         if isAutoStartEnabled() {
@@ -524,7 +524,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         return dir.appendingPathComponent("\(Self.launchAgentLabel).plist")
     }
 
-    static let launchAgentLabel = "com.whiskerkey.app"
+    static let launchAgentLabel = "app.whisku"
 
     private func isAutoStartEnabled() -> Bool {
         FileManager.default.fileExists(atPath: launchAgentURL.path)
@@ -686,17 +686,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     /// Whiskerkey became Whisku in 1.1.0: both names are accepted (1.0.2 was the first to know Whisku.app).
     static let macAssetNames = ["Whisku-macOS-universal.zip", "Whiskerkey-macOS-universal.zip"]
     static let updateAppNames = ["Whisku", "Whiskerkey"]
-    static let updateIdentifiers = ["com.whiskerkey.app", "app.whisku"]
-    /// Certificates trusted for updates besides the running app's own (SHA-1 of the certificate):
-    /// "Whisku Code Signing", which signs Whisku from 1.2.0 on (app ID app.whisku).
-    static let nextCertificates = ["9c5de6422feafa52e6ef1cecc30634354e56495a"]
+    static let updateIdentifiers = ["app.whisku"]
+    /// Certificates trusted for updates besides the running app's own (SHA-1 of the certificate). 1.1.0
+    /// trusted "Whisku Code Signing" (9c5de642…) this way so it could update to 1.2.0, which is signed with it.
+    static let nextCertificates: [String] = []
 
     /// KuroCat's releases (v1.3.3-mmccqq.N) are never updates for Whisku, even though their numbers
     /// are higher than 1.x.
     static func isWhiskerkeyRelease(_ tag: String) -> Bool { !tag.contains("mmccqq") }
     private static let updateCheckInterval: TimeInterval = 6 * 3600
     /// The newest version we already showed the "new version" prompt for (later checks only update the menu).
-    private static let promptedTagKey = "Whiskerkey.UpdatePromptedTag"
+    private static let promptedTagKey = "Whisku.UpdatePromptedTag"
     private var availableAssetSize: Int?
     private var updateTimer: Timer?
 

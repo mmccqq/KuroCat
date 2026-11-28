@@ -7,21 +7,24 @@ import AppKit
 //   2. quits a KuroCat that is still running (two cats would both react to the keyboard),
 //   3. moves "start at login" over,
 //   4. offers to move the old KuroCat app to the Trash and to point Claude Code's hooks at Whiskerkey.
+//
+// Whisku 1.2.0 also gets its own app ID (app.whisku; it was com.whiskerkey.app while it was called
+// Whiskerkey). On its first launch it copies the Whiskerkey settings ("Whiskerkey.X" -> "Whisku.X"),
+// removes the old ones, and moves "start at login" over. macOS asks once more for Input Monitoring.
 enum KuroCatMigration {
     static let bundleID = "com.chanke.kurocat"
-    private static let importedKey = "Whiskerkey.ImportedKuroCatSettings"
-    private static let offeredKey = "Whiskerkey.OfferedKuroCatCleanup"
+    /// Whisku's app ID up to 1.1.0.
+    static let whiskerkeyBundleID = "com.whiskerkey.app"
+    private static let importedWhiskerkeyKey = "Whisku.ImportedWhiskerkeySettings"
+    private static let importedKey = "Whisku.ImportedKuroCatSettings"
+    private static let offeredKey = "Whisku.OfferedKuroCatCleanup"
 
-    /// Copies KuroCat's settings once: "KuroCat.X" becomes "Whiskerkey.X", and nothing already set is
-    /// overwritten. Runs before anything reads the settings. Returns how many were copied.
-    @discardableResult
-    static func importSettings(from domain: [String: Any]? = UserDefaults.standard.persistentDomain(forName: bundleID),
-                               into defaults: UserDefaults = .standard) -> Int {
-        guard !defaults.bool(forKey: importedKey) else { return 0 }
-        defaults.set(true, forKey: importedKey)
+    /// Copies "<prefix>X" settings from an earlier app's `domain` to "Whisku.X"; nothing already set is
+    /// overwritten. Returns how many were copied.
+    static func copySettings(from domain: [String: Any]?, prefix: String, into defaults: UserDefaults) -> Int {
         var copied = 0
-        for (key, value) in domain ?? [:] where key.hasPrefix("KuroCat.") {
-            let newKey = "Whiskerkey." + key.dropFirst("KuroCat.".count)
+        for (key, value) in domain ?? [:] where key.hasPrefix(prefix) {
+            let newKey = "Whisku." + key.dropFirst(prefix.count)
             guard defaults.object(forKey: newKey) == nil else { continue }
             defaults.set(value, forKey: newKey)
             copied += 1
@@ -29,19 +32,54 @@ enum KuroCatMigration {
         return copied
     }
 
+    /// Copies KuroCat's settings once ("KuroCat.X" -> "Whisku.X"). Runs before anything reads the
+    /// settings, after importWhiskerkeySettings. Returns how many were copied.
+    @discardableResult
+    static func importSettings(from domain: [String: Any]? = UserDefaults.standard.persistentDomain(forName: bundleID),
+                               into defaults: UserDefaults = .standard) -> Int {
+        guard !defaults.bool(forKey: importedKey) else { return 0 }
+        defaults.set(true, forKey: importedKey)
+        return copySettings(from: domain, prefix: "KuroCat.", into: defaults)
+    }
+
+    /// Copies Whiskerkey's settings (Whisku up to 1.1.0, app ID com.whiskerkey.app) once:
+    /// "Whiskerkey.X" -> "Whisku.X". Their copy of "ImportedKuroCatSettings" comes along, so KuroCat
+    /// isn't imported a second time. Returns how many were copied.
+    @discardableResult
+    static func importWhiskerkeySettings(from domain: [String: Any]? = UserDefaults.standard.persistentDomain(forName: whiskerkeyBundleID),
+                                         into defaults: UserDefaults = .standard) -> Int {
+        guard !defaults.bool(forKey: importedWhiskerkeyKey) else { return 0 }
+        defaults.set(true, forKey: importedWhiskerkeyKey)
+        return copySettings(from: domain, prefix: "Whiskerkey.", into: defaults)
+    }
+
+    /// Removes the old app ID's settings once they're copied (like `defaults delete com.whiskerkey.app`).
+    static func removeWhiskerkeySettings() {
+        guard UserDefaults.standard.bool(forKey: importedWhiskerkeyKey),
+              UserDefaults.standard.persistentDomain(forName: whiskerkeyBundleID) != nil else { return }
+        UserDefaults.standard.removePersistentDomain(forName: whiskerkeyBundleID)
+    }
+
+    /// Quits a running KuroCat or Whiskerkey (an earlier app ID): two cats would both react to the keyboard.
     static func quitRunningKuroCat() {
-        for app in NSRunningApplication.runningApplications(withBundleIdentifier: bundleID) {
-            if !app.terminate() { app.forceTerminate() }
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if !app.isTerminated { app.forceTerminate() } }
+        for id in [bundleID, whiskerkeyBundleID] {
+            for app in NSRunningApplication.runningApplications(withBundleIdentifier: id) {
+                if !app.terminate() { app.forceTerminate() }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) { if !app.isTerminated { app.forceTerminate() } }
+            }
         }
     }
 
-    /// Removes KuroCat's login item (~/Library/LaunchAgents/com.chanke.kurocat.plist).
-    /// Returns true if it was there, so Whiskerkey turns its own on instead.
+    /// Removes the login items of earlier app IDs (~/Library/LaunchAgents/com.chanke.kurocat.plist and
+    /// com.whiskerkey.app.plist). Returns true if one was there, so Whisku turns its own on instead.
     static func removeKuroCatLoginItem(home: URL = FileManager.default.homeDirectoryForCurrentUser) -> Bool {
-        let url = home.appendingPathComponent("Library/LaunchAgents/\(bundleID).plist")
-        guard FileManager.default.fileExists(atPath: url.path) else { return false }
-        return (try? FileManager.default.removeItem(at: url)) != nil
+        var removed = false
+        for id in [bundleID, whiskerkeyBundleID] {
+            let url = home.appendingPathComponent("Library/LaunchAgents/\(id).plist")
+            guard FileManager.default.fileExists(atPath: url.path) else { continue }
+            removed = (try? FileManager.default.removeItem(at: url)) != nil || removed
+        }
+        return removed
     }
 
     /// Copies of KuroCat.app on this Mac (not counting the Trash).

@@ -52,7 +52,7 @@ struct CatSettings {
 
     void loadFromRegistry() {
         HKEY hKey = nullptr;
-        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
+        if (RegOpenKeyExW(HKEY_CURRENT_USER, L"Software\\Whisku", 0, KEY_READ, &hKey) != ERROR_SUCCESS) return;
         auto readDword = [&](const wchar_t* name, DWORD defVal) -> DWORD {
             DWORD val = defVal, sz = sizeof(val);
             if (RegQueryValueExW(hKey, name, nullptr, nullptr, (LPBYTE)&val, &sz) == ERROR_SUCCESS) return val;
@@ -82,7 +82,7 @@ struct CatSettings {
 
     void saveToRegistry() const {
         HKEY hKey = nullptr;
-        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whiskerkey", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) != ERROR_SUCCESS) return;
+        if (RegCreateKeyExW(HKEY_CURRENT_USER, L"Software\\Whisku", 0, nullptr, 0, KEY_WRITE, nullptr, &hKey, nullptr) != ERROR_SUCCESS) return;
         auto writeDword = [&](const wchar_t* name, DWORD val) {
             RegSetValueExW(hKey, name, 0, REG_DWORD, (const BYTE*)&val, sizeof(val));
         };

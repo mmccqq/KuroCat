@@ -915,8 +915,11 @@ func renderCustomShowcaseVideo(bgPath: String, outDir: String) {
     }
 }
 
-// Bring KuroCat's settings over once, before anything reads them (Whiskerkey used to be KuroCat).
+// Bring earlier settings over once, before anything reads them: Whiskerkey's (Whisku's name and
+// app ID up to 1.1.0) first, then KuroCat's (its name before that).
+KuroCatMigration.importWhiskerkeySettings()
 KuroCatMigration.importSettings()
+KuroCatMigration.removeWhiskerkeySettings()
 
 let app = NSApplication.shared
 let delegate = AppDelegate()
