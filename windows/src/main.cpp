@@ -3149,7 +3149,9 @@ int runBreakSelfTest() {
     return failures == 0 ? 0 : 1;
 }
 
-/// `Whiskerkey.exe --update-selftest`: version rules, release parsing, and a real download through
+bool copySettingsKey(const wchar_t* from, const wchar_t* to, bool deleteOld);   // defined with the migration below
+
+/// `Whisku.exe --update-selftest`: version rules, release parsing, and a real download through
 /// GitHub (upstream's latest release has the same file names). Writes whisku-update-selftest.txt.
 int runUpdateSelfTest() {
     std::string report;
